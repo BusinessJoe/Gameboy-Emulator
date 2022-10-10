@@ -1,11 +1,12 @@
 use crate::cpu::{instruction::*, register::*};
+use std::fs;
+use log::{error, info};
 
 #[derive(Debug)]
 pub struct CPU {
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
-    stack: [u8; 1024],
     memory_bus: MemoryBus,
 }
 
@@ -13,17 +14,57 @@ impl CPU {
     pub fn new() -> Self {
         Self {
             registers: Registers::default(),
-            stack: [0; 1024],
             sp: 0,
             pc: 0,
             memory_bus: MemoryBus::default(),
         }
     }
 
+    pub fn load(&mut self, filename: &str) {
+        let bytes = fs::read(filename).unwrap();
+        for (idx, b) in bytes.into_iter().enumerate() {
+            self.set_memory_value(idx, b); 
+        }
+        info!("{:#x}", &self.memory_bus.data[0x100]);
+    }
+
     pub fn boot(&mut self) {
-        // Initialize stack pointer.
-        // And do other things :)
-        todo!();
+        // Initialize things.
+        self.pc = 0x100;
+        self.registers.a = 0x01;
+        self.registers.f = 0xB0.into();
+        self.set_word_register(WordRegister::BC, 0x0013);
+        self.set_word_register(WordRegister::DE, 0x00D8);
+        self.set_word_register(WordRegister::HL, 0x014D);
+        self.sp = 0xFFFE;
+    }
+
+    pub fn tick(&mut self) {
+        let pc = self.pc;
+        let opcode = self.get_byte_from_pc();
+        if opcode == 0xCB {
+            let opcode = self.get_byte_from_pc();
+            info!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
+            self.execute_cb_opcode(opcode);
+        } else {
+            info!("opcode {:#04x} at pc {:#06x}", opcode, pc);
+            self.execute_regular_opcode(opcode);
+        }
+    }
+
+    pub fn get_byte_from_pc(&mut self) -> u8 {
+        let byte = self.get_memory_value(self.pc.into());
+        self.pc += 1;
+        byte
+    }
+
+    pub fn get_signed_byte_from_pc(&mut self) -> i8 {
+        self.get_byte_from_pc() as i8
+    }
+
+    pub fn get_word_from_pc(&mut self) -> u16 {
+        let bytes = [self.get_byte_from_pc(), self.get_byte_from_pc()];
+        u16::from_le_bytes(bytes)
     }
 
     pub fn set_register(&mut self, reg: Register, value: u8) {
@@ -81,25 +122,25 @@ impl CPU {
     }
 
     pub fn push(&mut self, value: u8) {
-        self.stack[self.sp as usize] = value;
+        self.set_memory_value(self.sp as usize, value);
         self.sp += 1;
     }
 
     pub fn pop(&mut self) -> u8 {
         self.sp -= 1;
-        self.stack[self.sp as usize]
+        self.get_memory_value(self.sp as usize)
     }
 }
 
 /// Mock memory bus
 #[derive(Debug)]
 struct MemoryBus {
-    data: [u8; 4096],
+    pub data: [u8; 0x10000],
 }
 
 impl Default for MemoryBus {
     fn default() -> Self {
-        Self { data: [0; 4096] }
+        Self { data: [0; 0x10000] }
     }
 }
 

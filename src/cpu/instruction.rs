@@ -1,3 +1,4 @@
+use log::error;
 use crate::cpu::CPU;
 
 #[allow(non_camel_case_types)]
@@ -525,7 +526,7 @@ impl CPU {
             Instruction::NOP => {}
             Instruction::HALT => todo!(),
             Instruction::STOP => todo!(),
-            Instruction::DI => todo!(),
+            Instruction::DI => error!("DI not implemented"),
             Instruction::EI => todo!(),
 
             /* Rotates & shifts */
@@ -707,5 +708,60 @@ impl CPU {
             }
             Instruction::RETI => todo!(),
         }
+    }
+
+    pub fn execute_regular_opcode(&mut self, opcode: u8) {
+        let instruction = match opcode {
+            0x00 => Instruction::NOP,
+            0x10 => Instruction::STOP,
+            0x20 => Instruction::JR_CONDITION(Flag::NZ, SignedImmediate(self.get_signed_byte_from_pc())),
+            0x30 => Instruction::JR_CONDITION(Flag::NC, SignedImmediate(self.get_signed_byte_from_pc())),
+
+            0x01 => Instruction::LD_IMMEDIATE_16(WordRegister::BC, Immediate16(self.get_word_from_pc())),
+            0x11 => Instruction::LD_IMMEDIATE_16(WordRegister::DE, Immediate16(self.get_word_from_pc())),
+            0x21 => Instruction::LD_IMMEDIATE_16(WordRegister::HL, Immediate16(self.get_word_from_pc())),
+            0x31 => Instruction::LD_IMMEDIATE_16(WordRegister::SP, Immediate16(self.get_word_from_pc())),
+
+            0x02 => Instruction::LD_PAIR_REG(RegisterPair::BC, Register::A),
+            0x12 => Instruction::LD_PAIR_REG(RegisterPair::DE, Register::A),
+            0x22 => Instruction::LDI_A_INTO_HL,
+            0x32 => Instruction::LDD_A_INTO_HL,
+
+            0x03 => Instruction::INC_WORD(WordRegister::BC),
+            0x13 => Instruction::INC_WORD(WordRegister::DE),
+            0x23 => Instruction::INC_WORD(WordRegister::HL),
+            0x33 => Instruction::INC_WORD(WordRegister::SP),
+
+            0x04 => Instruction::INC(RegisterTarget::Register(Register::B)),
+            0x14 => Instruction::INC(RegisterTarget::Register(Register::D)),
+            0x24 => Instruction::INC(RegisterTarget::Register(Register::H)),
+            0x34 => Instruction::INC(RegisterTarget::HL),
+
+            0x05 => Instruction::DEC(RegisterTarget::Register(Register::B)),
+            0x15 => Instruction::DEC(RegisterTarget::Register(Register::D)),
+            0x25 => Instruction::DEC(RegisterTarget::Register(Register::H)),
+            0x35 => Instruction::DEC(RegisterTarget::HL),
+
+            0x06 => Instruction::LD_IMMEDIATE(Register::B, Immediate(self.get_byte_from_pc())),
+            0x16 => Instruction::LD_IMMEDIATE(Register::D, Immediate(self.get_byte_from_pc())),
+            0x26 => Instruction::LD_IMMEDIATE(Register::H, Immediate(self.get_byte_from_pc())),
+            0x36 => Instruction::LD(Register::B, Immediate(self.get_byte_from_pc())),
+
+            0x3E => Instruction::LD_IMMEDIATE(Register::A, Immediate(self.get_byte_from_pc())),
+            0xC3 => Instruction::JP(Address16(self.get_word_from_pc())),
+            0xEA => Instruction::LD_ADDRESS_REG(Address16(self.get_word_from_pc()), Register::A),
+            0xF3 => Instruction::DI,
+            _ => todo!(),
+        };
+
+        self.execute(instruction);
+    }
+
+    pub fn execute_cb_opcode(&mut self, opcode: u8) {
+        let instruction = match opcode {
+            _ => todo!(),
+        };
+
+        self.execute(instruction);
     }
 }
