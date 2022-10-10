@@ -1,12 +1,13 @@
 /// The eight 8-bit CPU registers. Does not include the 16-bit SP and PC registers.
 /// Some registers can be paired up and treated as 16-bit registers.
+#[derive(Default, Debug)]
 pub struct Registers {
     pub a: u8,
     pub b: u8,
     pub c: u8,
     pub d: u8,
     pub e: u8,
-    pub f: u8,
+    pub f: FlagRegister,
     pub h: u8,
     pub l: u8,
 }
@@ -16,9 +17,9 @@ macro_rules! get_joint_register {
     ($name:ident, $first:ident, $second:ident) => {
         #[doc = concat!("Gets the joint register ", stringify!($first), stringify!($second), ".")]
         pub fn $name(&self) -> u16 {
-            (self.$first as u16) << 8 | (self.$second as u16)
+            (u8::from(self.$first) as u16) << 8 | (u8::from(self.$second) as u16)
         }
-    }
+    };
 }
 
 /// Macro to generate a function that sets the value in a join register.
@@ -26,10 +27,10 @@ macro_rules! set_joint_register {
     ($name:ident, $first:ident, $second:ident) => {
         #[doc = concat!("Sets the joint register ", stringify!($first), stringify!($second), ".")]
         pub fn $name(&mut self, value: u16) {
-            self.$first = ((value >> 8 ) & 0xff) as u8;
-            self.$second = (value & 0xff) as u8;
+            self.$first = (((value >> 8) & 0xff) as u8).into();
+            self.$second = ((value & 0xff) as u8).into();
         }
-    }
+    };
 }
 
 impl Registers {
@@ -51,20 +52,21 @@ impl Registers {
 }
 
 /// The flag register has meanings assigned to its bits.
-struct FlagRegister {
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FlagRegister {
     /// This bit is set when the result of a math op is zero or two values match when using the CP
     /// instruction.
-    zero: bool,
+    pub zero: bool,
 
     /// This bit is set if a subtraction was performed in the last math operation.
-    subtract: bool,
+    pub subtract: bool,
 
     /// This bit is set if a carry occurred from the lower nibble in the last math operation.
-    half_carry: bool,
+    pub half_carry: bool,
 
     /// This bit is set if a carry occurred from the last math operation or if register A is the
     /// smaller value when executing the CP instruction.
-    carry: bool,
+    pub carry: bool,
 }
 
 const ZERO_FLAG_BYTE_POSITION: u8 = 7;
@@ -74,10 +76,10 @@ const CARRY_FLAG_BYTE_POSITION: u8 = 4;
 
 impl std::convert::From<FlagRegister> for u8 {
     fn from(flag: FlagRegister) -> u8 {
-        u8::from(flag.zero) << ZERO_FLAG_BYTE_POSITION |
-        u8::from(flag.subtract) << SUBTRACT_FLAG_BYTE_POSITION |
-        u8::from(flag.half_carry) << HALF_CARRY_FLAG_BYTE_POSITION |
-        u8::from(flag.carry) << CARRY_FLAG_BYTE_POSITION
+        u8::from(flag.zero) << ZERO_FLAG_BYTE_POSITION
+            | u8::from(flag.subtract) << SUBTRACT_FLAG_BYTE_POSITION
+            | u8::from(flag.half_carry) << HALF_CARRY_FLAG_BYTE_POSITION
+            | u8::from(flag.carry) << CARRY_FLAG_BYTE_POSITION
     }
 }
 
@@ -92,7 +94,7 @@ impl std::convert::From<u8> for FlagRegister {
             zero,
             subtract,
             half_carry,
-            carry
+            carry,
         }
     }
 }
