@@ -4,6 +4,7 @@ use crate::cpu::CPU;
 #[allow(non_camel_case_types)]
 pub enum Instruction {
     /* LD nn,n */
+    LD(LoadTarget, LoadSource),
     LD_IMMEDIATE(Register, Immediate),
     LD_IMMEDIATE_PAIR(RegisterPair, Immediate),
     LD_IMMEDIATE_16(WordRegister, Immediate16),
@@ -138,6 +139,65 @@ pub enum RegisterPair {
     BC,
     DE,
     HL,
+}
+
+enum LoadTarget {
+    Register(Register),
+    WordRegister(WordRegister),
+    Address16(Address16),
+}
+
+impl From<Register> for LoadTarget {
+    fn from(reg: Register) -> Self {
+        LoadTarget::Register(reg)
+    }
+}
+
+impl From<WordRegister> for LoadTarget {
+    fn from(word: WordRegister) -> Self {
+        LoadTarget::WordRegister(word)
+    }
+}
+
+impl From<Address16> for LoadTarget {
+    fn from(addr: Address16) -> Self {
+        LoadTarget::Address16(addr)
+    }
+}
+
+enum LoadSource {
+    Register(Register),
+    WordRegister(WordRegister),
+    Address16(Address16),
+    Immediate(Immediate),
+}
+
+impl From<Register> for LoadSource {
+    fn from(reg: Register) -> Self {
+        LoadSource::Register(reg)
+    }
+}
+
+impl From<WordRegister> for LoadSource {
+    fn from(word: WordRegister) -> Self {
+        LoadSource::WordRegister(word)
+    }
+}
+
+impl From<Address16> for LoadSource {
+    fn from(addr: Address16) -> Self {
+        LoadSource::Address16(addr)
+    }
+}
+
+impl From<Immediate> for LoadSource {
+    fn from(imm: Immediate) -> Self {
+        LoadSource::Immediate(imm)
+    }
+}
+
+fn instruction_ld(target: impl Into<LoadTarget>, source: impl Into<LoadSource>) -> Instruction {
+    Instruction::LD(target.into(), source.into())
 }
 
 impl From<RegisterPair> for WordRegister {
@@ -745,7 +805,7 @@ impl CPU {
             0x06 => Instruction::LD_IMMEDIATE(Register::B, Immediate(self.get_byte_from_pc())),
             0x16 => Instruction::LD_IMMEDIATE(Register::D, Immediate(self.get_byte_from_pc())),
             0x26 => Instruction::LD_IMMEDIATE(Register::H, Immediate(self.get_byte_from_pc())),
-            0x36 => Instruction::LD(Register::B, Immediate(self.get_byte_from_pc())),
+            0x36 => instruction_ld(Register::B, Immediate(self.get_byte_from_pc())),
 
             0x3E => Instruction::LD_IMMEDIATE(Register::A, Immediate(self.get_byte_from_pc())),
             0xC3 => Instruction::JP(Address16(self.get_word_from_pc())),
