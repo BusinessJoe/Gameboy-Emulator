@@ -512,21 +512,22 @@ impl CPU {
                 let sp = self.get_word_register(WordRegister::SP);
                 let imm: i16 = i8::from(imm).into();
 
-                let (sum, carry) = sp.overflowing_add_signed(imm);
+                let sum = sp.wrapping_add_signed(imm);
                 self.set_word_register(WordRegister::SP, sum);
 
-                let imm = imm as u16;
+                let unsigned_imm = imm as u16;
 
                 self.registers.f.zero = false;
                 self.registers.f.subtract = false;
-                self.registers.f.half_carry = ((sp & 0xfff) + (imm & 0xfff)) & 0x1000 == 0x1000;
-                self.registers.f.carry = carry;
+                self.registers.f.half_carry = (sp ^ unsigned_imm ^ (sum & 0xFFFF)) & 0x10 == 0x10;
+                self.registers.f.carry = (sp ^ unsigned_imm ^ (sum & 0xFFFF)) & 0x100 == 0x100;
             }
             Instruction::ADC(arith_target) => {
                 let value = self.get_arithmetic_value(&arith_target);
                 let (partial_sum, overflow1) = self.registers.a.overflowing_add(value);
                 let (sum, overflow2) = partial_sum.overflowing_add(self.registers.f.carry.into());
                 let overflow = overflow1 || overflow2;
+
                 // Set F register flags.
                 self.registers.f.zero = sum == 0;
                 self.registers.f.subtract = false;
@@ -538,16 +539,13 @@ impl CPU {
             Instruction::SUB(arith_target) => {
                 let value = self.get_arithmetic_value(&arith_target);
                 let a = self.registers.a;
-                let (diff, overflow) = a.overflowing_sub(value);
-                debug!("{:#010b} - {:#010b} = {:#010b}", a, value, diff);
+                let diff = a.wrapping_sub(value);
 
                 // Set F register flags.
                 self.registers.f.zero = diff == 0;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (a & 0xf) < (value & 0xf);
                 self.registers.f.carry = a < value;
-
-                debug!("H: {}, C: {}", self.registers.f.half_carry, self.registers.f.carry);
 
                 self.registers.a = diff;
             }

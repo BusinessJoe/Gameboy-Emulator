@@ -1,13 +1,16 @@
 use std::io::stdin;
 mod cpu;
 use cpu::CPU;
+use std::env;
 
 
 fn main() {
     env_logger::init();
 
+    let rom_path = env::args().nth(1).unwrap();
+
     let mut cpu = CPU::new();
-    cpu.load("cpu_instrs/individual/04-op r,imm.gb");
+    cpu.load(&rom_path);
     cpu.boot();
 
     let mut target: Option<u16> = None;

@@ -160,7 +160,7 @@ impl MemoryBus {
     pub fn set(&mut self, address: usize, value: u8) {
         if address == 0xFF02 && value == 0x81 {
             let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
-            println!("{}", chr);
+            print!("{}", chr);
         }
         self.data[address] = value;
     }
