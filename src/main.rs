@@ -1,7 +1,10 @@
-use std::io::stdin;
+mod gameboy;
 mod cpu;
+
+use std::io::stdin;
 use cpu::CPU;
 use std::env;
+use crate::gameboy::GameBoyState;
 
 
 fn main() {
@@ -9,15 +12,15 @@ fn main() {
 
     let rom_path = env::args().nth(1).unwrap();
 
-    let mut cpu = CPU::new();
-    cpu.load(&rom_path);
-    cpu.boot();
+    let mut gameboy = GameBoyState::new();
+    gameboy.load(&rom_path);
+    gameboy.cpu.boot();
 
     let mut target: Option<u16> = None;
     loop {
-        cpu.tick();
+        gameboy.tick();
         let mut string = String::new();
-        if target.is_some() && cpu.pc == target.unwrap() {
+        if target.is_some() && gameboy.cpu.pc == target.unwrap() {
             target = None;
         }
         if target.is_none() {

@@ -73,9 +73,13 @@ pub enum Instruction {
     EI,
 
     RLC(RegisterTarget),
+    RLCA,
     RL(RegisterTarget),
+    RLA,
     RRC(RegisterTarget),
+    RRCA,
     RR(RegisterTarget),
+    RRA,
 
     SLA(RegisterTarget),
     SRA(RegisterTarget),
@@ -664,23 +668,30 @@ impl CPU {
                 self.registers.f.carry = true;
             }
             Instruction::NOP => {}
-            Instruction::HALT => todo!(),
-            Instruction::STOP => todo!(),
+            Instruction::HALT => error!("HALT is not implemented"),
+            Instruction::STOP => error!("STOP is not implemented"),
             Instruction::DI => self.interrupt_enabled = false,
             Instruction::EI => self.interrupt_enabled = true,
 
             /* Rotates & shifts */
             Instruction::RLC(reg_target) => {
                 let value = self.get_register_target(&reg_target);
-                let bit7 = value >> 7;
 
-                let result = (value << 1) | bit7;
-                self.set_register_target(&reg_target, result);
+                let new_carry_flag = (value >> 7) & 1;
+                let truncated_bit = (value >> 7) & 1;
+
+                let result = (value << 1) | truncated_bit;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
-                self.registers.f.carry = bit7 == 1;
+                self.registers.f.carry = new_carry_flag == 1;
+
+                self.set_register_target(&reg_target, result);
+            }
+            Instruction::RLCA => {
+                self.execute(Instruction::RLC(Register::A.into()));
+                self.registers.f.zero = false;
             }
             Instruction::RL(reg_target) => {
                 let value = self.get_register_target(&reg_target);
@@ -695,6 +706,10 @@ impl CPU {
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = bit7 == 1;
             }
+            Instruction::RLA => {
+                self.execute(Instruction::RL(Register::A.into()));
+                self.registers.f.zero = false;
+            }
             Instruction::RRC(reg_target) => {
                 let value = self.get_register_target(&reg_target);
                 let bit0 = value & 0b1;
@@ -706,6 +721,10 @@ impl CPU {
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = bit0 == 1;
+            }
+            Instruction::RRCA => {
+                self.execute(Instruction::RRC(Register::A.into()));
+                self.registers.f.zero = false;
             }
             Instruction::RR(reg_target) => {
                 let value = self.get_register_target(&reg_target);
@@ -719,6 +738,10 @@ impl CPU {
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = bit0 == 1;
+            }
+            Instruction::RRA => {
+                self.execute(Instruction::RR(Register::A.into()));
+                self.registers.f.zero = false;
             }
             Instruction::SLA(reg_target) => {
                 let value = self.get_register_target(&reg_target);
@@ -799,8 +822,8 @@ impl CPU {
                 self.pc = addr;
             }
             Instruction::JR(imm) => {
-                let imm: i8 = imm.into();
-                let addr: u16 = self.pc.checked_add_signed(imm.into()).unwrap();
+                let imm: i16 = i8::from(imm).into();
+                let addr: u16 = self.pc.checked_add_signed(imm).unwrap();
                 self.pc = addr;
             }
             Instruction::JR_CONDITION(flag, imm) => {
@@ -847,7 +870,6 @@ impl CPU {
                 }
             }
             Instruction::RETI => {
-                error!("this is sus");
                 self.execute(Instruction::EI);
                 self.execute(Instruction::RET);
             },
@@ -891,8 +913,8 @@ impl CPU {
             0x26 => Instruction::LD(Box::new(Register::H), Box::new(Immediate(self.get_byte_from_pc()))),
             0x36 => Instruction::LD(Box::new(WordRegister::HL.into_address()), Box::new(Immediate(self.get_byte_from_pc()))),
 
-            0x07 => Instruction::RLC(RegisterTarget::Register(Register::A)),
-            0x17 => Instruction::RL(RegisterTarget::Register(Register::A)),
+            0x07 => Instruction::RLCA,
+            0x17 => Instruction::RLA,
             0x27 => Instruction::DAA,
             0x37 => Instruction::SCF,
 
@@ -931,8 +953,8 @@ impl CPU {
             0x2E => Instruction::LD(Box::new(Register::L), Box::new(Immediate(self.get_byte_from_pc()))),
             0x3E => Instruction::LD(Box::new(Register::A), Box::new(Immediate(self.get_byte_from_pc()))),
 
-            0x0F => Instruction::RRC(Register::A.into()),
-            0x1F => Instruction::RR(Register::A.into()),
+            0x0F => Instruction::RRCA,
+            0x1F => Instruction::RRA,
             0x2F => Instruction::CPL,
             0x3F => Instruction::CCF,
 
