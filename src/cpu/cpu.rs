@@ -1,12 +1,13 @@
 use crate::cpu::{instruction::*, register::*};
 use std::fs;
-use log::{error, info};
+use log::trace;
 
 #[derive(Debug)]
 pub struct CPU {
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
+    pub interrupt_enabled: bool,
     memory_bus: MemoryBus,
 }
 
@@ -16,6 +17,7 @@ impl CPU {
             registers: Registers::default(),
             sp: 0,
             pc: 0,
+            interrupt_enabled: false,
             memory_bus: MemoryBus::default(),
         }
     }
@@ -25,7 +27,7 @@ impl CPU {
         for (idx, b) in bytes.into_iter().enumerate() {
             self.set_memory_value(idx, b); 
         }
-        info!("{:#x}", &self.memory_bus.data[0x100]);
+        trace!("{:#x}", &self.memory_bus.data[0x100]);
     }
 
     pub fn boot(&mut self) {
@@ -44,16 +46,18 @@ impl CPU {
         let opcode = self.get_byte_from_pc();
         if opcode == 0xCB {
             let opcode = self.get_byte_from_pc();
-            info!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
+            trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
             self.execute_cb_opcode(opcode);
         } else {
-            info!("opcode {:#04x} at pc {:#06x}", opcode, pc);
+            trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
             self.execute_regular_opcode(opcode);
         }
+        trace!("AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}", self.registers.get_af(), self.registers.get_bc(), self.registers.get_de(), self.registers.get_hl(), self.sp, self.pc);
     }
 
     pub fn get_byte_from_pc(&mut self) -> u8 {
         let byte = self.get_memory_value(self.pc.into());
+        trace!("Read byte {:#04x}", byte);
         self.pc += 1;
         byte
     }
@@ -64,7 +68,9 @@ impl CPU {
 
     pub fn get_word_from_pc(&mut self) -> u16 {
         let bytes = [self.get_byte_from_pc(), self.get_byte_from_pc()];
-        u16::from_le_bytes(bytes)
+        let word = u16::from_le_bytes(bytes);
+        trace!("Read byte {:#06x}", word);
+        word
     }
 
     pub fn set_register(&mut self, reg: Register, value: u8) {
@@ -114,20 +120,22 @@ impl CPU {
     }
 
     pub fn get_memory_value(&self, address: usize) -> u8 {
+        trace!("getting memory at {:#x}", address);
         self.memory_bus.get(address)
     }
 
     pub fn set_memory_value(&mut self, address: usize, value: u8) {
+        trace!("setting memory at {:#x}", address);
         self.memory_bus.set(address, value);
     }
 
     pub fn push(&mut self, value: u8) {
         self.set_memory_value(self.sp as usize, value);
-        self.sp += 1;
+        self.sp -= 1;
     }
 
     pub fn pop(&mut self) -> u8 {
-        self.sp -= 1;
+        self.sp += 1;
         self.get_memory_value(self.sp as usize)
     }
 }
@@ -150,6 +158,10 @@ impl MemoryBus {
     }
 
     pub fn set(&mut self, address: usize, value: u8) {
+        if address == 0xFF02 && value == 0x81 {
+            let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
+            println!("{}", chr);
+        }
         self.data[address] = value;
     }
 }
