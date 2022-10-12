@@ -1,8 +1,8 @@
 use crate::cpu::CPU;
-use std::fs;
-use std::sync::Mutex;
-use std::rc::Rc;
 use log::trace;
+use std::fs;
+use std::rc::Rc;
+use std::sync::Mutex;
 
 pub struct GameBoyState {
     pub cpu: CPU,
@@ -21,7 +21,7 @@ impl GameBoyState {
     pub fn load(&mut self, filename: &str) {
         let bytes = fs::read(filename).unwrap();
         for (idx, b) in bytes.into_iter().enumerate() {
-            self.set_memory_value(idx, b); 
+            self.set_memory_value(idx, b);
         }
         trace!("{:#x}", self.get_memory_value(0x100));
     }
@@ -62,6 +62,12 @@ impl MemoryBus {
         if address == 0xFF02 && value == 0x81 {
             let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
             print!("{}", chr);
+        }
+        if address == 0xFF0F {
+            println!("Interrupt Flag: {:#b}", value);
+        }
+        if address == 0xFFFF {
+            println!("Interrupt Enable: {:#b}", value);
         }
         self.data[address] = value;
     }

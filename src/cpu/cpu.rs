@@ -1,8 +1,8 @@
 use crate::cpu::{instruction::*, register::*};
 use crate::gameboy::MemoryBus;
-use std::sync::Mutex;
+use log::{trace, debug};
 use std::rc::Rc;
-use log::trace;
+use std::sync::Mutex;
 
 #[derive(Debug)]
 pub struct CPU {
@@ -35,7 +35,79 @@ impl CPU {
         self.sp = 0xFFFE;
     }
 
+    /// Called at the beginning of an interrupt helper
+    fn _handle_interrupt(&mut self, bit: u8, address: u16) {
+        // Check IME flag and relevant bit in IE flag.
+        let ie_flag = self.get_memory_value(0xFFFF);
+        if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) {
+            debug!("handling interrupt {}", match bit {
+                0 => "vblank",
+                1 => "lcdc",
+                2 => "timer",
+                3 => "serial",
+                4 => "high to low",
+                _ => "UNKNOWN",
+            });
+
+            // Reset IF flag
+            self.set_memory_value(0xFF0F, ie_flag & !(1 << bit));
+
+            // Push PC onto stack. LSB is last/top of the stack.
+            let bytes = self.pc.to_le_bytes();
+            self.push(bytes[1]);
+            self.push(bytes[0]);
+
+            // Jump to starting address of interrupt
+            self.pc = address;
+        } else {
+            debug!("ignoring interrupt {}", match bit {
+                0 => "vblank",
+                1 => "lcdc",
+                2 => "timer",
+                3 => "serial",
+                4 => "high to low",
+                _ => "UNKNOWN",
+            });
+        }
+    }
+
+    fn handle_vblank(&mut self) {}
+    fn handle_lcdc(&mut self) {}
+    fn handle_timer(&mut self) {
+        self._handle_interrupt(2, 0x0050)
+    }
+    fn handle_serial_transfer_connection(&mut self) {}
+    fn handle_high_to_low_p10_to_p13(&mut self) {}
+
+    fn handle_interrupts(&mut self) {
+        if self.interrupt_enabled {
+            if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
+                dbg!(self.pc);
+                // Handle interrupts by priority (starting at bit 0 - V-Blank)
+
+                // V-Blank
+                self.handle_vblank();
+
+                // LCDC Status
+                self.handle_lcdc();
+
+                // Timer Overflow
+                self.handle_timer();
+
+                // Serial Transfer Connection
+                self.handle_serial_transfer_connection();
+
+                // High-to-Low of P10-P13
+                self.handle_high_to_low_p10_to_p13();
+
+                dbg!(self.pc);
+            }
+        }
+    }
+
     pub fn tick(&mut self) {
+        self.handle_interrupts();
+
         let pc = self.pc;
         let opcode = self.get_byte_from_pc();
         if opcode == 0xCB {
@@ -46,7 +118,15 @@ impl CPU {
             trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
             self.execute_regular_opcode(opcode);
         }
-        trace!("AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}", self.registers.get_af(), self.registers.get_bc(), self.registers.get_de(), self.registers.get_hl(), self.sp, self.pc);
+        trace!(
+            "AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}",
+            self.registers.get_af(),
+            self.registers.get_bc(),
+            self.registers.get_de(),
+            self.registers.get_hl(),
+            self.sp,
+            self.pc
+        );
     }
 
     pub fn get_byte_from_pc(&mut self) -> u8 {
@@ -134,4 +214,3 @@ impl CPU {
         value
     }
 }
-

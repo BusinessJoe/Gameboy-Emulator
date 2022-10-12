@@ -1,11 +1,9 @@
-mod gameboy;
 mod cpu;
+mod gameboy;
 
-use std::io::stdin;
-use cpu::CPU;
-use std::env;
 use crate::gameboy::GameBoyState;
-
+use std::env;
+use std::io::stdin;
 
 fn main() {
     env_logger::init();
