@@ -1,11 +1,15 @@
 use crate::cpu::CPU;
+use crate::timer::Timer;
 use log::trace;
 use std::fs;
 use std::rc::Rc;
 use std::sync::Mutex;
 
+const CLOCK_SPEED: u64 = 4_194_304;
+
 pub struct GameBoyState {
     pub cpu: CPU,
+    timer: Timer,
     memory_bus: Rc<Mutex<MemoryBus>>,
 }
 
@@ -14,6 +18,7 @@ impl GameBoyState {
         let memory_bus = Rc::new(Mutex::new(MemoryBus::default()));
         Self {
             cpu: CPU::new(memory_bus.clone()),
+            timer: Timer::new(CLOCK_SPEED, memory_bus.clone()),
             memory_bus,
         }
     }
@@ -27,7 +32,8 @@ impl GameBoyState {
     }
 
     pub fn tick(&mut self) {
-        self.cpu.tick();
+        let elapsed_cycles = self.cpu.tick();
+        self.timer.tick(elapsed_cycles);
     }
 
     pub fn get_memory_value(&self, address: usize) -> u8 {
@@ -39,6 +45,10 @@ impl GameBoyState {
         trace!("setting memory at {:#x}", address);
         self.memory_bus.lock().unwrap().set(address, value);
     }
+}
+
+pub enum Interrupt {
+    Timer,
 }
 
 /// Mock memory bus
@@ -63,12 +73,15 @@ impl MemoryBus {
             let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
             print!("{}", chr);
         }
-        if address == 0xFF0F {
-            println!("Interrupt Flag: {:#b}", value);
-        }
-        if address == 0xFFFF {
-            println!("Interrupt Enable: {:#b}", value);
-        }
         self.data[address] = value;
+    }
+
+    pub fn interrupt(&mut self, interrupt: Interrupt) {
+        let bit = match interrupt {
+            Interrupt::Timer => 2,
+        };
+        let mut interrupt_flag = self.get(0xFF0F);
+        interrupt_flag |= 1 << bit; 
+        self.set(0xFF0F, interrupt_flag);
     }
 }

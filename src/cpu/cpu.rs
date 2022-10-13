@@ -1,6 +1,6 @@
 use crate::cpu::{instruction::*, register::*};
 use crate::gameboy::MemoryBus;
-use log::{trace, debug};
+use log::{trace, info, debug};
 use std::rc::Rc;
 use std::sync::Mutex;
 
@@ -10,6 +10,7 @@ pub struct CPU {
     pub sp: u16,
     pub pc: u16,
     pub interrupt_enabled: bool,
+    pub halted: bool,
     memory_bus: Rc<Mutex<MemoryBus>>,
 }
 
@@ -20,6 +21,7 @@ impl CPU {
             sp: 0,
             pc: 0,
             interrupt_enabled: false,
+            halted: false,
             memory_bus,
         }
     }
@@ -82,7 +84,10 @@ impl CPU {
     fn handle_interrupts(&mut self) {
         if self.interrupt_enabled {
             if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
-                dbg!(self.pc);
+                // Unhalt
+                debug!{"UNHALT"};
+                self.halted = false;
+
                 // Handle interrupts by priority (starting at bit 0 - V-Blank)
 
                 // V-Blank
@@ -100,33 +105,43 @@ impl CPU {
                 // High-to-Low of P10-P13
                 self.handle_high_to_low_p10_to_p13();
 
-                dbg!(self.pc);
             }
         }
     }
 
-    pub fn tick(&mut self) {
+    /// Handle a single timestep in the cpu
+    pub fn tick(&mut self) -> u8 {
         self.handle_interrupts();
 
-        let pc = self.pc;
-        let opcode = self.get_byte_from_pc();
-        if opcode == 0xCB {
+        if !self.halted {
+            // Get and execute opcode
+            let pc = self.pc;
             let opcode = self.get_byte_from_pc();
-            trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
-            self.execute_cb_opcode(opcode);
+            let elapsed_cycles;
+            if opcode == 0xCB {
+                let opcode = self.get_byte_from_pc();
+                trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
+                elapsed_cycles = self.execute_cb_opcode(opcode);
+            } else {
+                trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
+                elapsed_cycles = self.execute_regular_opcode(opcode);
+            }
+            trace!(
+                "AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}",
+                self.registers.get_af(),
+                self.registers.get_bc(),
+                self.registers.get_de(),
+                self.registers.get_hl(),
+                self.sp,
+                self.pc
+            );
+            elapsed_cycles
         } else {
-            trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
-            self.execute_regular_opcode(opcode);
-        }
-        trace!(
-            "AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}",
-            self.registers.get_af(),
-            self.registers.get_bc(),
-            self.registers.get_de(),
-            self.registers.get_hl(),
-            self.sp,
-            self.pc
-        );
+            info!("HALTED");
+            // Return 1 cycle
+            1
+        }   
+
     }
 
     pub fn get_byte_from_pc(&mut self) -> u8 {

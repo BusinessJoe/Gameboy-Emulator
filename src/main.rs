@@ -1,4 +1,5 @@
 mod cpu;
+mod timer;
 mod gameboy;
 
 use crate::gameboy::GameBoyState;
