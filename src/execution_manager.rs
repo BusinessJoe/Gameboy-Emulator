@@ -10,7 +10,7 @@ use std::thread::{self, JoinHandle};
 /// Runs the GameBoy in a separate thread.
 pub struct ExecutionManager {
     /// A JoinHandle on the current gameboy thread, if one exists.
-    gameboy_join_handle: Option<JoinHandle<Result<String,String>>>,
+    gameboy_join_handle: Option<JoinHandle<Result<String, String>>>,
     breakpoints: Arc<Mutex<HashSet<u16>>>,
     pause_state: Arc<Mutex<PauseState>>,
     global_time: Arc<Mutex<u128>>,
@@ -94,7 +94,7 @@ impl ExecutionManager {
         });
     }
 
-    pub fn run(mut self) -> Result<String,String> {
+    pub fn run(mut self) -> Result<String, String> {
         self.pause_state.lock().unwrap().resume();
 
         self.spawn_input_handler_thread();

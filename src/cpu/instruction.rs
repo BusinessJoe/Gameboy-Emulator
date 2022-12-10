@@ -1128,7 +1128,29 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::DAA => {
-                error!("DAA is not implemented");
+                if !self.registers.f.subtract {
+                    // After an addition, adjust if (half-)carry occured or result is out of
+                    // bounds.
+                    if self.registers.f.carry || self.registers.a > 0x99 {
+                        self.registers.a = self.registers.a.wrapping_add(0x60);
+                        self.registers.f.carry = true;
+                    }
+                    if self.registers.f.half_carry || (self.registers.a & 0x0f) > 0x09 {
+                        self.registers.a = self.registers.a.wrapping_add(0x06);
+                    }
+                } else {
+                    // After a subtraction, only adjust if (half-)carry occured.
+                    if self.registers.f.carry {
+                        self.registers.a = self.registers.a.wrapping_sub(0x60);
+                    }
+                    if self.registers.f.half_carry {
+                        self.registers.a = self.registers.a.wrapping_sub(0x06);
+                    }
+                }
+
+                // These flags are always updated
+                self.registers.f.zero = self.registers.a == 0;
+                self.registers.f.half_carry = false;
             }
             Instruction::CPL => {
                 self.registers.a = !self.registers.a;

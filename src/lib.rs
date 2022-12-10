@@ -1,4 +1,4 @@
-pub mod gameboy;
 mod cpu;
-mod timer;
 pub mod execution_manager;
+pub mod gameboy;
+mod timer;
