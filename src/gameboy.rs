@@ -63,7 +63,10 @@ pub struct MemoryBus {
 
 impl Default for MemoryBus {
     fn default() -> Self {
-        Self { data: [0; 0x10000], output_string: String::new() }
+        Self {
+            data: [0; 0x10000],
+            output_string: String::new(),
+        }
     }
 }
 
