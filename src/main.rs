@@ -20,5 +20,7 @@ fn main() {
     // Wrap gameboy in execution manager which begins execution
     let mut manager = ExecutionManager::new(gameboy);
 
-    manager.join();
+    manager.add_breakpoint(49155);
+    manager.remove_breakpoint(49155);
+    manager.run();
 }
