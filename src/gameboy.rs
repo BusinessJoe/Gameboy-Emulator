@@ -1,6 +1,6 @@
 use crate::cpu::CPU;
 use crate::timer::Timer;
-use log::trace;
+use log::{trace, debug};
 use std::fs;
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -77,6 +77,7 @@ impl MemoryBus {
     }
 
     pub fn interrupt(&mut self, interrupt: Interrupt) {
+        debug!("Interrupting");
         let bit = match interrupt {
             Interrupt::Timer => 2,
         };

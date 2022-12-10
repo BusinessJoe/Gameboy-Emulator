@@ -1145,7 +1145,14 @@ impl CPU {
                 self.registers.f.carry = true;
             }
             Instruction::NOP => {}
-            Instruction::HALT => self.halted = true,
+            Instruction::HALT => {
+                let memory = self.memory_bus.lock().unwrap();
+                if !self.interrupt_enabled && memory.get(0xFF0F) != 0 {
+                    self.halt_bug_opcode = Some(memory.get(self.pc.into()));
+                } else {
+                    self.halted = true;
+                }
+            }
             Instruction::STOP => error!("STOP is not implemented"),
             Instruction::DI => self.interrupt_enabled = false,
             Instruction::EI => self.interrupt_enabled = true,

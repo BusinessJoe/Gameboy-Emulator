@@ -4,15 +4,7 @@ use log::{trace, info, debug};
 use std::rc::Rc;
 use std::sync::Mutex;
 
-#[derive(Debug)]
-pub struct CPU {
-    pub registers: Registers,
-    pub sp: u16,
-    pub pc: u16,
-    pub interrupt_enabled: bool,
-    pub halted: bool,
-    memory_bus: Rc<Mutex<MemoryBus>>,
-}
+use crate::cpu::CPU;
 
 impl CPU {
     pub fn new(memory_bus: Rc<Mutex<MemoryBus>>) -> Self {
@@ -22,6 +14,7 @@ impl CPU {
             pc: 0,
             interrupt_enabled: false,
             halted: false,
+            halt_bug_opcode: None,
             memory_bus,
         }
     }
@@ -83,6 +76,7 @@ impl CPU {
 
     fn handle_interrupts(&mut self) {
         if self.interrupt_enabled {
+            // If IE and IF
             if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
                 // Unhalt
                 debug!{"UNHALT"};
@@ -120,10 +114,10 @@ impl CPU {
             let elapsed_cycles;
             if opcode == 0xCB {
                 let opcode = self.get_byte_from_pc();
-                trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
+                debug!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
                 elapsed_cycles = self.execute_cb_opcode(opcode);
             } else {
-                trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
+                debug!("opcode {:#04x} at pc {:#06x}", opcode, pc);
                 elapsed_cycles = self.execute_regular_opcode(opcode);
             }
             trace!(
@@ -137,7 +131,7 @@ impl CPU {
             );
             elapsed_cycles
         } else {
-            info!("HALTED");
+            debug!("Halted");
             // Return 1 cycle
             1
         }   
@@ -145,10 +139,19 @@ impl CPU {
     }
 
     pub fn get_byte_from_pc(&mut self) -> u8 {
-        let byte = self.get_memory_value(self.pc.into());
-        trace!("Read byte {:#04x}", byte);
-        self.pc += 1;
-        byte
+        match self.halt_bug_opcode {
+            Some(opcode) => {
+                self.halt_bug_opcode = None;
+                trace!("Read halt bug byte {:#04x}", opcode);
+                opcode
+            }
+            None => {
+                let byte = self.get_memory_value(self.pc.into());
+                trace!("Read byte {:#04x}", byte);
+                self.pc += 1;
+                byte
+            }
+        }
     }
 
     pub fn get_signed_byte_from_pc(&mut self) -> i8 {
