@@ -44,6 +44,10 @@ impl GameBoyState {
         trace!("setting memory at {:#x}", address);
         self.memory_bus.lock().unwrap().set(address, value);
     }
+
+    pub fn get_output(&self) -> String {
+        self.memory_bus.lock().unwrap().output_string.clone()
+    }
 }
 
 pub enum Interrupt {
@@ -54,11 +58,12 @@ pub enum Interrupt {
 #[derive(Debug)]
 pub struct MemoryBus {
     pub data: [u8; 0x10000],
+    pub output_string: String,
 }
 
 impl Default for MemoryBus {
     fn default() -> Self {
-        Self { data: [0; 0x10000] }
+        Self { data: [0; 0x10000], output_string: String::new() }
     }
 }
 
@@ -70,7 +75,7 @@ impl MemoryBus {
     pub fn set(&mut self, address: usize, value: u8) {
         if address == 0xFF02 && value == 0x81 {
             let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
-            print!("{}", chr);
+            self.output_string.push(chr);
         }
         self.data[address] = value;
     }

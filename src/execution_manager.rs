@@ -57,6 +57,8 @@ impl ExecutionManager {
                 }
 
                 gameboy_state.tick();
+
+                println!("Output: {}", gameboy_state.get_output());
             }
         }));
     }
@@ -70,7 +72,7 @@ impl ExecutionManager {
 
                 io::stdin().read_line(&mut input).expect("Failed to read line");
 
-                pause_state.lock().unwrap().resume();
+                pause_state.lock().unwrap().toggle_paused();
             }
         });
     }
@@ -101,6 +103,15 @@ impl ExecutionManager {
     pub fn remove_breakpoint(&mut self, breakpoint: u16) {
         self.breakpoints.lock().unwrap().remove(&breakpoint);
     }
+
+    pub fn toggle_breakpoint(&mut self, breakpoint: u16) {
+        let mut breakpoints = self.breakpoints.lock().unwrap();
+        if breakpoints.contains(&breakpoint) {
+            breakpoints.remove(&breakpoint);
+        } else {
+            breakpoints.insert(breakpoint);
+        }
+    }
 }
 
 impl PauseState {
@@ -118,6 +129,14 @@ impl PauseState {
     pub fn resume(&mut self) {
         self.paused = false;
         self.resume_sender.as_mut().expect("Sender is null").try_send(());
+    }
+
+    pub fn toggle_paused(&mut self) {
+        if self.is_paused() {
+            self.resume();
+        } else {
+            self.pause();
+        }
     }
 
     pub fn is_paused(&self) -> bool {
