@@ -1,21 +1,20 @@
 use crate::cpu::CPU;
 use crate::timer::Timer;
-use log::{trace, debug};
+use log::{debug, trace};
 use std::fs;
-use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 const CLOCK_SPEED: u64 = 4_194_304;
 
 pub struct GameBoyState {
     pub cpu: CPU,
     timer: Timer,
-    memory_bus: Rc<Mutex<MemoryBus>>,
+    memory_bus: Arc<Mutex<MemoryBus>>,
 }
 
 impl GameBoyState {
     pub fn new() -> Self {
-        let memory_bus = Rc::new(Mutex::new(MemoryBus::default()));
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::default()));
         Self {
             cpu: CPU::new(memory_bus.clone()),
             timer: Timer::new(CLOCK_SPEED, memory_bus.clone()),
@@ -82,7 +81,7 @@ impl MemoryBus {
             Interrupt::Timer => 2,
         };
         let mut interrupt_flag = self.get(0xFF0F);
-        interrupt_flag |= 1 << bit; 
+        interrupt_flag |= 1 << bit;
         self.set(0xFF0F, interrupt_flag);
     }
 }

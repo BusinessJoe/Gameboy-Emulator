@@ -3,9 +3,8 @@ mod instruction;
 mod register;
 
 use crate::cpu::register::Registers;
-use std::rc::Rc;
-use std::sync::Mutex;
 use crate::gameboy::MemoryBus;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct CPU {
@@ -15,6 +14,5 @@ pub struct CPU {
     interrupt_enabled: bool,
     halted: bool,
     halt_bug_opcode: Option<u8>,
-    memory_bus: Rc<Mutex<MemoryBus>>,
+    memory_bus: Arc<Mutex<MemoryBus>>,
 }
-

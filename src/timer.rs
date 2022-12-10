@@ -1,12 +1,11 @@
-use std::rc::Rc;
-use std::sync::Mutex;
-use crate::gameboy::{MemoryBus, Interrupt};
+use crate::gameboy::{Interrupt, MemoryBus};
+use std::sync::{Arc, Mutex};
 
 pub struct Timer {
     /// Number of clock cycles per second.
     clock_speed: u64,
     /// The Game Boy's memory bus.
-    memory_bus: Rc<Mutex<MemoryBus>>,
+    memory_bus: Arc<Mutex<MemoryBus>>,
     div_clocksum: u64,
     timer_clocksum: u64,
 }
@@ -16,8 +15,7 @@ const TMA: usize = 0xFF06;
 const TAC: usize = 0xFF07;
 
 impl Timer {
-    pub fn new(clock_speed: u64, memory_bus: Rc<Mutex<MemoryBus>>) -> Self {
-
+    pub fn new(clock_speed: u64, memory_bus: Arc<Mutex<MemoryBus>>) -> Self {
         Self {
             clock_speed,
             memory_bus,
@@ -41,7 +39,7 @@ impl Timer {
             0b11 => 16_384,
             _ => panic!(),
         }
-    }   
+    }
 
     pub fn tick(&mut self, elapsed_cycles: u8) {
         // Manage divider timer

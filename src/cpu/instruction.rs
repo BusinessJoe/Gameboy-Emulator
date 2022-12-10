@@ -348,7 +348,7 @@ pub enum Flag {
 
 enum BranchStatus {
     Branch,
-    NoBranch
+    NoBranch,
 }
 
 fn get_opcode_delay(opcode: u8) -> u8 {
@@ -922,7 +922,9 @@ impl CPU {
             Instruction::LD(target, source) => target.set(self, source.get(self)),
             Instruction::LD_16(target, source) => target.set(self, source.get(self)),
             Instruction::LDHL_SP(signed_immediate) => {
-                let sum = self.sp.wrapping_add_signed(i8::from(signed_immediate) as i16);
+                let sum = self
+                    .sp
+                    .wrapping_add_signed(i8::from(signed_immediate) as i16);
                 self.set_word_register(WordRegister::HL, sum);
 
                 self.registers.f.zero = false;

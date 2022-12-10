@@ -1,13 +1,12 @@
 use crate::cpu::{instruction::*, register::*};
 use crate::gameboy::MemoryBus;
-use log::{trace, info, debug};
-use std::rc::Rc;
-use std::sync::Mutex;
+use log::{debug, info, trace};
+use std::sync::{Arc, Mutex};
 
 use crate::cpu::CPU;
 
 impl CPU {
-    pub fn new(memory_bus: Rc<Mutex<MemoryBus>>) -> Self {
+    pub fn new(memory_bus: Arc<Mutex<MemoryBus>>) -> Self {
         Self {
             registers: Registers::default(),
             sp: 0,
@@ -35,14 +34,17 @@ impl CPU {
         // Check IME flag and relevant bit in IE flag.
         let ie_flag = self.get_memory_value(0xFFFF);
         if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) {
-            debug!("handling interrupt {}", match bit {
-                0 => "vblank",
-                1 => "lcdc",
-                2 => "timer",
-                3 => "serial",
-                4 => "high to low",
-                _ => "UNKNOWN",
-            });
+            debug!(
+                "handling interrupt {}",
+                match bit {
+                    0 => "vblank",
+                    1 => "lcdc",
+                    2 => "timer",
+                    3 => "serial",
+                    4 => "high to low",
+                    _ => "UNKNOWN",
+                }
+            );
 
             // Reset IF flag
             self.set_memory_value(0xFF0F, ie_flag & !(1 << bit));
@@ -55,14 +57,17 @@ impl CPU {
             // Jump to starting address of interrupt
             self.pc = address;
         } else {
-            debug!("ignoring interrupt {}", match bit {
-                0 => "vblank",
-                1 => "lcdc",
-                2 => "timer",
-                3 => "serial",
-                4 => "high to low",
-                _ => "UNKNOWN",
-            });
+            debug!(
+                "ignoring interrupt {}",
+                match bit {
+                    0 => "vblank",
+                    1 => "lcdc",
+                    2 => "timer",
+                    3 => "serial",
+                    4 => "high to low",
+                    _ => "UNKNOWN",
+                }
+            );
         }
     }
 
@@ -79,7 +84,7 @@ impl CPU {
             // If IE and IF
             if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
                 // Unhalt
-                debug!{"UNHALT"};
+                debug! {"UNHALT"};
                 self.halted = false;
 
                 // Handle interrupts by priority (starting at bit 0 - V-Blank)
@@ -98,7 +103,6 @@ impl CPU {
 
                 // High-to-Low of P10-P13
                 self.handle_high_to_low_p10_to_p13();
-
             }
         }
     }
@@ -134,8 +138,7 @@ impl CPU {
             debug!("Halted");
             // Return 1 cycle
             1
-        }   
-
+        }
     }
 
     pub fn get_byte_from_pc(&mut self) -> u8 {
