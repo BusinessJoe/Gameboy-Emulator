@@ -30,10 +30,11 @@ impl CPU {
     }
 
     /// Called at the beginning of an interrupt helper
-    fn _handle_interrupt(&mut self, bit: u8, address: u16) {
+    fn handle_single_interrupt(&mut self, bit: u8, address: u16) {
         // Check IME flag and relevant bit in IE flag.
         let ie_flag = self.get_memory_value(0xFFFF);
-        if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) {
+        let ie_flag_bit = (ie_flag >> bit) & 1;
+        if self.interrupt_enabled && ie_flag_bit == 1 {
             debug!(
                 "handling interrupt {}",
                 match bit {
@@ -41,13 +42,14 @@ impl CPU {
                     1 => "lcdc",
                     2 => "timer",
                     3 => "serial",
-                    4 => "high to low",
+                    4 => "joypad",
                     _ => "UNKNOWN",
                 }
             );
 
-            // Reset IF flag
+            // Reset IF bit and IME flag
             self.set_memory_value(0xFF0F, ie_flag & !(1 << bit));
+            self.interrupt_enabled = false;
 
             // Push PC onto stack. LSB is last/top of the stack.
             let bytes = self.pc.to_le_bytes();
@@ -64,93 +66,77 @@ impl CPU {
                     1 => "lcdc",
                     2 => "timer",
                     3 => "serial",
-                    4 => "high to low",
+                    4 => "joypad",
                     _ => "UNKNOWN",
                 }
             );
         }
     }
 
-    fn handle_vblank(&mut self) {}
-    fn handle_lcdc(&mut self) {}
-    fn handle_timer(&mut self) {
-        self._handle_interrupt(2, 0x0050)
-    }
-    fn handle_serial_transfer_connection(&mut self) {}
-    fn handle_high_to_low_p10_to_p13(&mut self) {}
-
     fn handle_interrupts(&mut self) {
-        if self.interrupt_enabled {
-            // If IE and IF
-            if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
+        // If IE and IF
+        println!("{}", self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0);
+        if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
+            if self.interrupt_enabled {
                 // Unhalt
-                debug! {"UNHALT"};
                 self.halted = false;
 
                 // Handle interrupts by priority (starting at bit 0 - V-Blank)
-
-                // V-Blank
-                self.handle_vblank();
-
-                // LCDC Status
-                self.handle_lcdc();
-
-                // Timer Overflow
-                self.handle_timer();
-
-                // Serial Transfer Connection
-                self.handle_serial_transfer_connection();
-
-                // High-to-Low of P10-P13
-                self.handle_high_to_low_p10_to_p13();
+                for bit in 0..=4 {
+                    let address = 0x40 + bit * 0x8; 
+                    self.handle_single_interrupt(bit, address.into());
+                }
+            } else {
+                // Wake up, but don't handle any interrupts.
+                self.halted = false;
             }
         }
     }
 
-    /// Handle a single timestep in the cpu
-    pub fn tick(&mut self) -> u8 {
+    fn execute_opcode(&mut self, opcode: u8) -> u8 {
+        let elapsed_cycles;
+        if opcode == 0xCB {
+            let opcode = self.get_byte_from_pc();
+            elapsed_cycles = self.execute_cb_opcode(opcode);
+        } else {
+            elapsed_cycles = self.execute_regular_opcode(opcode);
+        }
+
         self.handle_interrupts();
 
-        if !self.halted {
+        elapsed_cycles
+    }
+
+    /// Handle a single timestep in the cpu, returning the number of elapsed cycles
+    pub fn tick(&mut self) -> u8 {
+        let elapsed_cycles = if !self.halted {
             // Get and execute opcode
             let pc = self.pc;
             let opcode = self.get_byte_from_pc();
-            let elapsed_cycles;
-            if opcode == 0xCB {
-                let opcode = self.get_byte_from_pc();
-                debug!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
-                elapsed_cycles = self.execute_cb_opcode(opcode);
-            } else {
-                debug!("opcode {:#04x} at pc {:#06x}", opcode, pc);
-                elapsed_cycles = self.execute_regular_opcode(opcode);
-            }
-            trace!(
-                "AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}",
-                self.registers.get_af(),
-                self.registers.get_bc(),
-                self.registers.get_de(),
-                self.registers.get_hl(),
-                self.sp,
-                self.pc
-            );
-            elapsed_cycles
+
+            // Decodes and executes opcode, returns number of elapsed cycles.
+            self.execute_opcode(opcode)
         } else {
-            debug!("Halted");
+            println!("Halted");
             // Return 1 cycle
             1
-        }
+        };
+
+        self.handle_interrupts();
+
+        elapsed_cycles
     }
 
     pub fn get_byte_from_pc(&mut self) -> u8 {
         match self.halt_bug_opcode {
             Some(opcode) => {
                 self.halt_bug_opcode = None;
-                trace!("Read halt bug byte {:#04x}", opcode);
+                println!("Read halt bug byte {:#04x}", opcode);
                 opcode
             }
             None => {
                 let byte = self.get_memory_value(self.pc.into());
-                trace!("Read byte {:#04x}", byte);
+                println!("Read byte {:#04x}", byte);
                 self.pc += 1;
                 byte
             }
@@ -233,5 +219,55 @@ impl CPU {
         let value = self.get_memory_value(self.sp as usize);
         self.sp += 1;
         value
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use crate::gameboy::MemoryBus;
+
+    #[test]
+    fn test_increment_b() {
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::default()));
+        let mut cpu = CPU::new(memory_bus);
+        cpu.boot();
+        let b_reg = cpu.registers.b;
+        cpu.execute_opcode(0x04);
+        assert_eq!(b_reg+1, cpu.registers.b);
+    }
+
+    #[test]
+    fn halt_bug() {
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::default()));
+        let mut cpu = CPU::new(memory_bus.clone());
+        cpu.boot();
+
+        // The halt bug requires IME to be reset and IE & IF =/= 0.
+        cpu.interrupt_enabled = false;
+        memory_bus.lock().unwrap().set(0xFFFF, 0xFF);
+        memory_bus.lock().unwrap().set(0xFF0F, 0xFF);
+
+        // Set up an increment B instruction at the current opcode.
+        // We expect this to be executed twice due to the halt bug.
+        let pc = cpu.pc;
+        memory_bus.lock().unwrap().set(pc.into(), 0x04);
+
+        // Store the initial value of the B register so we can check
+        // that it increments twice.
+        let b_reg = cpu.registers.b; 
+
+        // Execute halt
+        cpu.execute_opcode(0x76);
+
+        cpu.tick();
+        cpu.tick();
+
+        assert_eq!(b_reg+2, cpu.registers.b);
+
+        // The next instruction should run normally (a NOP in this case).
+        // Check that the increment doesn't execute again.
+        cpu.tick();
+        assert_eq!(b_reg+2, cpu.registers.b);
     }
 }

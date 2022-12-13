@@ -1171,10 +1171,14 @@ impl CPU {
             Instruction::NOP => {}
             Instruction::HALT => {
                 let memory = self.memory_bus.lock().unwrap();
-                if !self.interrupt_enabled && memory.get(0xFF0F) != 0 {
-                    self.halt_bug_opcode = Some(memory.get(self.pc.into()));
-                } else {
-                    self.halted = true;
+                let interrupt_pending = memory.get(0xFFFF) & memory.get(0xFF0F) != 0;
+                self.halted = true;
+                if !self.interrupt_enabled {
+                    if interrupt_pending {
+                        let byte = memory.get(self.pc.into());
+                        println!("Performing halt bug with byte {:#04x}", byte);
+                        self.halt_bug_opcode = Some(byte);
+                    }
                 }
             }
             Instruction::STOP => error!("STOP is not implemented"),
