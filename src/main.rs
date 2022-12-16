@@ -17,10 +17,10 @@ fn main() {
     gameboy.load(&rom_path);
     gameboy.cpu.boot();
 
-    // Wrap gameboy in execution manager which begins execution
-    let mut manager = ExecutionManager::new(gameboy);
+    let mut manager = ExecutionManager::new();
 
     manager.add_breakpoint(49155);
     manager.remove_breakpoint(49155);
-    manager.run();
+
+    manager.run(gameboy);
 }

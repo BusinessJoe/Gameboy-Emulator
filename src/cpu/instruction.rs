@@ -1,7 +1,9 @@
 use crate::cpu::CPU;
-use log::error;
+use log::{debug,error};
+use strum_macros::AsRefStr;
 
 #[allow(non_camel_case_types)]
+#[derive(AsRefStr)]
 pub enum Instruction {
     /* LD nn,n */
     LD(Box<dyn CPUWritable<u8>>, Box<dyn CPUReadable<u8>>),
@@ -917,6 +919,7 @@ impl CPU {
     }
 
     fn execute(&mut self, instruction: Instruction) -> BranchStatus {
+        debug!("Executing instruction {}", instruction.as_ref());
         let mut branch_status = BranchStatus::NoBranch;
         match instruction {
             Instruction::LD(target, source) => target.set(self, source.get(self)),
@@ -1173,12 +1176,10 @@ impl CPU {
                 let memory = self.memory_bus.lock().unwrap();
                 let interrupt_pending = memory.get(0xFFFF) & memory.get(0xFF0F) != 0;
                 self.halted = true;
-                if !self.interrupt_enabled {
-                    if interrupt_pending {
-                        let byte = memory.get(self.pc.into());
-                        println!("Performing halt bug with byte {:#04x}", byte);
-                        self.halt_bug_opcode = Some(byte);
-                    }
+                if !self.interrupt_enabled && interrupt_pending {
+                    let byte = memory.get(self.pc.into());
+                    println!("Performing halt bug with byte {:#04x}", byte);
+                    self.halt_bug_opcode = Some(byte);
                 }
             }
             Instruction::STOP => error!("STOP is not implemented"),

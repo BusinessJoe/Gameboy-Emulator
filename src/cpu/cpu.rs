@@ -75,7 +75,6 @@ impl CPU {
 
     fn handle_interrupts(&mut self) {
         // If IE and IF
-        println!("{}", self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0);
         if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
             if self.interrupt_enabled {
                 // Unhalt
@@ -117,7 +116,7 @@ impl CPU {
             // Decodes and executes opcode, returns number of elapsed cycles.
             self.execute_opcode(opcode)
         } else {
-            println!("Halted");
+            debug!("Halted");
             // Return 1 cycle
             1
         };
@@ -131,12 +130,12 @@ impl CPU {
         match self.halt_bug_opcode {
             Some(opcode) => {
                 self.halt_bug_opcode = None;
-                println!("Read halt bug byte {:#04x}", opcode);
+                debug!("Read halt bug byte {:#04x}", opcode);
                 opcode
             }
             None => {
                 let byte = self.get_memory_value(self.pc.into());
-                println!("Read byte {:#04x}", byte);
+                debug!("Read byte {:#04x}", byte);
                 self.pc += 1;
                 byte
             }
