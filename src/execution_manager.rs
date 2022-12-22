@@ -1,10 +1,11 @@
 use crate::gameboy::GameBoyState;
 use log::trace;
 use std::collections::HashSet;
-use std::io;
+use std::io::{self, stdout};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use crossterm::{ExecutableCommand, terminal};
 
 /// Manages GameBoy CPU exectution, adding breakpoint functionality.
 /// Runs the GameBoy in a separate thread.
@@ -70,6 +71,10 @@ impl ExecutionManager {
                 // Show output
                 if current_output != gameboy_state.get_output() {
                     current_output = gameboy_state.get_output();
+                    let mut stdout = stdout();
+                    if !test_mode {
+                        stdout.execute(terminal::Clear(terminal::ClearType::All));
+                    }
                     println!("{}", current_output);
                 }
 
@@ -117,8 +122,6 @@ impl ExecutionManager {
     pub fn test(&mut self, gameboy_state: GameBoyState) -> Result<String, String> {
         let gameboy_join_handle = Self::spawn_gameboy_thread(self.breakpoints.clone(), self.pause_state.clone(), self.global_time.clone(), gameboy_state, true);
         
-        self.spawn_input_handler_thread();
-
         self.pause_state.lock().unwrap().resume();
 
         gameboy_join_handle.join().expect("Couldn't join on gameboy thread")
