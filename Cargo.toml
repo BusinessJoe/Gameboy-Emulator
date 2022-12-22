@@ -10,3 +10,9 @@ env_logger = "0.9"
 log = "0.4"
 strum = "0.24"
 strum_macros = "0.24"
+crossterm = "0.25.0"
+
+pixels = "0.11.0"
+winit = "0.27"
+winit_input_helper = "0.13"
+game-loop = { version = "0.10.0", features = ["winit"] }
