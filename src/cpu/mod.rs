@@ -3,7 +3,7 @@ mod instruction;
 mod register;
 
 use crate::cpu::register::Registers;
-use crate::gameboy::MemoryBus;
+use crate::memory::MemoryBus;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]

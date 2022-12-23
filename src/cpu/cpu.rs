@@ -1,6 +1,6 @@
 use crate::cpu::{instruction::*, register::*};
-use crate::gameboy::MemoryBus;
-use log::{debug, info, trace};
+use crate::memory::MemoryBus;
+use log::{debug, trace};
 use std::sync::{Arc, Mutex};
 
 use crate::cpu::CPU;

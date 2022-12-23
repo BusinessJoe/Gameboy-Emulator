@@ -2,6 +2,9 @@ mod cpu;
 mod execution_manager;
 mod gameboy;
 mod timer;
+mod memory;
+mod cartridge;
+mod register;
 
 use crate::execution_manager::ExecutionManager;
 use crate::gameboy::GameBoyState;

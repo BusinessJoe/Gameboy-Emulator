@@ -1,4 +1,5 @@
-use crate::gameboy::{Interrupt, MemoryBus};
+use crate::gameboy::Interrupt;
+use crate::memory::MemoryBus;
 use std::sync::{Arc, Mutex};
 
 pub struct Timer {

@@ -1,6 +1,8 @@
+use crate::cartridge;
 use crate::cpu::CPU;
 use crate::timer::Timer;
-use log::{debug, trace};
+use crate::memory::MemoryBus;
+use log::trace;
 use std::fs;
 use std::sync::{Arc, Mutex};
 
@@ -14,7 +16,7 @@ pub struct GameBoyState {
 
 impl GameBoyState {
     pub fn new() -> Self {
-        let memory_bus = Arc::new(Mutex::new(MemoryBus::default()));
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
         Self {
             cpu: CPU::new(memory_bus.clone()),
             timer: Timer::new(CLOCK_SPEED, memory_bus.clone()),
@@ -24,9 +26,8 @@ impl GameBoyState {
 
     pub fn load(&mut self, filename: &str) {
         let bytes = fs::read(filename).unwrap();
-        for (idx, b) in bytes.into_iter().enumerate() {
-            self.set_memory_value(idx, b);
-        }
+        let cartridge = cartridge::build_cartridge(&bytes).unwrap();
+        self.memory_bus.lock().unwrap().insert_cartridge(cartridge);
         trace!("{:#x}", self.get_memory_value(0x100));
     }
 
@@ -54,42 +55,3 @@ pub enum Interrupt {
     Timer,
 }
 
-/// Mock memory bus
-#[derive(Debug)]
-pub struct MemoryBus {
-    pub data: [u8; 0x10000],
-    pub output_string: String,
-}
-
-impl Default for MemoryBus {
-    fn default() -> Self {
-        Self {
-            data: [0; 0x10000],
-            output_string: String::new(),
-        }
-    }
-}
-
-impl MemoryBus {
-    pub fn get(&self, address: usize) -> u8 {
-        self.data[address]
-    }
-
-    pub fn set(&mut self, address: usize, value: u8) {
-        if address == 0xFF02 && value == 0x81 {
-            let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
-            self.output_string.push(chr);
-        }
-        self.data[address] = value;
-    }
-
-    pub fn interrupt(&mut self, interrupt: Interrupt) {
-        debug!("Interrupting");
-        let bit = match interrupt {
-            Interrupt::Timer => 2,
-        };
-        let mut interrupt_flag = self.get(0xFF0F);
-        interrupt_flag |= 1 << bit;
-        self.set(0xFF0F, interrupt_flag);
-    }
-}

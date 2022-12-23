@@ -2,15 +2,23 @@ use crate::register::Register;
 
 type Address = usize;
 
-pub trait Cartridge {
+pub trait Cartridge : Send {
     fn cartridge_type(&self) -> CartridgeType;
     fn read(&self, address: Address) -> Result<u8, AddressingError>;
     fn write(&mut self, address: Address, value: u8) -> Result<(), AddressingError>;
 }
 
+impl std::fmt::Debug for dyn Cartridge {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(fmt, "{:?}", self.cartridge_type())
+    }
+}
+
+#[derive(Debug)]
 pub struct AddressingError(Address);
 
 /// A Gameboy cartridge that only has a single ROM bank, with no switching.
+#[derive(Debug)]
 struct RomOnlyCartridge {
     rom: Vec<u8>,
 }
@@ -46,6 +54,7 @@ impl Cartridge for RomOnlyCartridge {
     }
 }
 
+#[derive(Debug)]
 struct MBC1Cartridge {
     ram_gate: Register<u8>,
     bank_register_1: Register<u8>,
