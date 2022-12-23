@@ -82,7 +82,7 @@ impl CPU {
 
                 // Handle interrupts by priority (starting at bit 0 - V-Blank)
                 for bit in 0..=4 {
-                    let address = 0x40 + bit * 0x8; 
+                    let address = 0x40 + bit * 0x8;
                     self.handle_single_interrupt(bit, address.into());
                 }
             } else {
@@ -222,7 +222,7 @@ impl CPU {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
     use crate::gameboy::MemoryBus;
 
@@ -233,7 +233,7 @@ mod tests{
         cpu.boot();
         let b_reg = cpu.registers.b;
         cpu.execute_opcode(0x04);
-        assert_eq!(b_reg+1, cpu.registers.b);
+        assert_eq!(b_reg + 1, cpu.registers.b);
     }
 
     #[test]
@@ -254,7 +254,7 @@ mod tests{
 
         // Store the initial value of the B register so we can check
         // that it increments twice.
-        let b_reg = cpu.registers.b; 
+        let b_reg = cpu.registers.b;
 
         // Execute halt
         cpu.execute_opcode(0x76);
@@ -262,11 +262,11 @@ mod tests{
         cpu.tick();
         cpu.tick();
 
-        assert_eq!(b_reg+2, cpu.registers.b);
+        assert_eq!(b_reg + 2, cpu.registers.b);
 
         // The next instruction should run normally (a NOP in this case).
         // Check that the increment doesn't execute again.
         cpu.tick();
-        assert_eq!(b_reg+2, cpu.registers.b);
+        assert_eq!(b_reg + 2, cpu.registers.b);
     }
 }

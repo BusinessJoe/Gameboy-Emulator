@@ -1,8 +1,10 @@
 use pixels::{Pixels, SurfaceTexture};
-use winit::{
-        dpi::LogicalSize, event_loop::EventLoop, window::{Window, WindowBuilder},
-};
 use std::fmt;
+use winit::{
+    dpi::LogicalSize,
+    event_loop::EventLoop,
+    window::{Window, WindowBuilder},
+};
 
 #[derive(Debug, Clone)]
 pub struct IndexError;
@@ -28,7 +30,13 @@ pub struct PixelsScreen {
 }
 
 impl PixelsScreen {
-    pub fn new(logical_width: u32, logical_height: u32, real_width: u32, real_height: u32, event_loop: &EventLoop<()>) -> Self {
+    pub fn new(
+        logical_width: u32,
+        logical_height: u32,
+        real_width: u32,
+        real_height: u32,
+        event_loop: &EventLoop<()>,
+    ) -> Self {
         let window = {
             let size = LogicalSize::new(logical_width as f64, logical_height as f64);
             let real_size = LogicalSize::new(real_width as f64, real_height as f64);
@@ -42,7 +50,8 @@ impl PixelsScreen {
 
         let pixels = {
             let window_size = window.inner_size();
-            let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+            let surface_texture =
+                SurfaceTexture::new(window_size.width, window_size.height, &window);
             Pixels::new(logical_width, logical_height, surface_texture).unwrap()
         };
 
@@ -69,18 +78,20 @@ impl PixelsScreen {
 impl Screen<[u8; 4]> for PixelsScreen {
     fn set_pixel(&mut self, row: u32, col: u32, value: &[u8; 4]) -> Result<(), IndexError> {
         let index = self.get_array_index(row, col)?;
-        self.pixel_data[index..index+4].copy_from_slice(value);
+        self.pixel_data[index..index + 4].copy_from_slice(value);
         Ok(())
     }
 
     fn get_pixel(&self, row: u32, col: u32) -> Result<&[u8; 4], IndexError> {
         let index = self.get_array_index(row, col)?;
-        let rgba: &[u8; 4] = self.pixel_data[index..index+4].try_into().unwrap();
+        let rgba: &[u8; 4] = self.pixel_data[index..index + 4].try_into().unwrap();
         Ok(rgba)
     }
 
     fn redraw(&mut self) {
-        self.pixels.get_frame_mut().copy_from_slice(&self.pixel_data);
+        self.pixels
+            .get_frame_mut()
+            .copy_from_slice(&self.pixel_data);
 
         if let Err(err) = self.pixels.render() {
             dbg!(err);

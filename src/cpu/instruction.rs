@@ -1,5 +1,5 @@
 use crate::cpu::CPU;
-use log::{debug,error};
+use log::{debug, error};
 use strum_macros::AsRefStr;
 
 #[allow(non_camel_case_types)]
