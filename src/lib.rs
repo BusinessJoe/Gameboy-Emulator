@@ -1,3 +1,4 @@
+mod cartridge;
 mod cpu;
 pub mod execution_manager;
 pub mod gameboy;

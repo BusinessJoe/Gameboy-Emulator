@@ -28,13 +28,17 @@ impl<T> Register<T> {
         self.values[index] = value;
     }
 
-    pub fn get_range<U>(&self, indices: U) -> &[bool] 
-    where U: SliceIndex<[bool], Output = [bool]> {
+    pub fn get_range<U>(&self, indices: U) -> &[bool]
+    where
+        U: SliceIndex<[bool], Output = [bool]>,
+    {
         &self.values[indices]
     }
 
-    pub fn set_range<U>(&mut self, indices: U, values: &[bool]) 
-    where U: SliceIndex<[bool], Output = [bool]> {
+    pub fn set_range<U>(&mut self, indices: U, values: &[bool])
+    where
+        U: SliceIndex<[bool], Output = [bool]>,
+    {
         self.values[indices].clone_from_slice(values);
     }
 }
@@ -50,9 +54,10 @@ where
         + Eq
         + Copy,
 {
-    pub fn get_range_value<U>(&self, indices: U) -> T 
-    where U: SliceIndex<[bool], Output = [bool]> {
-    
+    pub fn get_range_value<U>(&self, indices: U) -> T
+    where
+        U: SliceIndex<[bool], Output = [bool]>,
+    {
         let mut value = T::zero();
         for (i, flag) in self.values[indices].iter().enumerate() {
             if *flag {
@@ -62,8 +67,10 @@ where
         value
     }
 
-    pub fn set_range_value<U>(&mut self, indices: U, value: T) 
-    where U: SliceIndex<[bool], Output = [bool]> {
+    pub fn set_range_value<U>(&mut self, indices: U, value: T)
+    where
+        U: SliceIndex<[bool], Output = [bool]>,
+    {
         for (i, flag) in self.values[indices].iter_mut().enumerate() {
             *flag = (value >> i) & T::one() == T::one();
         }
@@ -83,7 +90,7 @@ where
         + std::ops::BitOrAssign
         + std::ops::BitAnd<Output = T>
         + Eq
-        + Copy
+        + Copy,
 {
     fn from(value: T) -> Self {
         let mut reg: Register<T> = Self::new();
