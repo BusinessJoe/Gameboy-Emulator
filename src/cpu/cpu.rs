@@ -223,12 +223,15 @@ impl CPU {
 
 #[cfg(test)]
 mod tests {
+    use env_logger::builder;
+
+    use crate::cartridge::{Cartridge, build_cartridge};
+
     use super::*;
-    use crate::gameboy::MemoryBus;
 
     #[test]
     fn test_increment_b() {
-        let memory_bus = Arc::new(Mutex::new(MemoryBus::default()));
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
         let mut cpu = CPU::new(memory_bus);
         cpu.boot();
         let b_reg = cpu.registers.b;
@@ -238,7 +241,7 @@ mod tests {
 
     #[test]
     fn halt_bug() {
-        let memory_bus = Arc::new(Mutex::new(MemoryBus::default()));
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
         let mut cpu = CPU::new(memory_bus.clone());
         cpu.boot();
 
@@ -249,8 +252,11 @@ mod tests {
 
         // Set up an increment B instruction at the current opcode.
         // We expect this to be executed twice due to the halt bug.
+        let mut bytes = [0; 0x200];
         let pc = cpu.pc;
-        memory_bus.lock().unwrap().set(pc.into(), 0x04);
+        bytes[usize::from(pc)] = 0x04;
+
+        memory_bus.lock().unwrap().insert_cartridge(build_cartridge(&bytes).unwrap());
 
         // Store the initial value of the B register so we can check
         // that it increments twice.

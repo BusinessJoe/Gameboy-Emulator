@@ -152,7 +152,7 @@ pub fn build_cartridge(data: &[u8]) -> Option<Box<dyn Cartridge>> {
     }
 }
 
-pub fn cartridge_type_from_data(data: &[u8]) -> Option<CartridgeType> {
+fn cartridge_type_from_data(data: &[u8]) -> Option<CartridgeType> {
     match data[0x0147] {
         0x00 => Some(CartridgeType::RomOnly),
         0x01 => Some(CartridgeType::MBC1),
@@ -182,8 +182,18 @@ mod tests {
     }
 
     #[test]
-    fn memory_banks_swap_mbc1() {
-        unimplemented!();
+    fn mbc1_memory_banks_swap() {
+        let mut bytes = vec![0; 0x200000];
+        bytes[0x1132a7] = 0xff;
+        let mut cartridge = MBC1Cartridge::new(&bytes);
+
+        // Store 0b00100 into bank 1, 0b10 into bank 2, and 0b0 into mode
+        cartridge.write(0x2000, 0b00100).unwrap();
+        cartridge.write(0x4000, 0b10).unwrap();
+        cartridge.write(0x6000, 0).unwrap();
+
+        // Now a read at 0x72a7 should produce the rom value at 0x1132a7, which we set to be 0xff
+        assert_eq!(0xff, cartridge.read(0x72a7).unwrap());
     }
 
     #[test]

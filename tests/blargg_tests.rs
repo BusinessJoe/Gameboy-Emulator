@@ -73,8 +73,3 @@ fn test_10_bit_ops() {
 fn test_11_OP_A_HL() {
     test_blargg_rom("tests/gb-test-roms-master/cpu_instrs/individual/11-op a,(hl).gb");
 }
-
-#[test]
-fn test_cpu_instrs() {
-    test_blargg_rom("tests/gb-test-roms-master/cpu_instrs/cpu_instrs.gb");
-}
