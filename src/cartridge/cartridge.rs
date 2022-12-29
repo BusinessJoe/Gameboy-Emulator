@@ -2,7 +2,7 @@ use crate::register::Register;
 
 type Address = usize;
 
-pub trait Cartridge : Send {
+pub trait Cartridge: Send {
     fn cartridge_type(&self) -> CartridgeType;
     fn read(&self, address: Address) -> Result<u8, AddressingError>;
     fn write(&mut self, address: Address, value: u8) -> Result<(), AddressingError>;
@@ -148,7 +148,7 @@ pub fn build_cartridge(data: &[u8]) -> Option<Box<dyn Cartridge>> {
     match cartridge_type_from_data(data) {
         Some(CartridgeType::RomOnly) => Some(Box::new(RomOnlyCartridge::new(data))),
         Some(CartridgeType::MBC1) => Some(Box::new(MBC1Cartridge::new(data))),
-        _ => None
+        _ => None,
     }
 }
 

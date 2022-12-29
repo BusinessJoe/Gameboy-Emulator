@@ -1,5 +1,5 @@
+use crate::cartridge::{self, Cartridge};
 use crate::gameboy::Interrupt;
-use crate::cartridge::{Cartridge, self};
 use log::debug;
 
 /// Mock memory bus
@@ -25,7 +25,7 @@ impl MemoryBus {
                 let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
                 cartridge.read(address).expect("Error reading cartridge")
             }
-            _ => self.data[address]
+            _ => self.data[address],
         }
     }
 
@@ -33,12 +33,15 @@ impl MemoryBus {
         if address == 0xFF02 && value == 0x81 {
             let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
             self.output_string.push(chr);
+            println!("{}", self.output_string);
         }
         match address {
             0..=0x7fff => {
                 let cartridge = self.cartridge.as_mut().expect("No cartridge inserted");
-                cartridge.write(address, value).expect("Error reading cartridge")
-            },
+                cartridge
+                    .write(address, value)
+                    .expect("Error reading cartridge")
+            }
             _ => self.data[address] = value,
         }
     }

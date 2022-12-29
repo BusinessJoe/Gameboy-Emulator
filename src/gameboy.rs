@@ -1,7 +1,8 @@
 use crate::cartridge;
 use crate::cpu::CPU;
-use crate::timer::Timer;
 use crate::memory::MemoryBus;
+use crate::ppu::PPU;
+use crate::timer::Timer;
 use log::trace;
 use std::fs;
 use std::sync::{Arc, Mutex};
@@ -10,6 +11,7 @@ const CLOCK_SPEED: u64 = 4_194_304;
 
 pub struct GameBoyState {
     pub cpu: CPU,
+    //pub ppu: PPU,
     timer: Timer,
     memory_bus: Arc<Mutex<MemoryBus>>,
 }
@@ -19,6 +21,7 @@ impl GameBoyState {
         let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
         Self {
             cpu: CPU::new(memory_bus.clone()),
+            //ppu: PPU::new(memory_bus.clone()),
             timer: Timer::new(CLOCK_SPEED, memory_bus.clone()),
             memory_bus,
         }
@@ -33,6 +36,7 @@ impl GameBoyState {
 
     pub fn tick(&mut self) {
         let elapsed_cycles = self.cpu.tick();
+        //self.ppu.tick();
         self.timer.tick(elapsed_cycles);
     }
 
@@ -54,4 +58,3 @@ impl GameBoyState {
 pub enum Interrupt {
     Timer,
 }
-

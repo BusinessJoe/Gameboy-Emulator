@@ -1,8 +1,9 @@
 mod cartridge;
-mod memory;
 mod cpu;
-pub mod execution_manager;
+pub mod emulator;
 pub mod gameboy;
+mod memory;
+mod ppu;
 mod register;
 pub mod screen;
 mod timer;

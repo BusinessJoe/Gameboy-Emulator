@@ -225,7 +225,7 @@ impl CPU {
 mod tests {
     use env_logger::builder;
 
-    use crate::cartridge::{Cartridge, build_cartridge};
+    use crate::cartridge::{build_cartridge, Cartridge};
 
     use super::*;
 
@@ -256,7 +256,10 @@ mod tests {
         let pc = cpu.pc;
         bytes[usize::from(pc)] = 0x04;
 
-        memory_bus.lock().unwrap().insert_cartridge(build_cartridge(&bytes).unwrap());
+        memory_bus
+            .lock()
+            .unwrap()
+            .insert_cartridge(build_cartridge(&bytes).unwrap());
 
         // Store the initial value of the B register so we can check
         // that it increments twice.
