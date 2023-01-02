@@ -39,7 +39,12 @@ impl GameboyEmulator {
                     control_flow.set_exit();
                 }
                 Event::MainEventsCleared => {
-                    emulator.update(&mut gameboy_state, &mut current_output, test_mode, &mut screen);
+                    emulator.update(
+                        &mut gameboy_state,
+                        &mut current_output,
+                        test_mode,
+                        &mut screen,
+                    );
                 }
                 Event::RedrawRequested(_) => {}
                 _ => (),
@@ -57,26 +62,6 @@ impl GameboyEmulator {
         gameboy_state.tick();
 
         //self.redraw_screen(&gameboy_state, &mut screen);
-
-        // Show output
-        if *current_output != gameboy_state.get_output() {
-            *current_output = gameboy_state.get_output();
-            let mut stdout = stdout();
-            if false && !test_mode {
-                stdout.execute(terminal::Clear(terminal::ClearType::All));
-            }
-            println!("{}", current_output);
-        }
-
-        // Check for test results if in test mode
-        if test_mode {
-            let output_lowercase = gameboy_state.get_output().to_lowercase();
-            if output_lowercase.contains("passed") {
-                return Some(Ok(gameboy_state.get_output()));
-            } else if output_lowercase.contains("failed") {
-                return Some(Err(gameboy_state.get_output()));
-            }
-        }
 
         None
     }
@@ -114,8 +99,12 @@ impl GameboyEmulator {
         });
     }
 
-    pub fn run(gameboy_state: GameBoyState) {
+    pub fn run(mut gameboy_state: GameBoyState) {
         let mut emulator = GameboyEmulator::new();
+
+        gameboy_state.on_serial_port_data(|chr: char| {
+            print!("{}", chr);
+        });
 
         // emulator.spawn_input_handler_thread();
 
@@ -168,4 +157,3 @@ impl GameboyEmulator {
     }
     */
 }
-

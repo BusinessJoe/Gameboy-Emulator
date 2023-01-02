@@ -1,16 +1,17 @@
 use crate::register::Register;
+use log::{info, debug};
 
 type Address = usize;
 
 pub trait Cartridge: Send {
-    fn cartridge_type(&self) -> CartridgeType;
+    fn mbc_controller_type(&self) -> MBCControllerType;
     fn read(&self, address: Address) -> Result<u8, AddressingError>;
     fn write(&mut self, address: Address, value: u8) -> Result<(), AddressingError>;
 }
 
 impl std::fmt::Debug for dyn Cartridge {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "{:?}", self.cartridge_type())
+        write!(fmt, "{:?}", self.mbc_controller_type())
     }
 }
 
@@ -32,8 +33,8 @@ impl RomOnlyCartridge {
 }
 
 impl Cartridge for RomOnlyCartridge {
-    fn cartridge_type(&self) -> CartridgeType {
-        CartridgeType::RomOnly
+    fn mbc_controller_type(&self) -> MBCControllerType {
+        MBCControllerType::RomOnly
     }
 
     fn read(&self, address: Address) -> Result<u8, AddressingError> {
@@ -93,8 +94,8 @@ impl MBC1Cartridge {
 }
 
 impl Cartridge for MBC1Cartridge {
-    fn cartridge_type(&self) -> CartridgeType {
-        CartridgeType::MBC1
+    fn mbc_controller_type(&self) -> MBCControllerType {
+        MBCControllerType::MBC1
     }
 
     fn read(&self, address: Address) -> Result<u8, AddressingError> {
@@ -119,12 +120,14 @@ impl Cartridge for MBC1Cartridge {
                     value = 1;
                 }
                 self.bank_register_1.set_range_value(0..=4, value);
+                info!("Switched to bank {}", self.bank_number(0x4000));
                 Ok(())
             }
             0x4000..=0x5fff => {
                 // Write lower 2 bits to bank register 2
                 value &= 0x3;
                 self.bank_register_2.set_range_value(0..=1, value);
+                info!("Switched to bank {}", self.bank_number(0x4000));
                 Ok(())
             }
             0x6000..=0x7fff => {
@@ -139,25 +142,62 @@ impl Cartridge for MBC1Cartridge {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CartridgeType {
+pub struct CartridgeType {
+    mbc_controller_type: MBCControllerType,
+    ram: bool,
+    battery: bool,
+    timer: bool,
+    rumble: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MBCControllerType {
     RomOnly,
     MBC1,
 }
 
 pub fn build_cartridge(data: &[u8]) -> Option<Box<dyn Cartridge>> {
     match cartridge_type_from_data(data) {
-        Some(CartridgeType::RomOnly) => Some(Box::new(RomOnlyCartridge::new(data))),
-        Some(CartridgeType::MBC1) => Some(Box::new(MBC1Cartridge::new(data))),
+        Some(CartridgeType {
+            mbc_controller_type: MBCControllerType::RomOnly,
+            ..
+        }) => Some(Box::new(RomOnlyCartridge::new(data))),
+        Some(CartridgeType {
+            mbc_controller_type: MBCControllerType::MBC1,
+            ..
+        }) => Some(Box::new(MBC1Cartridge::new(data))),
         _ => None,
     }
 }
 
 fn cartridge_type_from_data(data: &[u8]) -> Option<CartridgeType> {
-    match data[0x0147] {
-        0x00 => Some(CartridgeType::RomOnly),
-        0x01 => Some(CartridgeType::MBC1),
-        _ => None,
-    }
+    debug!("{}", data[0x0147]);
+    let cartridge_type = match data[0x0147] {
+        0x00 => CartridgeType {
+                    mbc_controller_type: MBCControllerType::RomOnly,
+                    ram: false,
+                    battery: false,
+                    timer: false,
+                    rumble: false,
+        },
+        0x01 => CartridgeType {
+                    mbc_controller_type: MBCControllerType::MBC1,
+                    ram: false,
+                    battery: false,
+                    timer: false,
+                    rumble: false,
+        },
+        0x02 => CartridgeType {
+                    mbc_controller_type: MBCControllerType::MBC1,
+                    ram: true,
+                    battery: false,
+                    timer: false,
+                    rumble: false,
+        },
+        _ => unimplemented!()
+    };
+
+    Some(cartridge_type)
 }
 
 #[cfg(test)]

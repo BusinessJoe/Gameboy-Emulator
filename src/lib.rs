@@ -1,3 +1,6 @@
+mod component;
+mod error;
+
 mod cartridge;
 mod cpu;
 pub mod emulator;

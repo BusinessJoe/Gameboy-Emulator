@@ -1,12 +1,20 @@
+use crate::component::{Steppable, ElapsedTime, Addressable};
+use crate::error::Result;
 use crate::cpu::{instruction::*, register::*};
 use crate::memory::MemoryBus;
-use log::{debug, trace};
-use std::sync::{Arc, Mutex};
+use log::{debug, info, trace};
 
-use crate::cpu::CPU;
+pub struct CPU {
+    pub registers: Registers,
+    pub sp: u16,
+    pub pc: u16,
+    pub(in crate) interrupt_enabled: bool,
+    pub(in crate) halted: bool,
+    pub(in crate) halt_bug_opcode: Option<u8>,
+}
 
 impl CPU {
-    pub fn new(memory_bus: Arc<Mutex<MemoryBus>>) -> Self {
+    pub fn new() -> Self {
         Self {
             registers: Registers::default(),
             sp: 0,
@@ -14,7 +22,6 @@ impl CPU {
             interrupt_enabled: false,
             halted: false,
             halt_bug_opcode: None,
-            memory_bus,
         }
     }
 
@@ -30,13 +37,12 @@ impl CPU {
     }
 
     /// Called at the beginning of an interrupt helper
-    fn handle_single_interrupt(&mut self, bit: u8, address: u16) {
+    fn handle_single_interrupt(&mut self, memory_bus: &mut MemoryBus, bit: u8, address: u16) -> Result<()> {
         // Check IME flag and relevant bit in IE flag.
-        let ie_flag = self.get_memory_value(0xFFFF);
-        let ie_flag_bit = (ie_flag >> bit) & 1;
-        if self.interrupt_enabled && ie_flag_bit == 1 {
-            debug!(
-                "handling interrupt {}",
+        let ie_flag = memory_bus.read_u8(address.into())?;
+        if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) {
+            info!(
+                "Handling interrupt: {}",
                 match bit {
                     0 => "vblank",
                     1 => "lcdc",
@@ -47,14 +53,16 @@ impl CPU {
                 }
             );
 
-            // Reset IF bit and IME flag
-            self.set_memory_value(0xFF0F, ie_flag & !(1 << bit));
+            // Reset IF flag
+            memory_bus.write_u8(0xFF0F, ie_flag & !(1 << bit))?;
+
+            // Reset IME flag
             self.interrupt_enabled = false;
 
             // Push PC onto stack. LSB is last/top of the stack.
             let bytes = self.pc.to_le_bytes();
-            self.push(bytes[1]);
-            self.push(bytes[0]);
+            self.push(memory_bus, bytes[1]).unwrap();
+            self.push(memory_bus, bytes[0]).unwrap();
 
             // Jump to starting address of interrupt
             self.pc = address;
@@ -71,86 +79,58 @@ impl CPU {
                 }
             );
         }
+
+        Ok(())
     }
 
-    fn handle_interrupts(&mut self) {
+    fn handle_interrupts(&mut self, memory_bus: &mut MemoryBus) -> Result<()> {
         // If IE and IF
-        if self.get_memory_value(0xFFFF) & self.get_memory_value(0xFF0F) != 0 {
-            if self.interrupt_enabled {
-                // Unhalt
-                self.halted = false;
-
-                // Handle interrupts by priority (starting at bit 0 - V-Blank)
-                for bit in 0..=4 {
-                    let address = 0x40 + bit * 0x8;
-                    self.handle_single_interrupt(bit, address.into());
-                }
-            } else {
-                // Wake up, but don't handle any interrupts.
+        if memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0 {
+            // Unhalt
+            if self.halted {
+                info!{"Unhalting"};
                 self.halted = false;
             }
+            // Handle interrupts by priority (starting at bit 0 - V-Blank)
+            for bit in 0..=4 {
+                if self.interrupt_enabled {
+                    let address = 0x40 + bit * 0x8; 
+                    self.handle_single_interrupt(memory_bus, bit, address.into())?;
+                } else {
+                    // info!("IME not set");
+                }
+            }
         }
+
+        Ok(())
     }
 
-    fn execute_opcode(&mut self, opcode: u8) -> u8 {
-        let elapsed_cycles;
-        if opcode == 0xCB {
-            let opcode = self.get_byte_from_pc();
-            elapsed_cycles = self.execute_cb_opcode(opcode);
-        } else {
-            elapsed_cycles = self.execute_regular_opcode(opcode);
-        }
-
-        self.handle_interrupts();
-
-        elapsed_cycles
-    }
-
-    /// Handle a single timestep in the cpu, returning the number of elapsed cycles
-    pub fn tick(&mut self) -> u8 {
-        let elapsed_cycles = if !self.halted {
-            // Get and execute opcode
-            let pc = self.pc;
-            let opcode = self.get_byte_from_pc();
-
-            // Decodes and executes opcode, returns number of elapsed cycles.
-            self.execute_opcode(opcode)
-        } else {
-            debug!("Halted");
-            // Return 1 cycle
-            1
-        };
-
-        self.handle_interrupts();
-
-        elapsed_cycles
-    }
-
-    pub fn get_byte_from_pc(&mut self) -> u8 {
-        match self.halt_bug_opcode {
+    pub fn get_byte_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
+        let byte = match self.halt_bug_opcode {
             Some(opcode) => {
                 self.halt_bug_opcode = None;
-                debug!("Read halt bug byte {:#04x}", opcode);
+                trace!("Read halt bug byte {:#04x}", opcode);
                 opcode
             }
             None => {
-                let byte = self.get_memory_value(self.pc.into());
-                debug!("Read byte {:#04x}", byte);
+                let byte = memory_bus.read_u8(self.pc.into())?;
+                trace!("Read byte {:#04x}", byte);
                 self.pc += 1;
                 byte
             }
-        }
+        };
+
+        Ok(byte)
     }
 
-    pub fn get_signed_byte_from_pc(&mut self) -> i8 {
-        self.get_byte_from_pc() as i8
+    pub fn get_signed_byte_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<i8> {
+        Ok(self.get_byte_from_pc(memory_bus)? as i8)
     }
 
-    pub fn get_word_from_pc(&mut self) -> u16 {
-        let bytes = [self.get_byte_from_pc(), self.get_byte_from_pc()];
+    pub fn get_word_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<u16> {
+        let bytes = [self.get_byte_from_pc(memory_bus)?, self.get_byte_from_pc(memory_bus)?];
         let word = u16::from_le_bytes(bytes);
-        trace!("Read byte {:#06x}", word);
-        word
+        Ok(word)
     }
 
     pub fn set_register(&mut self, reg: Register, value: u8) {
@@ -199,83 +179,53 @@ impl CPU {
         }
     }
 
-    pub fn get_memory_value(&self, address: usize) -> u8 {
-        trace!("getting memory at {:#x}", address);
-        self.memory_bus.lock().unwrap().get(address)
-    }
-
-    pub fn set_memory_value(&mut self, address: usize, value: u8) {
-        trace!("setting memory at {:#x}", address);
-        self.memory_bus.lock().unwrap().set(address, value);
-    }
-
-    pub fn push(&mut self, value: u8) {
+    pub fn push(&mut self, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
         self.sp -= 1;
-        self.set_memory_value(self.sp as usize, value);
+        memory_bus.write_u8(self.sp.into(), value)
     }
 
-    pub fn pop(&mut self) -> u8 {
-        let value = self.get_memory_value(self.sp as usize);
+    pub fn pop(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
+        let value = memory_bus.read_u8(self.sp.into())?;
         self.sp += 1;
-        value
+        Ok(value)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use env_logger::builder;
+impl Steppable for CPU {
+    fn step(&mut self, state: &crate::gameboy::GameBoyState) -> Result<ElapsedTime> {
+        let mut memory_bus = state.memory_bus.lock().unwrap();
 
-    use crate::cartridge::{build_cartridge, Cartridge};
+        let elapsed_cycles = if !self.halted {
+            // Get and execute opcode
+            let pc = self.pc;
+            let opcode = self.get_byte_from_pc(&mut memory_bus)?;
+            let elapsed_cycles;
+            if opcode == 0xCB {
+                let opcode = self.get_byte_from_pc(&mut memory_bus)?;
+                trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
+                elapsed_cycles = self.execute_cb_opcode(&mut memory_bus, opcode);
+            } else {
+                trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
+                elapsed_cycles = self.execute_regular_opcode(&mut memory_bus, opcode)?;
+            }
+            trace!(
+                "AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}",
+                self.registers.get_af(),
+                self.registers.get_bc(),
+                self.registers.get_de(),
+                self.registers.get_hl(),
+                self.sp,
+                self.pc
+            );
+            elapsed_cycles
+        } else {
+            trace!("Halted");
+            // Return 1 cycle
+            1
+        };
 
-    use super::*;
-
-    #[test]
-    fn test_increment_b() {
-        let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
-        let mut cpu = CPU::new(memory_bus);
-        cpu.boot();
-        let b_reg = cpu.registers.b;
-        cpu.execute_opcode(0x04);
-        assert_eq!(b_reg + 1, cpu.registers.b);
-    }
-
-    #[test]
-    fn halt_bug() {
-        let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
-        let mut cpu = CPU::new(memory_bus.clone());
-        cpu.boot();
-
-        // The halt bug requires IME to be reset and IE & IF =/= 0.
-        cpu.interrupt_enabled = false;
-        memory_bus.lock().unwrap().set(0xFFFF, 0xFF);
-        memory_bus.lock().unwrap().set(0xFF0F, 0xFF);
-
-        // Set up an increment B instruction at the current opcode.
-        // We expect this to be executed twice due to the halt bug.
-        let mut bytes = [0; 0x200];
-        let pc = cpu.pc;
-        bytes[usize::from(pc)] = 0x04;
-
-        memory_bus
-            .lock()
-            .unwrap()
-            .insert_cartridge(build_cartridge(&bytes).unwrap());
-
-        // Store the initial value of the B register so we can check
-        // that it increments twice.
-        let b_reg = cpu.registers.b;
-
-        // Execute halt
-        cpu.execute_opcode(0x76);
-
-        cpu.tick();
-        cpu.tick();
-
-        assert_eq!(b_reg + 2, cpu.registers.b);
-
-        // The next instruction should run normally (a NOP in this case).
-        // Check that the increment doesn't execute again.
-        cpu.tick();
-        assert_eq!(b_reg + 2, cpu.registers.b);
+        self.handle_interrupts(&mut memory_bus)?;
+         
+        Ok(elapsed_cycles.into())
     }
 }

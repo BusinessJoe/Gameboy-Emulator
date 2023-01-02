@@ -1,5 +1,7 @@
-use crate::cpu::CPU;
-use log::{debug, error};
+use crate::{cpu::CPU, memory::MemoryBus};
+use crate::error::Result;
+use crate::component::Addressable;
+use log::{debug, info, error};
 use strum_macros::AsRefStr;
 
 #[allow(non_camel_case_types)]
@@ -100,11 +102,11 @@ pub enum Instruction {
 }
 
 pub trait CPUReadable<T> {
-    fn get(&self, cpu: &CPU) -> T;
+    fn get(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<T>;
 }
 
 pub trait CPUWritable<T> {
-    fn set(&self, cpu: &mut CPU, value: T);
+    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: T) -> Result<()>;
 }
 
 pub trait CPUReadWritable<T>: CPUReadable<T> + CPUWritable<T> {}
@@ -122,8 +124,8 @@ pub enum Register {
 }
 
 impl CPUReadable<u8> for Register {
-    fn get(&self, cpu: &CPU) -> u8 {
-        match self {
+    fn get(&self, cpu: &CPU, _: &mut MemoryBus) -> Result<u8> {
+        let value = match self {
             Register::A => cpu.registers.a,
             Register::B => cpu.registers.b,
             Register::C => cpu.registers.c,
@@ -131,12 +133,13 @@ impl CPUReadable<u8> for Register {
             Register::E => cpu.registers.e,
             Register::H => cpu.registers.h,
             Register::L => cpu.registers.l,
-        }
+        };
+        Ok(value)
     }
 }
 
 impl CPUWritable<u8> for Register {
-    fn set(&self, cpu: &mut CPU, value: u8) {
+    fn set(&self, cpu: &mut CPU, _: &mut MemoryBus, value: u8) -> Result<()> {
         match self {
             Register::A => cpu.registers.a = value,
             Register::B => cpu.registers.b = value,
@@ -146,6 +149,8 @@ impl CPUWritable<u8> for Register {
             Register::H => cpu.registers.h = value,
             Register::L => cpu.registers.l = value,
         }
+
+        Ok(())
     }
 }
 
@@ -160,20 +165,21 @@ pub enum WordRegister {
 }
 
 impl CPUReadable<u16> for WordRegister {
-    fn get(&self, cpu: &CPU) -> u16 {
-        match self {
+    fn get(&self, cpu: &CPU, _: &mut MemoryBus) -> Result<u16> {
+        let value = match self {
             WordRegister::AF => cpu.registers.get_af(),
             WordRegister::BC => cpu.registers.get_bc(),
             WordRegister::DE => cpu.registers.get_de(),
             WordRegister::HL => cpu.registers.get_hl(),
             WordRegister::SP => cpu.sp,
             WordRegister::PC => cpu.pc,
-        }
+        };
+        Ok(value)
     }
 }
 
 impl CPUWritable<u16> for WordRegister {
-    fn set(&self, cpu: &mut CPU, value: u16) {
+    fn set(&self, cpu: &mut CPU, _: &mut MemoryBus, value: u16) -> Result<()> {
         match self {
             WordRegister::AF => cpu.registers.set_af(value),
             WordRegister::BC => cpu.registers.set_bc(value),
@@ -182,6 +188,7 @@ impl CPUWritable<u16> for WordRegister {
             WordRegister::SP => cpu.sp = value,
             WordRegister::PC => cpu.pc = value,
         }
+        Ok(())
     }
 }
 
@@ -218,39 +225,41 @@ impl From<Address> for u16 {
 }
 
 impl CPUReadable<u8> for GoodAddress {
-    fn get(&self, cpu: &CPU) -> u8 {
+    fn get(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<u8> {
         match *self {
-            GoodAddress::Direct(addr) => cpu.get_memory_value(addr as usize),
+            GoodAddress::Direct(addr) => memory_bus.read_u8(addr.into()),
             GoodAddress::WordRegister(word_reg) => {
-                let addr: u16 = word_reg.get(cpu);
-                cpu.get_memory_value(addr as usize)
+                let addr: u16 = word_reg.get(cpu, memory_bus)?;
+                memory_bus.read_u8(addr.into())
             }
         }
     }
 }
 
 impl CPUWritable<u8> for GoodAddress {
-    fn set(&self, cpu: &mut CPU, value: u8) {
+    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
         match *self {
-            GoodAddress::Direct(addr) => cpu.set_memory_value(addr as usize, value),
+            GoodAddress::Direct(addr) => memory_bus.write_u8(addr.into(), value),
             GoodAddress::WordRegister(word_reg) => {
-                let addr: u16 = word_reg.get(cpu);
-                cpu.set_memory_value(addr as usize, value)
+                let addr: u16 = word_reg.get(cpu, memory_bus)?;
+                memory_bus.write_u8(addr.into(), value)
             }
         }
     }
 }
 
 impl CPUWritable<u16> for GoodAddress {
-    fn set(&self, cpu: &mut CPU, value: u16) {
+    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u16) -> Result<()> {
         let addr: usize = match *self {
             GoodAddress::Direct(addr) => addr.into(),
-            GoodAddress::WordRegister(word_reg) => word_reg.get(cpu).into(),
+            GoodAddress::WordRegister(word_reg) => word_reg.get(cpu, memory_bus)?.into(),
         };
 
         let bytes = value.to_le_bytes();
-        cpu.set_memory_value(addr, bytes[0]);
-        cpu.set_memory_value(addr + 1, bytes[1]);
+        memory_bus.write_u8(addr, bytes[0])?;
+        memory_bus.write_u8(addr + 1, bytes[1])?;
+
+        Ok(())
     }
 }
 
@@ -258,8 +267,8 @@ impl CPUWritable<u16> for GoodAddress {
 pub struct Immediate(u8);
 
 impl CPUReadable<u8> for Immediate {
-    fn get(&self, _cpu: &CPU) -> u8 {
-        self.0
+    fn get(&self, _: &CPU, _: &mut MemoryBus) -> Result<u8> {
+        Ok(self.0)
     }
 }
 
@@ -267,8 +276,8 @@ impl CPUReadable<u8> for Immediate {
 pub struct Immediate16(u16);
 
 impl CPUReadable<u16> for Immediate16 {
-    fn get(&self, _cpu: &CPU) -> u16 {
-        self.0
+    fn get(&self, _: &CPU, _: &mut MemoryBus) -> Result<u16> {
+        Ok(self.0)
     }
 }
 
@@ -326,16 +335,16 @@ impl From<Immediate> for ArithmeticTarget {
 struct Offset(Register);
 
 impl CPUReadable<u8> for Offset {
-    fn get(&self, cpu: &CPU) -> u8 {
-        let addr = 0xff00 + self.0.get(cpu) as u16;
-        cpu.get_memory_value(addr.into())
+    fn get(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<u8> {
+        let addr = 0xff00 + u16::from(self.0.get(cpu, memory_bus)?);
+        memory_bus.read_u8(addr.into())
     }
 }
 
 impl CPUWritable<u8> for Offset {
-    fn set(&self, cpu: &mut CPU, value: u8) {
-        let addr = 0xff00 + self.0.get(cpu) as u16;
-        cpu.set_memory_value(addr.into(), value);
+    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
+        let addr = 0xff00 + u16::from(self.0.get(cpu, memory_bus)?);
+        memory_bus.write_u8(addr.into(), value)
     }
 }
 
@@ -898,14 +907,14 @@ fn get_cb_opcode_delay(opcode: u8) -> u8 {
 }
 
 impl CPU {
-    fn get_arithmetic_value(&self, arith_target: &ArithmeticTarget) -> u8 {
+    fn get_arithmetic_value(&self, memory_bus: &mut MemoryBus, arith_target: &ArithmeticTarget) -> Result<u8> {
         match *arith_target {
-            ArithmeticTarget::Register(reg) => self.get_register(reg),
+            ArithmeticTarget::Register(reg) => Ok(self.get_register(reg)),
             ArithmeticTarget::WordRegister(word) => {
                 let mem_addr = self.get_word_register(word);
-                self.get_memory_value(mem_addr.into())
+                memory_bus.read_u8(mem_addr.into())
             }
-            ArithmeticTarget::Immediate(imm) => imm.into(),
+            ArithmeticTarget::Immediate(imm) => Ok(imm.into()),
         }
     }
 
@@ -918,12 +927,18 @@ impl CPU {
         }
     }
 
-    fn execute(&mut self, instruction: Instruction) -> BranchStatus {
+    fn execute(&mut self, memory_bus: &mut MemoryBus, instruction: Instruction) -> Result<BranchStatus> {
         debug!("Executing instruction {}", instruction.as_ref());
         let mut branch_status = BranchStatus::NoBranch;
         match instruction {
-            Instruction::LD(target, source) => target.set(self, source.get(self)),
-            Instruction::LD_16(target, source) => target.set(self, source.get(self)),
+            Instruction::LD(target, source) => {
+                let value = source.get(self, memory_bus)?;
+                target.set(self, memory_bus, value)?
+            }
+            Instruction::LD_16(target, source) => {
+                let value = source.get(self, memory_bus)?;
+                target.set(self, memory_bus, value)?
+            }
             Instruction::LDHL_SP(signed_immediate) => {
                 let sum = self
                     .sp
@@ -938,40 +953,56 @@ impl CPU {
                     (self.sp ^ i8::from(signed_immediate) as u16 ^ sum) & 0x100 == 0x100;
             }
             Instruction::LDD_A_FROM_HL => {
-                Register::A.set(self, WordRegister::HL.into_address().get(self));
-                self.execute(Instruction::DEC_WORD(WordRegister::HL));
+                let value = WordRegister::HL.into_address().get(self, memory_bus)?;
+                Register::A.set(
+                    self,
+                    memory_bus,
+                    value,
+                )?;
+                self.execute(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
             }
             Instruction::LDD_A_INTO_HL => {
-                WordRegister::HL
-                    .into_address()
-                    .set(self, Register::A.get(self));
-                self.execute(Instruction::DEC_WORD(WordRegister::HL));
+                let value = Register::A.get(self, memory_bus)?;
+                WordRegister::HL.into_address().set(
+                    self,
+                    memory_bus,
+                    value,
+                )?;
+                self.execute(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
             }
             Instruction::LDI_A_FROM_HL => {
-                Register::A.set(self, WordRegister::HL.into_address().get(self));
-                self.execute(Instruction::INC_WORD(WordRegister::HL));
+                let value = WordRegister::HL.into_address().get(self, memory_bus)?;
+                Register::A.set(
+                    self,
+                    memory_bus,
+                    value,
+                )?;
+                self.execute(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
             }
             Instruction::LDI_A_INTO_HL => {
-                WordRegister::HL
-                    .into_address()
-                    .set(self, Register::A.get(self));
-                self.execute(Instruction::INC_WORD(WordRegister::HL));
+                let value = Register::A.get(self, memory_bus)?;
+                WordRegister::HL.into_address().set(
+                    self,
+                    memory_bus,
+                    value
+                )?;
+                self.execute(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
             }
             Instruction::PUSH(pair) => {
                 let reg_value = self.get_word_register(pair.into());
                 let bytes = reg_value.to_le_bytes();
-                self.push(bytes[1]);
-                self.push(bytes[0]);
+                self.push(memory_bus, bytes[1])?;
+                self.push(memory_bus, bytes[0])?;
             }
             Instruction::POP(pair) => {
-                let bytes = [self.pop(), self.pop()];
+                let bytes = [self.pop(memory_bus)?, self.pop(memory_bus)?];
                 let value = u16::from_le_bytes(bytes);
                 self.set_word_register(pair.into(), value);
             }
 
             /* Arithmetic */
             Instruction::ADD(source) => {
-                let value = source.get(self);
+                let value = source.get(self, memory_bus)?;
                 let (sum, overflow) = self.registers.a.overflowing_add(value);
                 // Set F register flags.
                 self.registers.f.zero = sum == 0;
@@ -1009,7 +1040,7 @@ impl CPU {
                 self.registers.f.carry = (sp ^ unsigned_imm ^ (sum & 0xFFFF)) & 0x100 == 0x100;
             }
             Instruction::ADC(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let (partial_sum, overflow1) = self.registers.a.overflowing_add(value);
                 let (sum, overflow2) = partial_sum.overflowing_add(self.registers.f.carry.into());
                 let overflow = overflow1 || overflow2;
@@ -1023,7 +1054,7 @@ impl CPU {
                 self.registers.a = sum;
             }
             Instruction::SUB(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let a = self.registers.a;
                 let diff = a.wrapping_sub(value);
 
@@ -1036,7 +1067,7 @@ impl CPU {
                 self.registers.a = diff;
             }
             Instruction::SBC(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let a = self.registers.a;
                 let carry: u8 = self.registers.f.carry.into();
 
@@ -1051,7 +1082,7 @@ impl CPU {
                 self.registers.a = diff;
             }
             Instruction::AND(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let result = self.registers.a & value;
                 self.registers.a = result;
 
@@ -1061,7 +1092,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::OR(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let result = self.registers.a | value;
                 self.registers.a = result;
 
@@ -1071,7 +1102,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::XOR(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let result = self.registers.a ^ value;
                 self.registers.a = result;
 
@@ -1081,7 +1112,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::CP(arith_target) => {
-                let value = self.get_arithmetic_value(&arith_target);
+                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
                 let a = self.registers.a;
 
                 self.registers.f.zero = a == value;
@@ -1090,9 +1121,9 @@ impl CPU {
                 self.registers.f.carry = a < value;
             }
             Instruction::INC(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let incremented_value = value.wrapping_add(1);
-                target.set(self, incremented_value);
+                target.set(self, memory_bus, incremented_value)?;
 
                 self.registers.f.zero = incremented_value == 0;
                 self.registers.f.subtract = false;
@@ -1104,9 +1135,9 @@ impl CPU {
                 self.set_word_register(word_reg, incremented_value);
             }
             Instruction::DEC(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let decremented_value = value.wrapping_sub(1);
-                target.set(self, decremented_value);
+                target.set(self, memory_bus, decremented_value)?;
 
                 self.registers.f.zero = decremented_value == 0;
                 self.registers.f.subtract = true;
@@ -1120,10 +1151,10 @@ impl CPU {
 
             /* Miscellaneous */
             Instruction::SWAP(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let nibbles = [value & 0xf, value >> 4];
                 let swapped_value = nibbles[0] << 4 | nibbles[1];
-                target.set(self, swapped_value);
+                target.set(self, memory_bus, swapped_value)?;
 
                 self.registers.f.zero = swapped_value == 0;
                 self.registers.f.subtract = false;
@@ -1173,11 +1204,12 @@ impl CPU {
             }
             Instruction::NOP => {}
             Instruction::HALT => {
-                let memory = self.memory_bus.lock().unwrap();
-                let interrupt_pending = memory.get(0xFFFF) & memory.get(0xFF0F) != 0;
+                info!("Halting");
+                let interrupt_pending = memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0;
                 self.halted = true;
                 if !self.interrupt_enabled && interrupt_pending {
-                    let byte = memory.get(self.pc.into());
+                    let byte = memory_bus.read_u8(self.pc.into())?;
+                    info!("Performing halt bug with byte {:#04x}", byte);
                     println!("Performing halt bug with byte {:#04x}", byte);
                     self.halt_bug_opcode = Some(byte);
                 }
@@ -1188,7 +1220,7 @@ impl CPU {
 
             /* Rotates & shifts */
             Instruction::RLC(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
 
                 let new_carry_flag = (value >> 7) & 1;
                 let truncated_bit = (value >> 7) & 1;
@@ -1200,19 +1232,19 @@ impl CPU {
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = new_carry_flag == 1;
 
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
             }
             Instruction::RLCA => {
-                self.execute(Instruction::RLC(Box::new(Register::A)));
+                self.execute(memory_bus, Instruction::RLC(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RL(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let bit7 = value >> 7;
                 let carry: u8 = self.registers.f.carry.into();
 
                 let result = (value << 1) | carry;
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1220,15 +1252,15 @@ impl CPU {
                 self.registers.f.carry = bit7 == 1;
             }
             Instruction::RLA => {
-                self.execute(Instruction::RL(Box::new(Register::A)));
+                self.execute(memory_bus, Instruction::RL(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RRC(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let bit0 = value & 0b1;
 
                 let result = (value >> 1) | (bit0 << 7);
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1236,16 +1268,16 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::RRCA => {
-                self.execute(Instruction::RRC(Box::new(Register::A)));
+                self.execute(memory_bus, Instruction::RRC(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RR(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let bit0 = value & 0b1;
                 let carry: u8 = self.registers.f.carry.into();
 
                 let result = (value >> 1) | (carry << 7);
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1253,15 +1285,15 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::RRA => {
-                self.execute(Instruction::RR(Box::new(Register::A)));
+                self.execute(memory_bus, Instruction::RR(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::SLA(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let bit7 = value >> 7;
 
                 let result = value << 1;
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1269,12 +1301,12 @@ impl CPU {
                 self.registers.f.carry = bit7 == 1;
             }
             Instruction::SRA(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let bit0 = value & 0b1;
                 let bit7 = value >> 7;
 
                 let result = (value >> 1) | (bit7 << 7);
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1282,11 +1314,11 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::SRL(target) => {
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
                 let bit0 = value & 0b1;
 
                 let result = value >> 1;
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1297,7 +1329,7 @@ impl CPU {
             /* Bit opcodes */
             Instruction::BIT(bit, target) => {
                 let bit: u8 = bit.into();
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
 
                 let result = (value >> bit) & 0b1;
 
@@ -1307,17 +1339,17 @@ impl CPU {
             }
             Instruction::SET(bit, target) => {
                 let bit: u8 = bit.into();
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
 
                 let result = value | (1 << bit);
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
             }
             Instruction::RES(bit, target) => {
                 let bit: u8 = bit.into();
-                let value = target.get(self);
+                let value = target.get(self, memory_bus)?;
 
                 let result = value & !(1 << bit);
-                target.set(self, result);
+                target.set(self, memory_bus, result)?;
             }
 
             /* Jumps */
@@ -1327,7 +1359,7 @@ impl CPU {
             }
             Instruction::JP_CONDITION(flag, addr) => {
                 if self.test_flag(flag) {
-                    self.execute(Instruction::JP(addr));
+                    self.execute(memory_bus, Instruction::JP(addr))?;
                     branch_status = BranchStatus::Branch;
                 }
             }
@@ -1342,7 +1374,7 @@ impl CPU {
             }
             Instruction::JR_CONDITION(flag, imm) => {
                 if self.test_flag(flag) {
-                    self.execute(Instruction::JR(imm));
+                    self.execute(memory_bus, Instruction::JR(imm))?;
                     branch_status = BranchStatus::Branch;
                 }
             }
@@ -1352,8 +1384,8 @@ impl CPU {
                 // Save address of next instruction to stack
                 let next_instr_addr = self.pc;
                 let bytes = next_instr_addr.to_le_bytes();
-                self.push(bytes[1]);
-                self.push(bytes[0]);
+                self.push(memory_bus, bytes[1])?;
+                self.push(memory_bus, bytes[0])?;
 
                 // Load addr into pc
                 let addr: u16 = addr.into();
@@ -1361,7 +1393,7 @@ impl CPU {
             }
             Instruction::CALL_CONDITION(flag, addr) => {
                 if self.test_flag(flag) {
-                    self.execute(Instruction::CALL(addr));
+                    self.execute(memory_bus, Instruction::CALL(addr))?;
                     branch_status = BranchStatus::Branch;
                 }
             }
@@ -1369,57 +1401,60 @@ impl CPU {
             /* Restarts */
             Instruction::RST(imm) => {
                 let bytes = self.pc.to_le_bytes();
-                self.push(bytes[1]);
-                self.push(bytes[0]);
+                self.push(memory_bus, bytes[1])?;
+                self.push(memory_bus, bytes[0])?;
 
                 self.pc = imm.into();
             }
 
             /* Returns */
             Instruction::RET => {
-                let bytes = [self.pop(), self.pop()];
+                let bytes = [self.pop(memory_bus)?, self.pop(memory_bus)?];
                 self.pc = u16::from_le_bytes(bytes);
             }
             Instruction::RET_CONDITION(flag) => {
                 if self.test_flag(flag) {
-                    self.execute(Instruction::RET);
+                    self.execute(memory_bus, Instruction::RET)?;
                     branch_status = BranchStatus::Branch;
                 }
             }
             Instruction::RETI => {
-                self.execute(Instruction::EI);
-                self.execute(Instruction::RET);
+                self.execute(memory_bus, Instruction::EI)?;
+                self.execute(memory_bus, Instruction::RET)?;
             }
         }
-        branch_status
+
+        Ok(branch_status)
     }
 
-    pub fn execute_regular_opcode(&mut self, opcode: u8) -> u8 {
+    pub fn execute_regular_opcode(&mut self, memory_bus: &mut MemoryBus, opcode: u8) -> Result<u8> {
         let instruction = match opcode {
             0x00 => Instruction::NOP,
             0x10 => Instruction::STOP,
-            0x20 => {
-                Instruction::JR_CONDITION(Flag::NZ, SignedImmediate(self.get_signed_byte_from_pc()))
-            }
-            0x30 => {
-                Instruction::JR_CONDITION(Flag::NC, SignedImmediate(self.get_signed_byte_from_pc()))
-            }
+            0x20 => Instruction::JR_CONDITION(
+                Flag::NZ,
+                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+            ),
+            0x30 => Instruction::JR_CONDITION(
+                Flag::NC,
+                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+            ),
 
             0x01 => Instruction::LD_16(
                 Box::new(WordRegister::BC),
-                Box::new(Immediate16(self.get_word_from_pc())),
+                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
             ),
             0x11 => Instruction::LD_16(
                 Box::new(WordRegister::DE),
-                Box::new(Immediate16(self.get_word_from_pc())),
+                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
             ),
             0x21 => Instruction::LD_16(
                 Box::new(WordRegister::HL),
-                Box::new(Immediate16(self.get_word_from_pc())),
+                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
             ),
             0x31 => Instruction::LD_16(
                 Box::new(WordRegister::SP),
-                Box::new(Immediate16(self.get_word_from_pc())),
+                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
             ),
 
             0x02 => Instruction::LD(
@@ -1450,19 +1485,19 @@ impl CPU {
 
             0x06 => Instruction::LD(
                 Box::new(Register::B),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
             0x16 => Instruction::LD(
                 Box::new(Register::D),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
             0x26 => Instruction::LD(
                 Box::new(Register::H),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
             0x36 => Instruction::LD(
                 Box::new(WordRegister::HL.into_address()),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
 
             0x07 => Instruction::RLCA,
@@ -1471,16 +1506,18 @@ impl CPU {
             0x37 => Instruction::SCF,
 
             0x08 => Instruction::LD_16(
-                Box::new(GoodAddress::from(self.get_word_from_pc())),
+                Box::new(GoodAddress::from(self.get_word_from_pc(memory_bus)?)),
                 Box::new(WordRegister::SP),
             ),
-            0x18 => Instruction::JR(SignedImmediate(self.get_signed_byte_from_pc())),
-            0x28 => {
-                Instruction::JR_CONDITION(Flag::Z, SignedImmediate(self.get_signed_byte_from_pc()))
-            }
-            0x38 => {
-                Instruction::JR_CONDITION(Flag::C, SignedImmediate(self.get_signed_byte_from_pc()))
-            }
+            0x18 => Instruction::JR(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
+            0x28 => Instruction::JR_CONDITION(
+                Flag::Z,
+                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+            ),
+            0x38 => Instruction::JR_CONDITION(
+                Flag::C,
+                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+            ),
 
             0x09 => Instruction::ADD_HL(WordRegister::BC),
             0x19 => Instruction::ADD_HL(WordRegister::DE),
@@ -1515,19 +1552,19 @@ impl CPU {
 
             0x0E => Instruction::LD(
                 Box::new(Register::C),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
             0x1E => Instruction::LD(
                 Box::new(Register::E),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
             0x2E => Instruction::LD(
                 Box::new(Register::L),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
             0x3E => Instruction::LD(
                 Box::new(Register::A),
-                Box::new(Immediate(self.get_byte_from_pc())),
+                Box::new(Immediate(self.get_byte_from_pc(memory_bus)?)),
             ),
 
             0x0F => Instruction::RRCA,
@@ -1724,12 +1761,16 @@ impl CPU {
             0xC0 => Instruction::RET_CONDITION(Flag::NZ),
             0xD0 => Instruction::RET_CONDITION(Flag::NC),
             0xE0 => Instruction::LD(
-                Box::new(GoodAddress::from(self.get_byte_from_pc() as u16 + 0xFF00)),
+                Box::new(GoodAddress::from(
+                    self.get_byte_from_pc(memory_bus)? as u16 + 0xFF00,
+                )),
                 Box::new(Register::A),
             ),
             0xF0 => Instruction::LD(
                 Box::new(Register::A),
-                Box::new(GoodAddress::from(self.get_byte_from_pc() as u16 + 0xFF00)),
+                Box::new(GoodAddress::from(
+                    self.get_byte_from_pc(memory_bus)? as u16 + 0xFF00,
+                )),
             ),
 
             0xC1 => Instruction::POP(WordRegister::BC),
@@ -1737,18 +1778,22 @@ impl CPU {
             0xE1 => Instruction::POP(WordRegister::HL),
             0xF1 => Instruction::POP(WordRegister::AF),
 
-            0xC2 => Instruction::JP_CONDITION(Flag::NZ, Address(self.get_word_from_pc())),
-            0xD2 => Instruction::JP_CONDITION(Flag::NC, Address(self.get_word_from_pc())),
+            0xC2 => Instruction::JP_CONDITION(Flag::NZ, Address(self.get_word_from_pc(memory_bus)?)),
+            0xD2 => Instruction::JP_CONDITION(Flag::NC, Address(self.get_word_from_pc(memory_bus)?)),
             0xE2 => Instruction::LD(Box::new(Offset(Register::C)), Box::new(Register::A)),
             0xF2 => Instruction::LD(Box::new(Register::A), Box::new(Offset(Register::C))),
 
-            0xC3 => Instruction::JP(Address(self.get_word_from_pc())),
+            0xC3 => Instruction::JP(Address(self.get_word_from_pc(memory_bus)?)),
             0xD3 => unimplemented!(),
             0xE3 => unimplemented!(),
             0xF3 => Instruction::DI,
 
-            0xC4 => Instruction::CALL_CONDITION(Flag::NZ, Address(self.get_word_from_pc())),
-            0xD4 => Instruction::CALL_CONDITION(Flag::NC, Address(self.get_word_from_pc())),
+            0xC4 => {
+                Instruction::CALL_CONDITION(Flag::NZ, Address(self.get_word_from_pc(memory_bus)?))
+            }
+            0xD4 => {
+                Instruction::CALL_CONDITION(Flag::NC, Address(self.get_word_from_pc(memory_bus)?))
+            }
             0xE4 => unimplemented!(),
             0xF4 => unimplemented!(),
 
@@ -1757,10 +1802,10 @@ impl CPU {
             0xE5 => Instruction::PUSH(WordRegister::HL),
             0xF5 => Instruction::PUSH(WordRegister::AF),
 
-            0xC6 => Instruction::ADD(Box::new(Immediate(self.get_byte_from_pc()))),
-            0xD6 => Instruction::SUB(Immediate(self.get_byte_from_pc()).into()),
-            0xE6 => Instruction::AND(Immediate(self.get_byte_from_pc()).into()),
-            0xF6 => Instruction::OR(Immediate(self.get_byte_from_pc()).into()),
+            0xC6 => Instruction::ADD(Box::new(Immediate(self.get_byte_from_pc(memory_bus)?))),
+            0xD6 => Instruction::SUB(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xE6 => Instruction::AND(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xF6 => Instruction::OR(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
 
             0xC7 => Instruction::RST(Immediate(0x00)),
             0xD7 => Instruction::RST(Immediate(0x10)),
@@ -1769,23 +1814,23 @@ impl CPU {
 
             0xC8 => Instruction::RET_CONDITION(Flag::Z),
             0xD8 => Instruction::RET_CONDITION(Flag::C),
-            0xE8 => Instruction::ADD_SP(SignedImmediate(self.get_signed_byte_from_pc())),
-            0xF8 => Instruction::LDHL_SP(SignedImmediate(self.get_signed_byte_from_pc())),
+            0xE8 => Instruction::ADD_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
+            0xF8 => Instruction::LDHL_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
 
             0xC9 => Instruction::RET,
             0xD9 => Instruction::RETI,
             0xE9 => Instruction::JP_HL,
             0xF9 => Instruction::LD_16(Box::new(WordRegister::SP), Box::new(WordRegister::HL)),
 
-            0xCA => Instruction::JP_CONDITION(Flag::Z, Address(self.get_word_from_pc())),
-            0xDA => Instruction::JP_CONDITION(Flag::C, Address(self.get_word_from_pc())),
+            0xCA => Instruction::JP_CONDITION(Flag::Z, Address(self.get_word_from_pc(memory_bus)?)),
+            0xDA => Instruction::JP_CONDITION(Flag::C, Address(self.get_word_from_pc(memory_bus)?)),
             0xEA => Instruction::LD(
-                Box::new(GoodAddress::from(self.get_word_from_pc())),
+                Box::new(GoodAddress::from(self.get_word_from_pc(memory_bus)?)),
                 Box::new(Register::A),
             ),
             0xFA => Instruction::LD(
                 Box::new(Register::A),
-                Box::new(GoodAddress::from(self.get_word_from_pc())),
+                Box::new(GoodAddress::from(self.get_word_from_pc(memory_bus)?)),
             ),
 
             0xCB => unimplemented!(),
@@ -1793,20 +1838,24 @@ impl CPU {
             0xEB => unimplemented!(),
             0xFB => Instruction::EI,
 
-            0xCC => Instruction::CALL_CONDITION(Flag::Z, Address(self.get_word_from_pc())),
-            0xDC => Instruction::CALL_CONDITION(Flag::C, Address(self.get_word_from_pc())),
+            0xCC => {
+                Instruction::CALL_CONDITION(Flag::Z, Address(self.get_word_from_pc(memory_bus)?))
+            }
+            0xDC => {
+                Instruction::CALL_CONDITION(Flag::C, Address(self.get_word_from_pc(memory_bus)?))
+            }
             0xEC => unimplemented!(),
             0xFC => unimplemented!(),
 
-            0xCD => Instruction::CALL(Address(self.get_word_from_pc())),
+            0xCD => Instruction::CALL(Address(self.get_word_from_pc(memory_bus)?)),
             0xDD => unimplemented!(),
             0xED => unimplemented!(),
             0xFD => unimplemented!(),
 
-            0xCE => Instruction::ADC(Immediate(self.get_byte_from_pc()).into()),
-            0xDE => Instruction::SBC(Immediate(self.get_byte_from_pc()).into()),
-            0xEE => Instruction::XOR(Immediate(self.get_byte_from_pc()).into()),
-            0xFE => Instruction::CP(Immediate(self.get_byte_from_pc()).into()),
+            0xCE => Instruction::ADC(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xDE => Instruction::SBC(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xEE => Instruction::XOR(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xFE => Instruction::CP(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
 
             0xCF => Instruction::RST(Immediate(0x08)),
             0xDF => Instruction::RST(Immediate(0x18)),
@@ -1814,14 +1863,14 @@ impl CPU {
             0xFF => Instruction::RST(Immediate(0x38)),
         };
 
-        let branch_status = self.execute(instruction);
+        let branch_status = self.execute(memory_bus, instruction)?;
         match branch_status {
-            BranchStatus::NoBranch => get_opcode_delay(opcode),
-            BranchStatus::Branch => get_branched_opcode_delay(opcode),
+            BranchStatus::NoBranch => Ok(get_opcode_delay(opcode)),
+            BranchStatus::Branch => Ok(get_branched_opcode_delay(opcode)),
         }
     }
 
-    pub fn execute_cb_opcode(&mut self, opcode: u8) -> u8 {
+    pub fn execute_cb_opcode(&mut self, memory_bus: &mut MemoryBus, opcode: u8) -> u8 {
         let instruction = match opcode {
             0x00 => Instruction::RLC(Box::new(Register::B)),
             0x01 => Instruction::RLC(Box::new(Register::C)),
@@ -2112,7 +2161,7 @@ impl CPU {
             0xFF => Instruction::SET(7, Box::new(Register::A)),
         };
 
-        self.execute(instruction);
+        self.execute(memory_bus, instruction);
         get_cb_opcode_delay(opcode)
     }
 }
