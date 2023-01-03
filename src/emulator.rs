@@ -10,8 +10,8 @@ use winit::{
     event_loop::EventLoop,
 };
 
-const WIDTH: usize = 8 * 16;
-const HEIGHT: usize = 8 * 16;
+const WIDTH: usize = 8 * 32;
+const HEIGHT: usize = 8 * 32;
 
 /// Manages GameBoy CPU exectution, adding breakpoint functionality.
 /// Runs the GameBoy in a separate thread.

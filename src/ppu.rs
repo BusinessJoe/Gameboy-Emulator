@@ -19,8 +19,8 @@ pub struct PPU {
     background_map: Vec<u8>,
 }
 
-const WIDTH: usize = 8 * 16;
-const HEIGHT: usize = 8 * 16;
+const WIDTH: usize = 8 * 32;
+const HEIGHT: usize = 8 * 32;
 
 impl PPU {
     pub fn new() -> Self {
@@ -98,9 +98,10 @@ impl PPU {
 
 impl Steppable for PPU {
     fn step(&mut self, _state: &GameBoyState) -> Result<ElapsedTime> {
-        for i in 0..16 {
-            for j in 0..16 {
-                self.set_tile(i, j, 16 * i + j)?;
+        for row in 0..32 {
+            for col in 0..32 {
+                let tile_number = self.background_map[col + row * 32];
+                self.set_tile(row, col, tile_number.into())?;
             }
         }
 
