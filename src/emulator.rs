@@ -1,10 +1,10 @@
 use crate::gameboy::GameBoyState;
 use crate::screen::{PixelsScreen, Screen};
 use crate::component::Steppable;
-use crossterm::{terminal, ExecutableCommand};
-use std::io::{self, stdout, Write};
-use std::thread::{self};
-use log::info;
+use std::time::{Duration, Instant};
+use std::io::{self, Write};
+use std::thread;
+use log::warn;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -48,12 +48,22 @@ impl GameboyEmulator {
                     control_flow.set_exit();
                 }
                 Event::MainEventsCleared => {
-                    emulator.update(
-                        &mut gameboy_state,
-                        &mut current_output,
-                        test_mode,
-                        &mut screen,
-                    );
+                    emulator.redraw_screen(&gameboy_state, &mut screen);
+
+                    let start = Instant::now();
+                    let mut cycle_total = 0;
+                    // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
+                    // Dividing by 4 and 60 should roughly give the number of machine cycles that
+                    // need to run per frame at 60fps.
+                    while cycle_total < 4_194_304 / 4 / 60 {
+                        cycle_total += emulator.update(
+                            &mut gameboy_state,
+                        );
+                    }
+                    let duration = start.elapsed();
+                    if duration > Duration::from_millis(1000 / 60) {
+                        warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+                    }
                 }
                 Event::RedrawRequested(_) => {}
                 _ => (),
@@ -64,19 +74,8 @@ impl GameboyEmulator {
     fn update(
         &mut self,
         gameboy_state: &mut GameBoyState,
-        current_output: &mut String,
-        test_mode: bool,
-        mut screen: &mut PixelsScreen,
-    ) -> Option<Result<String, String>> {
-        gameboy_state.tick();
-
-        if self.counter % 1000 == 0 {
-            //println!("Redrawing {}", self.counter);
-            //self.redraw_screen(&gameboy_state, &mut screen);
-        }
-        self.counter += 1;
-
-        None
+    ) -> u64 {
+        gameboy_state.tick()
     }
 
     fn redraw_screen(&mut self, gameboy_state: &GameBoyState, screen: &mut PixelsScreen) {

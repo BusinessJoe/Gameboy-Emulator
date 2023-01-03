@@ -44,7 +44,7 @@ impl GameBoyState {
         Ok(())
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> u64 {
         let elapsed_cycles = self.cpu.borrow_mut().step(&self).expect("Error while stepping cpu");
         self.timer.tick(elapsed_cycles);
         
@@ -55,6 +55,8 @@ impl GameBoyState {
                 observer(chr);
             }
         }
+        
+        elapsed_cycles
     }
 
     pub fn on_serial_port_data(&mut self, observer: Observer) {
