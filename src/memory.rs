@@ -2,7 +2,8 @@
  * The memory bus holds ownership of the ppu and cartridge.
  * This structure makes it easy to delegate reads/writes to the corresponding memory-mapped component.
  */
-use std::sync::{Arc, Mutex, Weak};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::cartridge::{self, Cartridge};
 use crate::component::{Address, Addressable};
@@ -16,13 +17,13 @@ use log::debug;
 #[derive(Debug)]
 pub struct MemoryBus {
     cartridge: Option<Box<dyn Cartridge>>,
-    ppu: Arc<Mutex<PPU>>,
+    ppu: Rc<RefCell<PPU>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<char>,
 }
 
 impl MemoryBus {
-    pub fn new(ppu: Arc<Mutex<PPU>>) -> Self {
+    pub fn new(ppu: Rc<RefCell<PPU>>) -> Self {
         let memory_bus = Self {
             cartridge: None,
             ppu,
@@ -31,10 +32,6 @@ impl MemoryBus {
         };
 
         memory_bus
-    }
-
-    pub fn upgrade(memory_bus: Weak<Mutex<MemoryBus>>) -> Arc<Mutex<MemoryBus>> {
-        memory_bus.upgrade().expect("invalid memory bus reference")
     }
 
     fn _read(&mut self, address: Address) -> Result<u8> {
@@ -48,8 +45,8 @@ impl MemoryBus {
                 let value = cartridge.read(address).expect("Error reading cartridge");
                 Ok(value)
             }
-            0x8000..=0x97ff => self.ppu.lock().unwrap().read_u8(address),
-            0x9800..=0x9bff => self.ppu.lock().unwrap().read_u8(address),
+            0x8000..=0x97ff => self.ppu.borrow_mut().read_u8(address),
+            0x9800..=0x9bff => self.ppu.borrow_mut().read_u8(address),
             _ => Ok(self.data[address]),
         }
     }
@@ -66,8 +63,8 @@ impl MemoryBus {
                     .write(address, value)
                     .expect("Error reading cartridge");
             }
-            0x8000..=0x97ff => self.ppu.lock().unwrap().write_u8(address, value)?,
-            0x9800..=0x9bff => self.ppu.lock().unwrap().write_u8(address, value)?,
+            0x8000..=0x97ff => self.ppu.borrow_mut().write_u8(address, value)?,
+            0x9800..=0x9bff => self.ppu.borrow_mut().write_u8(address, value)?,
             // Write to VRAM tile data
             _ => self.data[address] = value,
         }

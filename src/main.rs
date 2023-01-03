@@ -21,7 +21,7 @@ fn main() -> crate::error::Result<()> {
 
     let mut gameboy = GameBoyState::new();
     gameboy.load(&rom_path)?;
-    gameboy.cpu.lock().unwrap().boot();
+    gameboy.cpu.borrow_mut().boot();
 
     GameboyEmulator::run(gameboy);
 

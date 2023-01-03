@@ -193,7 +193,7 @@ impl CPU {
 
 impl Steppable for CPU {
     fn step(&mut self, state: &crate::gameboy::GameBoyState) -> Result<ElapsedTime> {
-        let mut memory_bus = state.memory_bus.lock().unwrap();
+        let mut memory_bus = state.memory_bus.borrow_mut();
 
         let elapsed_cycles = if !self.halted {
             // Get and execute opcode

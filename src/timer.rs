@@ -2,13 +2,14 @@ use crate::gameboy::Interrupt;
 use crate::memory::MemoryBus;
 use log::info;
 use crate::component::Addressable;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct Timer {
     /// Number of clock cycles per second.
     clock_speed: u64,
     /// The Game Boy's memory bus.
-    memory_bus: Arc<Mutex<MemoryBus>>,
+    memory_bus: Rc<RefCell<MemoryBus>>,
     div_clocksum: u64,
     timer_clocksum: u64,
 }
@@ -23,7 +24,7 @@ const TMA: usize = 0xFF06;
 const TAC: usize = 0xFF07;
 
 impl Timer {
-    pub fn new(clock_speed: u64, memory_bus: Arc<Mutex<MemoryBus>>) -> Self {
+    pub fn new(clock_speed: u64, memory_bus: Rc<RefCell<MemoryBus>>) -> Self {
         Self {
             clock_speed,
             memory_bus,
@@ -33,12 +34,12 @@ impl Timer {
     }
 
     fn is_enabled(&self) -> bool {
-        let mut memory = self.memory_bus.lock().unwrap();
+        let mut memory = self.memory_bus.borrow_mut();
         (memory.read_u8(TAC).unwrap() >> 2) & 1 == 1
     }
 
     fn get_frequency(&self) -> u64 {
-        let mut memory = self.memory_bus.lock().unwrap();
+        let mut memory = self.memory_bus.borrow_mut();
         let bits = memory.read_u8(TAC).unwrap() & 0b11;
         match bits {
             0b00 => 4_096,
@@ -55,7 +56,7 @@ impl Timer {
         self.div_clocksum += elapsed_cycles;
         if self.div_clocksum >= 256 {
             self.div_clocksum -= 256;
-            let mut memory = self.memory_bus.lock().unwrap();
+            let mut memory = self.memory_bus.borrow_mut();
             let mut divider_register = memory.read_u8(DIV).unwrap();
             divider_register = divider_register.wrapping_add(1);
             memory.write_u8(DIV, divider_register).unwrap();
@@ -66,7 +67,7 @@ impl Timer {
 
             let freq = self.get_frequency();
 
-            let mut memory = self.memory_bus.lock().unwrap();
+            let mut memory = self.memory_bus.borrow_mut();
             while self.timer_clocksum >= self.clock_speed / freq {
                 // Increment TIMA
                 let counter = memory.read_u8(TIMA).unwrap();

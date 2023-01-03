@@ -17,3 +17,6 @@ winit = "0.27"
 winit_input_helper = "0.13"
 game-loop = { version = "0.10.0", features = ["winit"] }
 num = "0.4.0"
+
+[profile.release]
+debug = true

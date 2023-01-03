@@ -2,7 +2,7 @@ use crate::gameboy::GameBoyState;
 use crate::screen::{PixelsScreen, Screen};
 use crate::component::Steppable;
 use crossterm::{terminal, ExecutableCommand};
-use std::io::{self, stdout};
+use std::io::{self, stdout, Write};
 use std::thread::{self};
 use log::info;
 use winit::{
@@ -71,8 +71,8 @@ impl GameboyEmulator {
         gameboy_state.tick();
 
         if self.counter % 1000 == 0 {
-            //println!("Redrawing");
-            self.redraw_screen(&gameboy_state, &mut screen);
+            //println!("Redrawing {}", self.counter);
+            //self.redraw_screen(&gameboy_state, &mut screen);
         }
         self.counter += 1;
 
@@ -80,9 +80,9 @@ impl GameboyEmulator {
     }
 
     fn redraw_screen(&mut self, gameboy_state: &GameBoyState, screen: &mut PixelsScreen) {
-        gameboy_state.ppu.lock().unwrap().step(gameboy_state).expect("Error while stepping ppu");
+        gameboy_state.ppu.borrow_mut().step(gameboy_state).expect("Error while stepping ppu");
 
-        let ppu_screen = &gameboy_state.ppu.lock().unwrap().screen;
+        let ppu_screen = &gameboy_state.ppu.borrow().screen;
         for row in 0..HEIGHT {
             for col in 0..WIDTH {
                 let index = row * WIDTH + col;
@@ -119,6 +119,7 @@ impl GameboyEmulator {
 
         gameboy_state.on_serial_port_data(|chr: char| {
             print!("{}", chr);
+            io::stdout().flush();
         });
 
         // emulator.spawn_input_handler_thread();
