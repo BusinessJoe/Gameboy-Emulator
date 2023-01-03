@@ -47,6 +47,7 @@ impl MemoryBus {
             }
             0x8000..=0x97ff => self.ppu.borrow_mut().read_u8(address),
             0x9800..=0x9bff => self.ppu.borrow_mut().read_u8(address),
+            0xff4d => Ok(0xff),
             _ => Ok(self.data[address]),
         }
     }
