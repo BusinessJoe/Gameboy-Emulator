@@ -23,10 +23,11 @@ pub struct GameBoyState {
 
 impl GameBoyState {
     pub fn new() -> Self {
-        let memory_bus = Arc::new(Mutex::new(MemoryBus::new()));
+        let ppu = Arc::new(Mutex::new(PPU::new()));
+        let memory_bus = Arc::new(Mutex::new(MemoryBus::new(ppu.clone())));
         Self {
             cpu: Arc::new(Mutex::new(CPU::new())),
-            ppu: Arc::new(Mutex::new(PPU::new())),
+            ppu: ppu.clone(),
             memory_bus: memory_bus.clone(),
             serial_port_observer: None,
             timer: Timer::new(CLOCK_SPEED, memory_bus),

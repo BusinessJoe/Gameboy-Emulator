@@ -22,10 +22,10 @@ pub struct MemoryBus {
 }
 
 impl MemoryBus {
-    pub fn new() -> Self {
+    pub fn new(ppu: Arc<Mutex<PPU>>) -> Self {
         let memory_bus = Self {
             cartridge: None,
-            ppu: Arc::new(Mutex::new(PPU::new())),
+            ppu,
             data: [0; 0x10000],
             serial_port_data: Vec::new(),
         };
@@ -38,15 +38,20 @@ impl MemoryBus {
     }
 
     fn _read(&mut self, address: Address) -> Result<u8> {
-        let value = match address {
+        if address == 0x8ce0 {
+            println!("Reading correct tile");
+        }
+        
+        match address {
             0..=0x7fff => {
                 let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
-                cartridge.read(address).expect("Error reading cartridge")
+                let value = cartridge.read(address).expect("Error reading cartridge");
+                Ok(value)
             }
-            _ => self.data[address],
-        };
-
-        Ok(value)
+            0x8000..=0x97ff => self.ppu.lock().unwrap().read_u8(address),
+            0x9800..=0x9bff => self.ppu.lock().unwrap().read_u8(address),
+            _ => Ok(self.data[address]),
+        }
     }
 
     fn _write(&mut self, address: Address, value: u8) -> Result<()> {
@@ -61,6 +66,9 @@ impl MemoryBus {
                     .write(address, value)
                     .expect("Error reading cartridge");
             }
+            0x8000..=0x97ff => self.ppu.lock().unwrap().write_u8(address, value)?,
+            0x9800..=0x9bff => self.ppu.lock().unwrap().write_u8(address, value)?,
+            // Write to VRAM tile data
             _ => self.data[address] = value,
         }
 

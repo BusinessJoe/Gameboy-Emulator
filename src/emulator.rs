@@ -1,20 +1,29 @@
 use crate::gameboy::GameBoyState;
 use crate::screen::{PixelsScreen, Screen};
+use crate::component::Steppable;
 use crossterm::{terminal, ExecutableCommand};
 use std::io::{self, stdout};
 use std::thread::{self};
+use log::info;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
 };
 
+const WIDTH: usize = 8 * 16;
+const HEIGHT: usize = 8 * 16;
+
 /// Manages GameBoy CPU exectution, adding breakpoint functionality.
 /// Runs the GameBoy in a separate thread.
-pub struct GameboyEmulator;
+pub struct GameboyEmulator {
+    counter: u64,
+}
 
 impl GameboyEmulator {
     pub fn new() -> Self {
-        let emulator = Self {};
+        let emulator = Self {
+            counter: 0
+        };
 
         emulator
     }
@@ -25,7 +34,7 @@ impl GameboyEmulator {
         let mut current_output: String = String::from("");
 
         let event_loop = EventLoop::new();
-        let mut screen = PixelsScreen::new(8, 8, 512, 512, &event_loop);
+        let mut screen = PixelsScreen::new(WIDTH.try_into().unwrap(), HEIGHT.try_into().unwrap(), 512*2, 512, &event_loop);
 
         event_loop.run(move |event, _, control_flow| {
             control_flow.set_poll();
@@ -61,28 +70,34 @@ impl GameboyEmulator {
     ) -> Option<Result<String, String>> {
         gameboy_state.tick();
 
-        //self.redraw_screen(&gameboy_state, &mut screen);
+        if self.counter % 1000 == 0 {
+            //println!("Redrawing");
+            self.redraw_screen(&gameboy_state, &mut screen);
+        }
+        self.counter += 1;
 
         None
     }
 
     fn redraw_screen(&mut self, gameboy_state: &GameBoyState, screen: &mut PixelsScreen) {
-        for row in 0..8 {
-            for col in 0..8 {
-                let index = col * 8 + row;
-                //let pixel_id = gameboy_state.ppu.screen[index];
-                let pixel_id = 2;
+        gameboy_state.ppu.lock().unwrap().step(gameboy_state).expect("Error while stepping ppu");
+
+        let ppu_screen = &gameboy_state.ppu.lock().unwrap().screen;
+        for row in 0..HEIGHT {
+            for col in 0..WIDTH {
+                let index = row * WIDTH + col;
+                let pixel_id = ppu_screen[index];
                 let rgba: [u8; 4] = match pixel_id {
-                    0 => [0, 0, 0, 255],
-                    1 => [64, 64, 64, 255],
-                    2 => [128, 128, 128, 255],
-                    3 => [255, 255, 255, 255],
+                    0 => [255, 255, 255, 255],
+                    1 => [128, 128, 128, 255],
+                    2 => [64, 64, 64, 255],
+                    3 => [0, 0, 0, 255],
                     _ => unreachable!(),
                 };
-                screen.set_pixel(row.try_into().unwrap(), col.try_into().unwrap(), &rgba);
+                screen.set_pixel(row.try_into().unwrap(), col.try_into().unwrap(), &rgba).unwrap();
             }
         }
-        //screen.redraw();
+        screen.redraw();
     }
 
     fn spawn_input_handler_thread(&mut self) {

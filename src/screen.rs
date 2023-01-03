@@ -66,7 +66,7 @@ impl PixelsScreen {
     }
 
     fn get_array_index(&self, row: u32, col: u32) -> Result<usize, IndexError> {
-        let index: usize = (self.width * col + row).try_into().unwrap();
+        let index: usize = (self.width * row + col).try_into().unwrap();
         if index >= (self.width * self.height).try_into().unwrap() {
             return Err(IndexError);
         }
