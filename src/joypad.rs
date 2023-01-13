@@ -128,4 +128,3 @@ impl Addressable for Joypad {
         Ok(())
     }
 }
-
