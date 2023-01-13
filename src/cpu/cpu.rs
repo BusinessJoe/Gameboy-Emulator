@@ -1,6 +1,6 @@
-use crate::component::{Steppable, ElapsedTime, Addressable};
-use crate::error::Result;
+use crate::component::{Addressable, ElapsedTime, Steppable};
 use crate::cpu::{instruction::*, register::*};
+use crate::error::Result;
 use crate::memory::MemoryBus;
 use log::{debug, info, trace};
 
@@ -8,9 +8,9 @@ pub struct CPU {
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
-    pub(in crate) interrupt_enabled: bool,
-    pub(in crate) halted: bool,
-    pub(in crate) halt_bug_opcode: Option<u8>,
+    pub(crate) interrupt_enabled: bool,
+    pub(crate) halted: bool,
+    pub(crate) halt_bug_opcode: Option<u8>,
 }
 
 impl CPU {
@@ -37,7 +37,12 @@ impl CPU {
     }
 
     /// Called at the beginning of an interrupt helper
-    fn handle_single_interrupt(&mut self, memory_bus: &mut MemoryBus, bit: u8, address: u16) -> Result<()> {
+    fn handle_single_interrupt(
+        &mut self,
+        memory_bus: &mut MemoryBus,
+        bit: u8,
+        address: u16,
+    ) -> Result<()> {
         // Check IME flag and relevant bit in IE flag.
         let ie_flag = memory_bus.read_u8(address.into())?;
         if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) {
@@ -88,13 +93,13 @@ impl CPU {
         if memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0 {
             // Unhalt
             if self.halted {
-                info!{"Unhalting"};
+                info! {"Unhalting"};
                 self.halted = false;
             }
             // Handle interrupts by priority (starting at bit 0 - V-Blank)
             for bit in 0..=4 {
                 if self.interrupt_enabled {
-                    let address = 0x40 + bit * 0x8; 
+                    let address = 0x40 + bit * 0x8;
                     self.handle_single_interrupt(memory_bus, bit, address.into())?;
                 } else {
                     // info!("IME not set");
@@ -128,7 +133,10 @@ impl CPU {
     }
 
     pub fn get_word_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<u16> {
-        let bytes = [self.get_byte_from_pc(memory_bus)?, self.get_byte_from_pc(memory_bus)?];
+        let bytes = [
+            self.get_byte_from_pc(memory_bus)?,
+            self.get_byte_from_pc(memory_bus)?,
+        ];
         let word = u16::from_le_bytes(bytes);
         Ok(word)
     }
@@ -225,7 +233,7 @@ impl Steppable for CPU {
         };
 
         self.handle_interrupts(&mut memory_bus)?;
-         
+
         Ok(elapsed_cycles.into())
     }
 }

@@ -1,14 +1,15 @@
 mod cartridge;
 mod component;
-mod error;
 mod cpu;
 mod emulator;
+mod error;
 mod gameboy;
 mod memory;
 mod ppu;
 mod register;
 mod screen;
 mod timer;
+mod joypad;
 
 use crate::emulator::GameboyEmulator;
 use crate::gameboy::GameBoyState;

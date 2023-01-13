@@ -1,7 +1,7 @@
-use crate::{cpu::CPU, memory::MemoryBus};
-use crate::error::Result;
 use crate::component::Addressable;
-use log::{debug, info, error};
+use crate::error::Result;
+use crate::{cpu::CPU, memory::MemoryBus};
+use log::{debug, error, info};
 use strum_macros::AsRefStr;
 
 #[allow(non_camel_case_types)]
@@ -907,7 +907,11 @@ fn get_cb_opcode_delay(opcode: u8) -> u8 {
 }
 
 impl CPU {
-    fn get_arithmetic_value(&self, memory_bus: &mut MemoryBus, arith_target: &ArithmeticTarget) -> Result<u8> {
+    fn get_arithmetic_value(
+        &self,
+        memory_bus: &mut MemoryBus,
+        arith_target: &ArithmeticTarget,
+    ) -> Result<u8> {
         match *arith_target {
             ArithmeticTarget::Register(reg) => Ok(self.get_register(reg)),
             ArithmeticTarget::WordRegister(word) => {
@@ -927,7 +931,11 @@ impl CPU {
         }
     }
 
-    fn execute(&mut self, memory_bus: &mut MemoryBus, instruction: Instruction) -> Result<BranchStatus> {
+    fn execute(
+        &mut self,
+        memory_bus: &mut MemoryBus,
+        instruction: Instruction,
+    ) -> Result<BranchStatus> {
         debug!("Executing instruction {}", instruction.as_ref());
         let mut branch_status = BranchStatus::NoBranch;
         match instruction {
@@ -954,38 +962,26 @@ impl CPU {
             }
             Instruction::LDD_A_FROM_HL => {
                 let value = WordRegister::HL.into_address().get(self, memory_bus)?;
-                Register::A.set(
-                    self,
-                    memory_bus,
-                    value,
-                )?;
+                Register::A.set(self, memory_bus, value)?;
                 self.execute(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
             }
             Instruction::LDD_A_INTO_HL => {
                 let value = Register::A.get(self, memory_bus)?;
-                WordRegister::HL.into_address().set(
-                    self,
-                    memory_bus,
-                    value,
-                )?;
+                WordRegister::HL
+                    .into_address()
+                    .set(self, memory_bus, value)?;
                 self.execute(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
             }
             Instruction::LDI_A_FROM_HL => {
                 let value = WordRegister::HL.into_address().get(self, memory_bus)?;
-                Register::A.set(
-                    self,
-                    memory_bus,
-                    value,
-                )?;
+                Register::A.set(self, memory_bus, value)?;
                 self.execute(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
             }
             Instruction::LDI_A_INTO_HL => {
                 let value = Register::A.get(self, memory_bus)?;
-                WordRegister::HL.into_address().set(
-                    self,
-                    memory_bus,
-                    value
-                )?;
+                WordRegister::HL
+                    .into_address()
+                    .set(self, memory_bus, value)?;
                 self.execute(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
             }
             Instruction::PUSH(pair) => {
@@ -1205,7 +1201,8 @@ impl CPU {
             Instruction::NOP => {}
             Instruction::HALT => {
                 info!("Halting");
-                let interrupt_pending = memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0;
+                let interrupt_pending =
+                    memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0;
                 self.halted = true;
                 if !self.interrupt_enabled && interrupt_pending {
                     let byte = memory_bus.read_u8(self.pc.into())?;
@@ -1778,8 +1775,12 @@ impl CPU {
             0xE1 => Instruction::POP(WordRegister::HL),
             0xF1 => Instruction::POP(WordRegister::AF),
 
-            0xC2 => Instruction::JP_CONDITION(Flag::NZ, Address(self.get_word_from_pc(memory_bus)?)),
-            0xD2 => Instruction::JP_CONDITION(Flag::NC, Address(self.get_word_from_pc(memory_bus)?)),
+            0xC2 => {
+                Instruction::JP_CONDITION(Flag::NZ, Address(self.get_word_from_pc(memory_bus)?))
+            }
+            0xD2 => {
+                Instruction::JP_CONDITION(Flag::NC, Address(self.get_word_from_pc(memory_bus)?))
+            }
             0xE2 => Instruction::LD(Box::new(Offset(Register::C)), Box::new(Register::A)),
             0xF2 => Instruction::LD(Box::new(Register::A), Box::new(Offset(Register::C))),
 
@@ -1815,7 +1816,9 @@ impl CPU {
             0xC8 => Instruction::RET_CONDITION(Flag::Z),
             0xD8 => Instruction::RET_CONDITION(Flag::C),
             0xE8 => Instruction::ADD_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
-            0xF8 => Instruction::LDHL_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
+            0xF8 => {
+                Instruction::LDHL_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?))
+            }
 
             0xC9 => Instruction::RET,
             0xD9 => Instruction::RETI,

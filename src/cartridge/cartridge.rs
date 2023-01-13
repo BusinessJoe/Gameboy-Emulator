@@ -1,5 +1,5 @@
 use crate::register::Register;
-use log::{info, debug};
+use log::{debug, info};
 
 type Address = usize;
 
@@ -174,27 +174,27 @@ fn cartridge_type_from_data(data: &[u8]) -> Option<CartridgeType> {
     debug!("{}", data[0x0147]);
     let cartridge_type = match data[0x0147] {
         0x00 => CartridgeType {
-                    mbc_controller_type: MBCControllerType::RomOnly,
-                    ram: false,
-                    battery: false,
-                    timer: false,
-                    rumble: false,
+            mbc_controller_type: MBCControllerType::RomOnly,
+            ram: false,
+            battery: false,
+            timer: false,
+            rumble: false,
         },
         0x01 => CartridgeType {
-                    mbc_controller_type: MBCControllerType::MBC1,
-                    ram: false,
-                    battery: false,
-                    timer: false,
-                    rumble: false,
+            mbc_controller_type: MBCControllerType::MBC1,
+            ram: false,
+            battery: false,
+            timer: false,
+            rumble: false,
         },
         0x02 => CartridgeType {
-                    mbc_controller_type: MBCControllerType::MBC1,
-                    ram: true,
-                    battery: false,
-                    timer: false,
-                    rumble: false,
+            mbc_controller_type: MBCControllerType::MBC1,
+            ram: true,
+            battery: false,
+            timer: false,
+            rumble: false,
         },
-        _ => unimplemented!()
+        _ => unimplemented!(),
     };
 
     Some(cartridge_type)

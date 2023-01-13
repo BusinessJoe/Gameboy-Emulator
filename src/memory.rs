@@ -5,11 +5,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::cartridge::{self, Cartridge};
+use crate::cartridge::Cartridge;
 use crate::component::{Address, Addressable};
-use crate::cpu::CPU;
 use crate::error::Result;
 use crate::gameboy::Interrupt;
+use crate::joypad::Joypad;
 use crate::ppu::PPU;
 use log::debug;
 
@@ -18,15 +18,17 @@ use log::debug;
 pub struct MemoryBus {
     cartridge: Option<Box<dyn Cartridge>>,
     ppu: Rc<RefCell<PPU>>,
+    joypad: Rc<RefCell<Joypad>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<char>,
 }
 
 impl MemoryBus {
-    pub fn new(ppu: Rc<RefCell<PPU>>) -> Self {
-        let memory_bus = Self {
+    pub fn new(ppu: Rc<RefCell<PPU>>, joypad: Rc<RefCell<Joypad>>) -> Self {
+        let mut memory_bus = Self {
             cartridge: None,
             ppu,
+            joypad,
             data: [0; 0x10000],
             serial_port_data: Vec::new(),
         };
@@ -38,7 +40,7 @@ impl MemoryBus {
         if address == 0x8ce0 {
             println!("Reading correct tile");
         }
-        
+
         match address {
             0..=0x7fff => {
                 let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
@@ -47,6 +49,11 @@ impl MemoryBus {
             }
             0x8000..=0x97ff => self.ppu.borrow_mut().read_u8(address),
             0x9800..=0x9bff => self.ppu.borrow_mut().read_u8(address),
+            // Joypad
+            0xff00 => self.joypad.borrow_mut().read_u8(address),
+            // LCD Control register (LCDC)
+            0xff40 => self.ppu.borrow_mut().read_u8(address),
+            0xff44 => self.ppu.borrow_mut().read_u8(address),
             0xff4d => Ok(0xff),
             _ => Ok(self.data[address]),
         }
@@ -66,6 +73,10 @@ impl MemoryBus {
             }
             0x8000..=0x97ff => self.ppu.borrow_mut().write_u8(address, value)?,
             0x9800..=0x9bff => self.ppu.borrow_mut().write_u8(address, value)?,
+            // Joypad
+            0xff00 => self.joypad.borrow_mut().write_u8(address, value)?,
+            // LCD Control register (LCDC)
+            0xff40 => self.ppu.borrow_mut().write_u8(address, value)?,
             // Write to VRAM tile data
             _ => self.data[address] = value,
         }
@@ -76,7 +87,9 @@ impl MemoryBus {
     pub fn interrupt(&mut self, interrupt: Interrupt) -> Result<()> {
         debug!("Interrupting");
         let bit = match interrupt {
+            Interrupt::VBlank => 0,
             Interrupt::Timer => 2,
+            Interrupt::Joypad => 4,
         };
         let mut interrupt_flag = self.read_u8(0xFF0F)?;
         interrupt_flag |= 1 << bit;

@@ -1,9 +1,9 @@
+use crate::component::Addressable;
 use crate::gameboy::Interrupt;
 use crate::memory::MemoryBus;
 use log::info;
-use crate::component::Addressable;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Timer {
     /// Number of clock cycles per second.
@@ -14,7 +14,7 @@ pub struct Timer {
     timer_clocksum: u64,
 }
 
-// Divider register 
+// Divider register
 const DIV: usize = 0xFF04;
 // Timer counter
 const TIMA: usize = 0xFF05;
