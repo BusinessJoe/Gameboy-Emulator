@@ -9,6 +9,7 @@ use crate::{
     error::{Error, Result},
     gameboy::{GameBoyState, Interrupt},
 };
+use std::cmp;
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone, Copy)]
@@ -17,6 +18,7 @@ pub enum TileDataAddressingMethod {
     Method8800,
 }
 
+/// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
 pub struct LCDC {
     pub bg_window_enable: bool,
@@ -87,6 +89,33 @@ enum PPUState {
     HBlank,
 }
 
+#[derive(Debug)]
+struct OamData<'a> {
+    data: &'a [u8],
+}
+
+impl<'a> OamData<'a> {
+    pub fn new(data: &[u8]) -> OamData {
+        OamData { data }
+    }
+
+    fn y_pos(&self) -> u8 {
+        self.data[0]
+    }
+
+    fn x_pos(&self) -> u8 {
+        self.data[1]
+    }
+
+    fn tile_index(&self) -> u8 {
+        self.data[2]
+    }
+
+    fn palette_number(&self) -> u8 {
+        self.data[3] >> 4 & 1
+    }
+}
+
 /// The PPU is responsible for the emulated gameboy's graphics.
 #[derive(Debug)]
 pub struct PPU {
@@ -98,9 +127,13 @@ pub struct PPU {
     /// Addresses 0x9800-0x9bff are a 32x32 map of background tiles.
     /// Each byte contains the number of a tile to be displayed.
     background_map: Vec<u8>,
+
+    /// A table containing data for 40 sprites
+    sprite_tiles_table: Vec<u8>,
+
     /// LY: LCD Y coordinate (read only)
     ly: u8,
-    /// Current x position
+    /// Current x position in scanline
     lx: u32,
     lcdc: LCDC,
 
@@ -128,6 +161,7 @@ impl PPU {
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
             tile_cache: vec![Tile::new(); 384],
             background_map: vec![0; 32 * 32],
+            sprite_tiles_table: vec![0; 160],
             ly: 0,
             lx: 0,
             lcdc: LCDC::new(),
@@ -213,10 +247,39 @@ impl PPU {
         Ok(())
     }
 
+    /// x is tile's horizontal position, y is tile's vertical position.
+    /// Keep in mind that the values in OAM are x + 8 and y + 16.
+    pub fn set_sprite(&mut self, x: i32, y: i32, tile_index: usize) -> Result<()> {
+        // Sprites always use the 8000 method
+        let tile_data = self.get_tile(tile_index, TileDataAddressingMethod::Method8000)?;
+
+        let screen_y_range =
+            usize::try_from(cmp::max(0, y)).unwrap()..usize::try_from(cmp::max(0, y + 8)).unwrap();
+        let screen_x_range =
+            usize::try_from(cmp::max(0, x)).unwrap()..usize::try_from(cmp::max(0, x + 8)).unwrap();
+
+        // Copy each of tile's eight rows into the screen
+        for screen_y in screen_y_range.clone() {
+            let sprite_y = usize::try_from(screen_y - screen_y_range.start).unwrap();
+            let sprite_row = &tile_data.0[sprite_y * 8..sprite_y * 8 + 8];
+
+            self.screen
+                [screen_y * WIDTH + screen_x_range.start..screen_y * WIDTH + screen_x_range.end]
+                .copy_from_slice(
+                    &sprite_row[usize::try_from(i32::try_from(screen_x_range.start).unwrap() - x)
+                        .unwrap()
+                        ..usize::try_from(i32::try_from(screen_x_range.end).unwrap() - x).unwrap()],
+                );
+        }
+
+        Ok(())
+    }
+
     fn _read(&mut self, address: Address) -> Result<u8> {
         let value = match address {
             0x8000..=0x97ff => self.tile_data[address - 0x8000],
             0x9800..=0x9bff => self.background_map[address - 0x9800],
+            0xfe00..=0xfe9f => self.sprite_tiles_table[address - 0xfe00],
             0xff40 => self.lcdc.read(),
             0xff44 => self.ly,
             _ => return Err(Error::new("Invalid address")),
@@ -233,6 +296,9 @@ impl PPU {
             }
             0x9800..=0x9bff => {
                 self.background_map[address - 0x9800] = data;
+            }
+            0xfe00..=0xfe9f => {
+                self.sprite_tiles_table[address - 0xfe00] = data;
             }
             0xff40 => self.lcdc.write(data),
             _ => return Err(Error::new("Invalid address")),
@@ -271,6 +337,19 @@ impl PPU {
                 let tile_number = self.background_map[col + row * 32];
                 self.set_tile(row, col + 16, tile_number.into(), method)?;
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn render_sprites(&mut self) -> Result<()> {
+        for i in 0..40 {
+            let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
+            let x = i32::from(oam_data.x_pos()) - 8;
+            let y = i32::from(oam_data.y_pos()) - 16;
+            // We have an offset bc the tile map takes up 16 * 8 pixels of width
+            let x_offset = 16 * 8;
+            self.set_sprite(x + x_offset, y, usize::from(oam_data.tile_index()))?;
         }
 
         Ok(())

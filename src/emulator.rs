@@ -1,19 +1,19 @@
 use crate::component::Steppable;
-use crate::gameboy::GameBoyState;
+use crate::gameboy::{GameBoyState, Interrupt};
 use crate::joypad::JoypadInput;
 use crate::screen::{PixelsScreen, Screen};
 use log::warn;
-use winit::event::VirtualKeyCode;
-use winit::event_loop;
-use winit_input_helper::WinitInputHelper;
 use std::io::{self, Write};
 use std::thread;
 use std::time::{Duration, Instant};
+use strum::IntoEnumIterator;
+use winit::event::VirtualKeyCode;
+use winit::event_loop;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
 };
-use strum::IntoEnumIterator;
+use winit_input_helper::WinitInputHelper;
 
 pub const WIDTH: usize = 8 * (16 + 32);
 pub const HEIGHT: usize = 8 * 32;
@@ -45,9 +45,8 @@ impl GameboyEmulator {
         emulator
     }
 
-    /// Spawns gameboy thread. This thread ticks the gameboy's cpu as long
-    /// as the manager is not paused.
-    fn run_gameboy_loop(mut emulator: Self, mut gameboy_state: GameBoyState, test_mode: bool) {
+    /// Runs the gameboy emulator with a gui.
+    fn run_gameboy_loop(mut emulator: Self, mut gameboy_state: GameBoyState) {
         let mut current_output: String = String::from("");
 
         let mut input = WinitInputHelper::new();
@@ -66,15 +65,27 @@ impl GameboyEmulator {
 
             if input.update(&event) {
                 // Handle joypad inputs
+                let mut send_interrupt = false;
                 for joypad_input in JoypadInput::iter() {
                     for virtual_key_code in map_joypad_to_keys(joypad_input).iter() {
                         if input.key_pressed(*virtual_key_code) {
-                            gameboy_state.joypad.borrow_mut().key_pressed(joypad_input);
+                            let prev_state =
+                                gameboy_state.joypad.borrow_mut().key_pressed(joypad_input);
+                            // If previous state was not pressed, we send interrupt
+                            send_interrupt |= !prev_state;
                         }
                         if input.key_released(*virtual_key_code) {
                             gameboy_state.joypad.borrow_mut().key_released(joypad_input);
                         }
                     }
+                }
+
+                if send_interrupt {
+                    gameboy_state
+                        .memory_bus
+                        .borrow_mut()
+                        .interrupt(Interrupt::Joypad)
+                        .expect("error sending joypad interrupt");
                 }
 
                 let start = Instant::now();
@@ -95,6 +106,11 @@ impl GameboyEmulator {
                     .borrow_mut()
                     .render_background_map()
                     .expect("error rendering background");
+                gameboy_state
+                    .ppu
+                    .borrow_mut()
+                    .render_sprites()
+                    .expect("error rendering sprites");
                 let duration = start.elapsed();
                 if duration > Duration::from_millis(1000 / 60) {
                     warn!("Time elapsed this frame is: {:?} > 16ms", duration);
@@ -103,6 +119,23 @@ impl GameboyEmulator {
                 emulator.redraw_screen(&gameboy_state, &mut screen);
             }
         });
+    }
+
+    fn run_gameboy_loop_no_gui(mut emulator: Self, mut gameboy_state: GameBoyState) {
+        loop {
+            let start = Instant::now();
+            let mut cycle_total = 0;
+            // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
+            // Dividing by 4 and 60 should roughly give the number of machine cycles that
+            // need to run per frame at 60fps.
+            while cycle_total < 4_194_304 / 4 / 60 {
+                cycle_total += emulator.update(&mut gameboy_state);
+            }
+            let duration = start.elapsed();
+            if duration > Duration::from_millis(1000 / 60) {
+                warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+            }
+        }
     }
 
     fn update(&mut self, gameboy_state: &mut GameBoyState) -> u64 {
@@ -160,52 +193,46 @@ impl GameboyEmulator {
 
         // emulator.spawn_input_handler_thread();
 
-        Self::run_gameboy_loop(emulator, gameboy_state, false);
+        Self::run_gameboy_loop(emulator, gameboy_state);
     }
 
-    pub fn test(&mut self, gameboy_state: GameBoyState) -> Result<String, String> {
-        unimplemented!();
-        /*
-           let gameboy_join_handle = Self::spawn_gameboy_thread(
-           self.breakpoints.clone(),
-           self.pause_state.clone(),
-           self.global_time.clone(),
-           gameboy_state,
-           true,
-           );
+    pub fn test(mut gameboy_state: GameBoyState) -> Result<String, String> {
+        let mut emulator = GameboyEmulator::new();
 
-           self.pause_state.lock().unwrap().resume();
+        gameboy_state.on_serial_port_data(|chr: char| {
+            print!("{}", chr);
+            io::stdout().flush();
+        });
 
-           gameboy_join_handle
-           .join()
-           .expect("Couldn't join on gameboy thread")
-           */
+        Self::run_gameboy_loop_no_gui(emulator, gameboy_state);
+
+        unimplemented!()
     }
 
     /*
-       pub fn pause(&mut self) {
-       self.pause_state.lock().unwrap().pause();
-       }
+    pub fn pause(&mut self) {
+    self.pause_state.lock().unwrap().pause();
+    }
 
-       pub fn resume(&mut self) {
-       self.pause_state.lock().unwrap().resume();
-       }
+    pub fn resume(&mut self) {
+    self.pause_state.lock().unwrap().resume();
+    }
 
-       pub fn add_breakpoint(&mut self, breakpoint: u16) {
-       self.breakpoints.lock().unwrap().insert(breakpoint);
-       }
+    pub fn add_breakpoint(&mut self, breakpoint: u16) {
+    self.breakpoints.lock().unwrap().insert(breakpoint);
+    }
 
-       pub fn remove_breakpoint(&mut self, breakpoint: u16) {
-       self.breakpoints.lock().unwrap().remove(&breakpoint);
-       }
+    pub fn remove_breakpoint(&mut self, breakpoint: u16) {
+    self.breakpoints.lock().unwrap().remove(&breakpoint);
+    }
 
-       pub fn toggle_breakpoint(&mut self, breakpoint: u16) {
-       let mut breakpoints = self.breakpoints.lock().unwrap();
-       if breakpoints.contains(&breakpoint) {
-       breakpoints.remove(&breakpoint);
-       } else {
-       breakpoints.insert(breakpoint);
-       }
-       }
-       */
+    pub fn toggle_breakpoint(&mut self, breakpoint: u16) {
+    let mut breakpoints = self.breakpoints.lock().unwrap();
+    if breakpoints.contains(&breakpoint) {
+    breakpoints.remove(&breakpoint);
+    } else {
+    breakpoints.insert(breakpoint);
+    }
+    }
+    */
 }

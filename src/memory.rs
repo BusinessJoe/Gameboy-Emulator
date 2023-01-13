@@ -49,6 +49,8 @@ impl MemoryBus {
             }
             0x8000..=0x97ff => self.ppu.borrow_mut().read_u8(address),
             0x9800..=0x9bff => self.ppu.borrow_mut().read_u8(address),
+            // OAM
+            0xfe00..=0xfe9f => self.ppu.borrow_mut().read_u8(address),
             // Joypad
             0xff00 => self.joypad.borrow_mut().read_u8(address),
             // LCD Control register (LCDC)
@@ -73,14 +75,25 @@ impl MemoryBus {
             }
             0x8000..=0x97ff => self.ppu.borrow_mut().write_u8(address, value)?,
             0x9800..=0x9bff => self.ppu.borrow_mut().write_u8(address, value)?,
+            // OAM
+            0xfe00..=0xfe9f => self.ppu.borrow_mut().write_u8(address, value)?,
             // Joypad
             0xff00 => self.joypad.borrow_mut().write_u8(address, value)?,
             // LCD Control register (LCDC)
             0xff40 => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
             _ => self.data[address] = value,
         }
 
+        Ok(())
+    }
+
+    // Initiate an OAM transfer
+    fn oam_transfer(&mut self, value: u8) -> Result<()> {
+        let mut data = vec![0; 0xa0];
+        self.read(usize::from(value) * 0x100, &mut data)?;
+        self.write(0xfe00, &data)?;
         Ok(())
     }
 
