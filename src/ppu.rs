@@ -347,9 +347,18 @@ impl PPU {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
             let x = i32::from(oam_data.x_pos()) - 8;
             let y = i32::from(oam_data.y_pos()) - 16;
+            let tile_index = oam_data.tile_index();
             // We have an offset bc the tile map takes up 16 * 8 pixels of width
             let x_offset = 16 * 8;
-            self.set_sprite(x + x_offset, y, usize::from(oam_data.tile_index()))?;
+
+            if !self.lcdc.obj_size {
+                // 8x8
+                self.set_sprite(x + x_offset, y, usize::from(tile_index))?;
+            } else {
+                // 8x16
+                self.set_sprite(x + x_offset, y, usize::from(tile_index))?;
+                self.set_sprite(x + x_offset, y + 8, usize::from(tile_index + 1))?;
+            }
         }
 
         Ok(())
