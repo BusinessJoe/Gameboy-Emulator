@@ -208,9 +208,9 @@ impl PPU {
         }
     }
 
-    /// Uses the tile addressing method to index into the tile cache and return decoded tile data.
-    pub fn get_tile(&self, tile_index: usize, method: TileDataAddressingMethod) -> Result<Tile> {
-        let tile_index = match method {
+    /// Uses the tile addressing method to adjust the provided index so it can be used with the tile cache.
+    pub fn adjust_tile_index(&self, tile_index: usize, method: TileDataAddressingMethod) -> usize {
+        match method {
             TileDataAddressingMethod::Method8000 => tile_index,
             TileDataAddressingMethod::Method8800 => {
                 if tile_index <= 127 {
@@ -219,10 +219,7 @@ impl PPU {
                     tile_index
                 }
             }
-        };
-
-        // TODO: Does this need to be cloned?
-        Ok(self.tile_cache[tile_index].clone())
+        }
     }
 
     pub fn set_tile(
@@ -232,7 +229,7 @@ impl PPU {
         tile_index: usize,
         method: TileDataAddressingMethod,
     ) -> Result<()> {
-        let tile_data = self.get_tile(tile_index, method)?;
+        let tile_data = &self.tile_cache[self.adjust_tile_index(tile_index, method)];
 
         // Copy each of tile's eight rows into the screen
         for row_offset in 0..8 {
@@ -240,8 +237,10 @@ impl PPU {
             let col_idx_start = col * 8;
             let col_idx_end = col_idx_start + 8;
 
+            let tile_data_slice = &tile_data.0[(row_offset * 8)..(8 + row_offset * 8)];
+
             self.screen[(col_idx_start + row_idx * WIDTH)..(col_idx_end + row_idx * WIDTH)]
-                .copy_from_slice(&tile_data.0[(row_offset * 8)..(8 + row_offset * 8)]);
+                .copy_from_slice(tile_data_slice);
         }
 
         Ok(())
