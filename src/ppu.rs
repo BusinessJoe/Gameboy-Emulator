@@ -89,14 +89,14 @@ enum PPUState {
     HBlank,
 }
 
-#[derive(Debug)]
-struct OamData<'a> {
-    data: &'a [u8],
+#[derive(Debug, Clone)]
+pub struct OamData {
+    data: Vec<u8>,
 }
 
-impl<'a> OamData<'a> {
+impl OamData {
     pub fn new(data: &[u8]) -> OamData {
-        OamData { data }
+        OamData { data: data.to_vec() }
     }
 
     fn y_pos(&self) -> u8 {
@@ -114,6 +114,22 @@ impl<'a> OamData<'a> {
     fn palette_number(&self) -> u8 {
         self.data[3] >> 4 & 1
     }
+
+    /// true iff horizontally mirrored
+    fn x_flip(&self) -> bool {
+        self.data[3] >> 5 & 1 == 1
+    }
+
+    /// true iff vertically mirrored
+    fn y_flip(&self) -> bool {
+        self.data[3] >> 6 & 1 == 1
+    }
+
+    /// false=No, true=BG and Window colors 1-3 over the OBJ
+    fn bg_window_over_obj(&self) -> bool {
+        self.data[3] >> 7 & 1 == 1
+    }
+
 }
 
 /// The PPU is responsible for the emulated gameboy's graphics.
@@ -124,6 +140,8 @@ pub struct PPU {
     tile_data: Vec<u8>,
     /// Cache of decoded tile data -- the gameboy can store 384 different tiles
     tile_cache: Vec<Tile>,
+    /// Cache of decoded tile data, reversed along the x axis.
+    backwards_tile_cache: Vec<Tile>,
     /// Addresses 0x9800-0x9bff are a 32x32 map of background tiles.
     /// Each byte contains the number of a tile to be displayed.
     background_map: Vec<u8>,
@@ -160,6 +178,7 @@ impl PPU {
             tile_data: vec![0; 0x1800],
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
             tile_cache: vec![Tile::new(); 384],
+            backwards_tile_cache: vec![Tile::new(); 384],
             background_map: vec![0; 32 * 32],
             sprite_tiles_table: vec![0; 160],
             ly: 0,
@@ -173,7 +192,8 @@ impl PPU {
         ppu
     }
 
-    /// Update the cached tile data associated with this memory address. Called after a write to tile data.
+    /// Update the cached forwards and backwards tile data associated with this memory address. 
+    /// Called after a write to tile data to keep caches valid.
     fn update_tile_cache(&mut self, address: Address) {
         // Translate the address into a relative address from 0x8000
         let address = address - 0x8000;
@@ -185,7 +205,10 @@ impl PPU {
         let row_index: usize = (address % 16) / 2;
 
         let tile = &mut self.tile_cache[tile_index];
+        let backwards_tile = &mut self.backwards_tile_cache[tile_index];
+
         let row_to_update = &mut tile.0[(row_index * 8)..(row_index * 8 + 8)];
+        let backwards_row_to_update = &mut backwards_tile.0[(row_index * 8)..(row_index * 8 + 8)];
 
         // Update row.
         // If the address is even, then it is the first byte for the row, otherwise it is the
@@ -205,6 +228,7 @@ impl PPU {
             let bit_2 = (byte_2 >> i) & 1;
             let color_id = (bit_2 << 1) | bit_1;
             row_to_update[7 - i] = color_id;
+            backwards_row_to_update[i] = color_id;
         }
     }
 
@@ -248,9 +272,22 @@ impl PPU {
 
     /// x is tile's horizontal position, y is tile's vertical position.
     /// Keep in mind that the values in OAM are x + 8 and y + 16.
-    pub fn set_sprite(&mut self, x: i32, y: i32, tile_index: usize) -> Result<()> {
+    /// If bottom_half is true, this method treats the provided object as the top half of a 16 row sprite to
+    /// act on data corresponding to the bottom half.
+    pub fn set_sprite(&mut self, oam_data: &OamData, tile_index_offset: i8, y_offset: i32) -> Result<()> {
+        // We have an offset bc the tile map takes up 16 * 8 pixels of width
+        let x_offset = 16 * 8;
+
+        let x: i32 = i32::from(oam_data.x_pos()) - 8 + x_offset;
+        let y: i32 = i32::from(oam_data.y_pos()) - 16 + y_offset;
+        let tile_index = (oam_data.tile_index() as i16 + tile_index_offset as i16) as u8;
+
         // Sprites always use the 8000 method
-        let tile_data = self.get_tile(tile_index, TileDataAddressingMethod::Method8000)?;
+        let tile_data = if !oam_data.x_flip() {
+            &self.tile_cache[self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
+        } else {
+            &self.backwards_tile_cache[self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
+        };
 
         let screen_y_range =
             usize::try_from(cmp::max(0, y)).unwrap()..usize::try_from(cmp::max(0, y + 8)).unwrap();
@@ -260,7 +297,12 @@ impl PPU {
         // Copy each of tile's eight rows into the screen
         for screen_y in screen_y_range.clone() {
             let sprite_y = usize::try_from(screen_y - screen_y_range.start).unwrap();
-            let sprite_row = &tile_data.0[sprite_y * 8..sprite_y * 8 + 8];
+            let sprite_row = if !oam_data.y_flip() {
+                &tile_data.0[sprite_y * 8..sprite_y * 8 + 8]
+            } else {
+                let sprite_y = 7 - sprite_y;
+                &tile_data.0[sprite_y * 8..sprite_y * 8 + 8]
+            };
 
             self.screen
                 [screen_y * WIDTH + screen_x_range.start..screen_y * WIDTH + screen_x_range.end]
@@ -344,19 +386,19 @@ impl PPU {
     pub fn render_sprites(&mut self) -> Result<()> {
         for i in 0..40 {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
-            let x = i32::from(oam_data.x_pos()) - 8;
-            let y = i32::from(oam_data.y_pos()) - 16;
-            let tile_index = oam_data.tile_index();
-            // We have an offset bc the tile map takes up 16 * 8 pixels of width
-            let x_offset = 16 * 8;
 
             if !self.lcdc.obj_size {
                 // 8x8
-                self.set_sprite(x + x_offset, y, usize::from(tile_index))?;
+                self.set_sprite(&oam_data, 0, 0)?;
             } else {
                 // 8x16
-                self.set_sprite(x + x_offset, y, usize::from(tile_index))?;
-                self.set_sprite(x + x_offset, y + 8, usize::from(tile_index + 1))?;
+                if !oam_data.y_flip() {
+                    self.set_sprite(&oam_data, 0, 0)?;
+                    self.set_sprite(&oam_data, 1, 8)?;
+                } else {
+                    self.set_sprite(&oam_data, 1, 0)?;
+                    self.set_sprite(&oam_data, 0, 8)?;
+                }
             }
         }
 

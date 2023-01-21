@@ -93,7 +93,7 @@ impl GameboyEmulator {
                 // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
                 // Dividing by 4 and 60 should roughly give the number of machine cycles that
                 // need to run per frame at 60fps.
-                while cycle_total < 4_194_304 / 4 / 60 {
+                while cycle_total < 4_194_304 / 60 {
                     cycle_total += emulator.update(&mut gameboy_state);
                 }
                 gameboy_state
