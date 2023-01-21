@@ -1,10 +1,10 @@
 use crate::register::Register;
-use log::{debug, info, error};
+use log::{debug, error, info};
 
-type Address = usize;
+pub type Address = usize;
 
 #[derive(Debug)]
-pub struct AddressingError(Address);
+pub struct AddressingError(pub Address);
 
 pub trait Cartridge: Send {
     fn mbc_controller_type(&self) -> MBCControllerType;
@@ -23,7 +23,10 @@ impl std::fmt::Debug for dyn Cartridge {
 fn get_rom_size(data: &[u8]) -> usize {
     match data[0x148] {
         0..=8 => 32 * 1024 * (1 << data[0x148]),
-        _ => unimplemented!("rom size indicated by value of {:#x} is unsupported", data[0x148]),
+        _ => unimplemented!(
+            "rom size indicated by value of {:#x} is unsupported",
+            data[0x148]
+        ),
     }
 }
 
@@ -36,7 +39,10 @@ fn get_ram_size(data: &[u8]) -> usize {
         3 => 32 * 1024,
         4 => 128 * 1024,
         5 => 64 * 1024,
-        _ => unimplemented!("ram size indicated by value of {:#x} is unsupported", data[0x149]),
+        _ => unimplemented!(
+            "ram size indicated by value of {:#x} is unsupported",
+            data[0x149]
+        ),
     }
 }
 
@@ -240,23 +246,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_cartridge_type_works() {
-        let bytes = [0; 32_000];
-        assert_eq!(
-            Some(CartridgeType::RomOnly),
-            cartridge_type_from_data(&bytes)
-        );
-
-        let mut bytes = [0; 32_000];
-        bytes[0x0147] = 1;
-        assert_eq!(Some(CartridgeType::MBC1), cartridge_type_from_data(&bytes));
-
-        let mut bytes = [0; 32_000];
-        bytes[0x0147] = 2;
-        assert_eq!(None, cartridge_type_from_data(&bytes));
-    }
-
-    #[test]
     fn mbc1_memory_banks_swap() {
         let mut bytes = vec![0; 0x200000];
         bytes[0x1132a7] = 0xff;
@@ -275,15 +264,15 @@ mod tests {
     fn test_cartridge_builder() {
         let bytes = [0; 32_000];
         assert_eq!(
-            CartridgeType::RomOnly,
-            build_cartridge(&bytes).unwrap().cartridge_type()
+            MBCControllerType::RomOnly,
+            build_cartridge(&bytes).unwrap().mbc_controller_type()
         );
 
         let mut bytes = vec![0; 128 * 0x4000];
         bytes[0x0147] = 1;
         assert_eq!(
-            CartridgeType::MBC1,
-            build_cartridge(&bytes).unwrap().cartridge_type()
+            MBCControllerType::MBC1,
+            build_cartridge(&bytes).unwrap().mbc_controller_type()
         );
     }
 

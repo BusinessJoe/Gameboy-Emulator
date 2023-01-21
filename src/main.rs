@@ -1,30 +1,15 @@
-mod cartridge;
-mod component;
-mod cpu;
-mod emulator;
-mod error;
-mod gameboy;
-mod joypad;
-mod memory;
-mod ppu;
-mod register;
-mod screen;
-mod timer;
-
-use crate::emulator::GameboyEmulator;
-use crate::gameboy::GameBoyState;
+use gameboy_emulator::emulator::GameboyEmulator;
+use gameboy_emulator::gameboy::GameBoyState;
 use std::env;
 
-fn main() -> crate::error::Result<()> {
+fn main() {
     env_logger::init();
 
     let rom_path = env::args().nth(1).expect("Expected a path to a rom");
 
     let mut gameboy = GameBoyState::new();
-    gameboy.load(&rom_path)?;
+    gameboy.load(&rom_path).unwrap();
     gameboy.cpu.borrow_mut().boot();
 
     GameboyEmulator::run(gameboy);
-
-    Ok(())
 }

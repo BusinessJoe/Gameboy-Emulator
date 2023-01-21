@@ -19,5 +19,13 @@ game-loop = { version = "0.10.0", features = ["winit"] }
 num = "0.4.0"
 device_query = "1.1.1"
 
+[dev-dependencies]
+pprof = { version = "0.3", features = ["flamegraph"] }
+criterion = "0.4.0"
+
 [profile.release]
 debug = true
+
+[[bench]]
+name = "emu_benches"
+harness = false

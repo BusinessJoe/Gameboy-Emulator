@@ -1,8 +1,8 @@
 mod component;
 mod error;
 
-mod cartridge;
-mod cpu;
+pub mod cartridge;
+pub mod cpu;
 pub mod emulator;
 pub mod gameboy;
 mod joypad;
@@ -11,3 +11,7 @@ mod ppu;
 mod register;
 pub mod screen;
 mod timer;
+
+pub use joypad::Joypad;
+pub use memory::MemoryBus;
+pub use ppu::PPU;

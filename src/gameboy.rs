@@ -1,4 +1,4 @@
-use crate::cartridge;
+use crate::cartridge::{self, Cartridge};
 use crate::component::{Addressable, Steppable};
 use crate::cpu::CPU;
 use crate::error::Result;
@@ -42,6 +42,10 @@ impl GameBoyState {
     pub fn load(&mut self, filename: &str) -> Result<()> {
         let bytes = fs::read(filename).unwrap();
         let cartridge = cartridge::build_cartridge(&bytes).unwrap();
+        self.load_cartridge(cartridge)
+    }
+
+    pub fn load_cartridge(&mut self, cartridge: Box<dyn Cartridge>) -> Result<()> {
         println!("Loaded cartridge: {:?}", cartridge);
         let mut memory_bus = self.memory_bus.borrow_mut();
         memory_bus.insert_cartridge(cartridge);
