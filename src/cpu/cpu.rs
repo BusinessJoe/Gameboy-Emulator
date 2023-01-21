@@ -120,7 +120,7 @@ impl CPU {
             None => {
                 let byte = memory_bus.read_u8(self.pc.into())?;
                 trace!("Read byte {:#04x}", byte);
-                self.pc += 1;
+                self.pc = self.pc.wrapping_add(1);
                 byte
             }
         };
