@@ -1,7 +1,10 @@
 use crate::register::Register;
-use log::{debug, info};
+use log::{debug, info, error};
 
 type Address = usize;
+
+#[derive(Debug)]
+pub struct AddressingError(Address);
 
 pub trait Cartridge: Send {
     fn mbc_controller_type(&self) -> MBCControllerType;
@@ -15,8 +18,27 @@ impl std::fmt::Debug for dyn Cartridge {
     }
 }
 
-#[derive(Debug)]
-pub struct AddressingError(Address);
+/// Examines cartridge data (the header) to get the size of the rom located
+/// on the cartridge.
+fn get_rom_size(data: &[u8]) -> usize {
+    match data[0x148] {
+        0..=8 => 32 * 1024 * (1 << data[0x148]),
+        _ => unimplemented!("rom size indicated by value of {:#x} is unsupported", data[0x148]),
+    }
+}
+
+/// Examines cartridge data (the header) to get the size of the ram located
+/// on the cartridge.
+fn get_ram_size(data: &[u8]) -> usize {
+    match data[0x149] {
+        0 => 0,
+        2 => 8 * 1024,
+        3 => 32 * 1024,
+        4 => 128 * 1024,
+        5 => 64 * 1024,
+        _ => unimplemented!("ram size indicated by value of {:#x} is unsupported", data[0x149]),
+    }
+}
 
 /// A Gameboy cartridge that only has a single ROM bank, with no switching.
 #[derive(Debug)]
@@ -67,15 +89,15 @@ struct MBC1Cartridge {
 
 impl MBC1Cartridge {
     fn new(data: &[u8]) -> Self {
-        let mut rom = vec![0; 128 * 0x4000];
-        rom[..data.len()].clone_from_slice(data);
+        let mut rom = vec![0; get_rom_size(data)];
+        rom[..].clone_from_slice(data);
         Self {
             ram_gate: Register::from(0),
             bank_register_1: Register::from(1),
             bank_register_2: Register::from(0),
             mode_register: Register::from(0),
             rom,
-            ram: vec![0; 4 * 0x2000],
+            ram: vec![0; get_ram_size(data)],
         }
     }
 
@@ -101,7 +123,13 @@ impl Cartridge for MBC1Cartridge {
     fn read(&self, address: Address) -> Result<u8, AddressingError> {
         let bank_number = self.bank_number(address);
         let rom_address = bank_number << 14 | address & 0x3fff;
-        Ok(self.rom[rom_address])
+        match self.rom.get(rom_address) {
+            Some(value) => Ok(*value),
+            None => {
+                error!("rom address {:#x} is out of bounds", rom_address);
+                Err(AddressingError(address))
+            }
+        }
     }
 
     fn write(&mut self, address: Address, mut value: u8) -> Result<(), AddressingError> {
@@ -194,7 +222,14 @@ fn cartridge_type_from_data(data: &[u8]) -> Option<CartridgeType> {
             timer: false,
             rumble: false,
         },
-        _ => unimplemented!(),
+        0x03 => CartridgeType {
+            mbc_controller_type: MBCControllerType::MBC1,
+            ram: true,
+            battery: true,
+            timer: false,
+            rumble: false,
+        },
+        _ => unimplemented!("catridge indicated by {:#x} is not supported", data[0x0147]),
     };
 
     Some(cartridge_type)
