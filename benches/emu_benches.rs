@@ -1,7 +1,7 @@
 mod perf;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use gameboy_emulator::cartridge::{Cartridge, MBCControllerType, Address, AddressingError};
+use gameboy_emulator::cartridge::{Address, AddressingError, Cartridge, MBCControllerType};
 use gameboy_emulator::cpu::CPU;
 use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::{Joypad, MemoryBus, PPU};
@@ -26,7 +26,6 @@ fn repeat_nop(c: &mut Criterion) {
 fn repeat_inc_b_reg(c: &mut Criterion) {
     repeat_regular_opcode(c, "inc-b", 0x04);
 }
-
 
 fn bench_gameboy_tick(c: &mut Criterion) {
     let mut gameboy = GameBoyState::new();
@@ -58,7 +57,10 @@ impl Cartridge for MockCartridge {
     }
 
     fn read(&self, address: Address) -> Result<u8, AddressingError> {
-        self.data.get(address).ok_or(AddressingError(address)).copied()
+        self.data
+            .get(address)
+            .ok_or(AddressingError(address))
+            .copied()
     }
 
     fn write(&mut self, address: Address, value: u8) -> Result<(), AddressingError> {
@@ -71,7 +73,7 @@ impl Cartridge for MockCartridge {
     }
 }
 
-criterion_group!{
+criterion_group! {
     name = gameboy_benches;
     config = Criterion::default().with_profiler(perf::FlamegraphProfiler::new(100)).sample_size(500);
     targets = repeat_nop, repeat_inc_b_reg, bench_gameboy_tick

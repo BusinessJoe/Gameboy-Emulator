@@ -14,4 +14,4 @@ mod timer;
 
 pub use joypad::Joypad;
 pub use memory::MemoryBus;
-pub use ppu::PPU;
+pub use ppu::Ppu;

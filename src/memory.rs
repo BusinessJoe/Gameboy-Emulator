@@ -10,21 +10,20 @@ use crate::component::{Address, Addressable};
 use crate::error::Result;
 use crate::gameboy::Interrupt;
 use crate::joypad::Joypad;
-use crate::ppu::PPU;
+use crate::ppu::Ppu;
 use log::debug;
 
 /// Mock memory bus
-#[derive(Debug)]
-pub struct MemoryBus {
+pub struct MemoryBus<'a> {
     cartridge: Option<Box<dyn Cartridge>>,
-    ppu: Rc<RefCell<PPU>>,
+    ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     joypad: Rc<RefCell<Joypad>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<char>,
 }
 
-impl MemoryBus {
-    pub fn new(ppu: Rc<RefCell<PPU>>, joypad: Rc<RefCell<Joypad>>) -> Self {
+impl<'a> MemoryBus<'a> {
+    pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>, joypad: Rc<RefCell<Joypad>>) -> Self {
         let mut memory_bus = Self {
             cartridge: None,
             ppu,
@@ -119,7 +118,7 @@ impl MemoryBus {
     }
 }
 
-impl Addressable for MemoryBus {
+impl<'a> Addressable for MemoryBus<'a> {
     fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
         for (offset, byte) in data.iter_mut().enumerate() {
             *byte = self._read(address + offset)?;

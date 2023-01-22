@@ -5,11 +5,11 @@ use log::info;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct Timer {
+pub struct Timer<'a> {
     /// Number of clock cycles per second.
     clock_speed: u64,
     /// The Game Boy's memory bus.
-    memory_bus: Rc<RefCell<MemoryBus>>,
+    memory_bus: Rc<RefCell<MemoryBus<'a>>>,
     div_clocksum: u64,
     timer_clocksum: u64,
 }
@@ -23,8 +23,8 @@ const TMA: usize = 0xFF06;
 // Timer control
 const TAC: usize = 0xFF07;
 
-impl Timer {
-    pub fn new(clock_speed: u64, memory_bus: Rc<RefCell<MemoryBus>>) -> Self {
+impl<'a> Timer<'a> {
+    pub fn new(clock_speed: u64, memory_bus: Rc<RefCell<MemoryBus<'a>>>) -> Self {
         Self {
             clock_speed,
             memory_bus,

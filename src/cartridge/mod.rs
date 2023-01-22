@@ -1,2 +1,2 @@
 mod cartridge;
-pub use cartridge::{build_cartridge, Cartridge, MBCControllerType, Address, AddressingError};
+pub use cartridge::{build_cartridge, Address, AddressingError, Cartridge, MBCControllerType};

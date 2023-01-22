@@ -4,9 +4,10 @@ use crate::cpu::CPU;
 use crate::error::Result;
 use crate::joypad::Joypad;
 use crate::memory::MemoryBus;
-use crate::ppu::PPU;
+use crate::ppu::Ppu;
 use crate::timer::Timer;
 use log::trace;
+use sdl2::render::Canvas;
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
@@ -15,18 +16,17 @@ const CLOCK_SPEED: u64 = 4_194_304;
 
 pub type Observer = fn(chr: char);
 
-pub struct GameBoyState {
+pub struct GameBoyState<'a> {
     pub cpu: Rc<RefCell<CPU>>,
-    pub ppu: Rc<RefCell<PPU>>,
+    pub ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     pub joypad: Rc<RefCell<Joypad>>,
-    pub memory_bus: Rc<RefCell<MemoryBus>>,
+    pub memory_bus: Rc<RefCell<MemoryBus<'a>>>,
     serial_port_observer: Option<Observer>,
-    timer: Timer,
+    timer: Timer<'a>,
 }
 
-impl GameBoyState {
-    pub fn new() -> Self {
-        let ppu = Rc::new(RefCell::new(PPU::new()));
+impl<'a> GameBoyState<'a> {
+    pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let memory_bus = Rc::new(RefCell::new(MemoryBus::new(ppu.clone(), joypad.clone())));
         Self {

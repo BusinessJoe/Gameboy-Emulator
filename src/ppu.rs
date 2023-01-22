@@ -9,8 +9,16 @@ use crate::{
     error::{Error, Result},
     gameboy::{GameBoyState, Interrupt},
 };
+use sdl2::{rect::{Point, Rect}, render::TextureCreator, video::WindowContext};
+use sdl2::{
+    pixels::{Color, PixelFormatEnum},
+    render::{Canvas, RenderTarget, Texture},
+};
+use sdl2::video::Window;
+use std::cell::RefCell;
 use std::cmp;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TileDataAddressingMethod {
@@ -96,7 +104,9 @@ pub struct OamData {
 
 impl OamData {
     pub fn new(data: &[u8]) -> OamData {
-        OamData { data: data.to_vec() }
+        OamData {
+            data: data.to_vec(),
+        }
     }
 
     fn y_pos(&self) -> u8 {
@@ -129,15 +139,18 @@ impl OamData {
     fn bg_window_over_obj(&self) -> bool {
         self.data[3] >> 7 & 1 == 1
     }
-
 }
 
+pub trait Ppu<'a>: Addressable + Steppable {}
+
 /// The PPU is responsible for the emulated gameboy's graphics.
-#[derive(Debug)]
-pub struct PPU {
+pub struct CanvasPpu<'a> {
+    tile_map: Texture<'a>,
+
     pub screen: Vec<u8>,
     /// Tile data takes up addresses 0x8000-0x97ff.
     tile_data: Vec<u8>,
+
     /// Cache of decoded tile data -- the gameboy can store 384 different tiles
     tile_cache: Vec<Tile>,
     /// Cache of decoded tile data, reversed along the x axis.
@@ -166,14 +179,32 @@ pub struct PPU {
 #[derive(Debug, Clone)]
 pub struct Tile(Vec<u8>);
 impl Tile {
-    pub fn new() -> Tile {
+    fn new() -> Tile {
         Tile(vec![0; 64])
+    }
+
+    fn as_rgba(&self) -> Vec<u8> {
+        let mut color_data = vec![0; 64 * 4];
+        for (i, pixel) in self.0.iter().enumerate() {
+            let rgba = match pixel {
+                0 => [255, 255, 255, 255],
+                1 => [255, 200, 200, 200],
+                2 => [255, 100, 100, 100],
+                3 => [255, 0, 0, 0],
+                _ => panic!()
+            };
+            color_data[i*4..(i+1)*4].copy_from_slice(&rgba);
+        }
+        color_data
     }
 }
 
-impl PPU {
-    pub fn new() -> Self {
-        let ppu = Self {
+impl<'a> CanvasPpu<'a> {
+    pub fn new(creator: &'a TextureCreator<WindowContext>) -> Self {
+        let tile_map = creator.create_texture_target(PixelFormatEnum::RGBA8888, 128, 192).unwrap();
+
+        let ppu = CanvasPpu {
+            tile_map,
             screen: vec![0; WIDTH * HEIGHT],
             tile_data: vec![0; 0x1800],
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
@@ -192,7 +223,7 @@ impl PPU {
         ppu
     }
 
-    /// Update the cached forwards and backwards tile data associated with this memory address. 
+    /// Update the cached forwards and backwards tile data associated with this memory address.
     /// Called after a write to tile data to keep caches valid.
     fn update_tile_cache(&mut self, address: Address) {
         // Translate the address into a relative address from 0x8000
@@ -230,6 +261,10 @@ impl PPU {
             row_to_update[7 - i] = color_id;
             backwards_row_to_update[i] = color_id;
         }
+
+        let x = (tile_index % 16) * 8;
+        let y = tile_index / 16 * 8;
+        self.tile_map.update(Some(Rect::new(x as i32, y as i32, 8, 8)), &tile.as_rgba(), 8*4).unwrap();
     }
 
     /// Uses the tile addressing method to adjust the provided index so it can be used with the tile cache.
@@ -248,6 +283,7 @@ impl PPU {
 
     pub fn set_tile(
         &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
         row: usize,
         col: usize,
         tile_index: usize,
@@ -263,8 +299,20 @@ impl PPU {
 
             let tile_data_slice = &tile_data.0[(row_offset * 8)..(8 + row_offset * 8)];
 
-            self.screen[(col_idx_start + row_idx * WIDTH)..(col_idx_end + row_idx * WIDTH)]
-                .copy_from_slice(tile_data_slice);
+            for col_idx in col_idx_start..col_idx_end {
+                let color = match tile_data_slice[col_idx - col_idx_start] {
+                    0 => Color::RGBA(0, 0, 0, 255),
+                    1 => Color::RGBA(100, 100, 100, 255),
+                    2 => Color::RGBA(200, 200, 200, 255),
+                    3 => Color::RGBA(255, 255, 255, 255),
+                    _ => panic!("invalid color id"),
+                };
+                texture_canvas.set_draw_color(color);
+                texture_canvas.draw_point(Point::new(col_idx as i32, row_idx as i32));
+            }
+
+            //self.screen[(col_idx_start + row_idx * WIDTH)..(col_idx_end + row_idx * WIDTH)]
+            //    .copy_from_slice(tile_data_slice);
         }
 
         Ok(())
@@ -274,7 +322,12 @@ impl PPU {
     /// Keep in mind that the values in OAM are x + 8 and y + 16.
     /// If bottom_half is true, this method treats the provided object as the top half of a 16 row sprite to
     /// act on data corresponding to the bottom half.
-    pub fn set_sprite(&mut self, oam_data: &OamData, tile_index_offset: i8, y_offset: i32) -> Result<()> {
+    pub fn set_sprite(
+        &mut self,
+        oam_data: &OamData,
+        tile_index_offset: i8,
+        y_offset: i32,
+    ) -> Result<()> {
         // We have an offset bc the tile map takes up 16 * 8 pixels of width
         let x_offset = 16 * 8;
 
@@ -284,9 +337,11 @@ impl PPU {
 
         // Sprites always use the 8000 method
         let tile_data = if !oam_data.x_flip() {
-            &self.tile_cache[self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
+            &self.tile_cache
+                [self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
         } else {
-            &self.backwards_tile_cache[self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
+            &self.backwards_tile_cache
+                [self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
         };
 
         let screen_y_range =
@@ -348,12 +403,17 @@ impl PPU {
         Ok(())
     }
 
-    pub fn render_tile_map(&mut self) -> Result<()> {
+    pub fn render_tile_map<T: RenderTarget>(&mut self,
+                           texture_canvas: &mut sdl2::render::Canvas<T>) -> Result<()> {
+        texture_canvas
+            .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)));
+        /*
         // Render tile map
         for row in 0..24 {
             for col in 0..16 {
                 let tile_number = col + row * 16;
                 self.set_tile(
+                    texture_canvas,
                     row,
                     col,
                     tile_number.into(),
@@ -361,10 +421,14 @@ impl PPU {
                 )?;
             }
         }
+        */
         Ok(())
     }
 
-    pub fn render_background_map(&mut self) -> Result<()> {
+    pub fn render_background_map(
+        &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
+    ) -> Result<()> {
         let method = if self.lcdc.bg_window_tile_data_area {
             TileDataAddressingMethod::Method8000
         } else {
@@ -376,14 +440,18 @@ impl PPU {
         for row in 0..32 {
             for col in 0..32 {
                 let tile_number = self.background_map[col + row * 32];
-                self.set_tile(row, col + 16, tile_number.into(), method)?;
+                self.set_tile(texture_canvas, row, col, tile_number.into(), method)?;
             }
         }
 
         Ok(())
     }
 
-    pub fn render_sprites(&mut self) -> Result<()> {
+    /*
+    pub fn render_sprites<T: sdl2::render::RenderTarget>(
+        &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<T>,
+    ) -> Result<()> {
         for i in 0..40 {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
 
@@ -404,9 +472,10 @@ impl PPU {
 
         Ok(())
     }
+    */
 }
 
-impl Steppable for PPU {
+impl<'a> Steppable for CanvasPpu<'a> {
     fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
         self.dots += 1;
 
@@ -423,7 +492,7 @@ impl Steppable for PPU {
                 // For now, just use the current xy coordinates as an index into the background map
                 // to get a pixel
                 if self.lx == 0 {
-                    self.render_background_map()?;
+                    //self.render_background_map()?;
                 }
 
                 self.lx += 1;
@@ -462,7 +531,7 @@ impl Steppable for PPU {
     }
 }
 
-impl Addressable for PPU {
+impl<'a> Addressable for CanvasPpu<'a> {
     fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
         for (offset, byte) in data.iter_mut().enumerate() {
             *byte = self._read(address + offset)?;
@@ -479,3 +548,5 @@ impl Addressable for PPU {
         Ok(())
     }
 }
+
+impl<'a> Ppu<'a> for CanvasPpu<'a> {}

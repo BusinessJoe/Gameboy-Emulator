@@ -1,15 +1,15 @@
 use gameboy_emulator::emulator::GameboyEmulator;
 use gameboy_emulator::gameboy::GameBoyState;
+use gameboy_emulator::cartridge::build_cartridge;
 use std::env;
+use std::fs;
 
 fn main() {
     env_logger::init();
 
-    let rom_path = env::args().nth(1).expect("Expected a path to a rom");
+    let rom_path = env::args().nth(1).expect("expected a path to a rom");
+    let bytes = fs::read(rom_path).expect("could not read file");
+    let cartridge = build_cartridge(&bytes).expect("failed to build cartridge");
 
-    let mut gameboy = GameBoyState::new();
-    gameboy.load(&rom_path).unwrap();
-    gameboy.cpu.borrow_mut().boot();
-
-    GameboyEmulator::run(gameboy);
+    GameboyEmulator::run(cartridge);
 }
