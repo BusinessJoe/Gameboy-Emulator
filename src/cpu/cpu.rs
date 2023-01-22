@@ -14,19 +14,21 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> CPU {
+        let mut cpu = CPU {
             registers: Registers::default(),
             sp: 0,
             pc: 0,
             interrupt_enabled: false,
             halted: false,
             halt_bug_opcode: None,
-        }
+        };
+        cpu.emulate_bootrom();
+        cpu
     }
 
-    pub fn boot(&mut self) {
-        // Initialize things.
+    /// Initialize the CPU's flags to post-bootrom values
+    fn emulate_bootrom(&mut self) {
         self.pc = 0x100;
         self.registers.a = 0x01;
         self.registers.f = 0xB0.into();
