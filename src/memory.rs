@@ -11,6 +11,7 @@ use crate::error::Result;
 use crate::gameboy::Interrupt;
 use crate::joypad::Joypad;
 use crate::ppu::Ppu;
+use crate::timer::Timer;
 use log::debug;
 
 /// Mock memory bus
@@ -18,16 +19,22 @@ pub struct MemoryBus<'a> {
     cartridge: Option<Box<dyn Cartridge>>,
     ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     joypad: Rc<RefCell<Joypad>>,
+    timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<char>,
 }
 
 impl<'a> MemoryBus<'a> {
-    pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>, joypad: Rc<RefCell<Joypad>>) -> Self {
+    pub fn new(
+        ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>, 
+        joypad: Rc<RefCell<Joypad>>,
+        timer: Rc<RefCell<Timer>>,
+    ) -> Self {
         let mut memory_bus = Self {
             cartridge: None,
             ppu,
             joypad,
+            timer,
             data: [0; 0x10000],
             serial_port_data: Vec::new(),
         };
@@ -52,6 +59,8 @@ impl<'a> MemoryBus<'a> {
             0xfe00..=0xfe9f => self.ppu.borrow_mut().read_u8(address),
             // Joypad
             0xff00 => self.joypad.borrow_mut().read_u8(address),
+            // Timer
+            0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
             // LCD Control register (LCDC)
             0xff40 => self.ppu.borrow_mut().read_u8(address),
             0xff44 => self.ppu.borrow_mut().read_u8(address),
@@ -78,6 +87,8 @@ impl<'a> MemoryBus<'a> {
             0xfe00..=0xfe9f => self.ppu.borrow_mut().write_u8(address, value)?,
             // Joypad
             0xff00 => self.joypad.borrow_mut().write_u8(address, value)?,
+            // Timer
+            0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
             // LCD Control register (LCDC)
             0xff40 => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,

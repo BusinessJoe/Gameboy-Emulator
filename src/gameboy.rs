@@ -20,22 +20,29 @@ pub struct GameBoyState<'a> {
     pub cpu: Rc<RefCell<CPU>>,
     pub ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     pub joypad: Rc<RefCell<Joypad>>,
+    timer: Rc<RefCell<Timer>>,
     pub memory_bus: Rc<RefCell<MemoryBus<'a>>>,
     serial_port_observer: Option<Observer>,
-    timer: Timer<'a>,
 }
 
 impl<'a> GameBoyState<'a> {
     pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
-        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(ppu.clone(), joypad.clone())));
+        let timer = Rc::new(RefCell::new(Timer::new(CLOCK_SPEED)));
+        let memory_bus = Rc::new(RefCell::new(
+            MemoryBus::new(
+                ppu.clone(), 
+                joypad.clone(),
+                timer.clone(),
+            )
+        ));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
             ppu: ppu.clone(),
             joypad,
+            timer,
             memory_bus: memory_bus.clone(),
             serial_port_observer: None,
-            timer: Timer::new(CLOCK_SPEED, memory_bus),
         }
     }
 
@@ -59,13 +66,22 @@ impl<'a> GameBoyState<'a> {
             .borrow_mut()
             .step(&self)
             .expect("error while stepping cpu");
-        for _ in 0..elapsed_cycles {
-            self.ppu
-                .borrow_mut()
-                .step(&self)
-                .expect("error while stepping ppu");
+        {
+            let mut ppu = self.ppu.borrow_mut();
+            for _ in 0..elapsed_cycles {
+                ppu
+                    .step(&self)
+                    .expect("error while stepping ppu");
+            }
         }
-        self.timer.tick(elapsed_cycles);
+        {
+            let mut timer = self.timer.borrow_mut();
+            for _ in 0..elapsed_cycles {
+                timer
+                    .step(&self)
+                    .expect("error while stepping ppu");
+            }
+        }
 
         // If data exists on the serial port, forward it to the observer
         let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data;
