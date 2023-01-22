@@ -73,6 +73,9 @@ impl GameboyEmulator {
         let mut background_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
+        let mut sprite_map = creator
+            .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
+            .map_err(|e| e.to_string())?;
 
         let canvas = Rc::new(RefCell::new(canvas));
 
@@ -111,12 +114,17 @@ impl GameboyEmulator {
                 let mut canvas_ppu = canvas_ppu.borrow_mut();
                 canvas_ppu
                     .render_tile_map(&mut canvas)
-                    .expect("error rending tile map");
+                    .expect("error rendering tile map");
                 canvas
                     .with_texture_canvas(&mut background_map, |mut texture_canvas| {
-                            canvas_ppu
-                            .render_background_map(&mut texture_canvas)
-                            .expect("error rending tile map");
+                        canvas_ppu
+                        .render_background_map(&mut texture_canvas)
+                        .expect("error rendering background map");
+
+                        // Render sprites over background map for now
+                        canvas_ppu
+                            .render_sprites(&mut texture_canvas)
+                            .expect("error rendering sprite");
                     })
                     .map_err(|e| e.to_string())?;
                 canvas.copy(
@@ -124,6 +132,13 @@ impl GameboyEmulator {
                     None,
                     Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
                 )?;
+                /*
+                canvas.copy(
+                    &sprite_map,
+                    None,
+                    Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
+                )?;
+                */
             }
             /*
             gameboy_state

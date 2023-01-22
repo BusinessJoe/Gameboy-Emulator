@@ -305,49 +305,28 @@ impl<'a> CanvasPpu<'a> {
     /// act on data corresponding to the bottom half.
     pub fn set_sprite(
         &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
         oam_data: &OamData,
         tile_index_offset: i8,
         y_offset: i32,
     ) -> Result<()> {
-        // We have an offset bc the tile map takes up 16 * 8 pixels of width
-        let x_offset = 16 * 8;
-
-        let x: i32 = i32::from(oam_data.x_pos()) - 8 + x_offset;
+        let x: i32 = i32::from(oam_data.x_pos()) - 8;
         let y: i32 = i32::from(oam_data.y_pos()) - 16 + y_offset;
         let tile_index = (oam_data.tile_index() as i16 + tile_index_offset as i16) as u8;
 
-        // Sprites always use the 8000 method
-        let tile_data = if !oam_data.x_flip() {
-            &self.tile_cache
-                [self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
-        } else {
-            &self.backwards_tile_cache
-                [self.adjust_tile_index(tile_index.into(), TileDataAddressingMethod::Method8000)]
-        };
+        let source_rect = Rect::new((tile_index as i32 % 16) * 8, tile_index as i32 / 16 * 8, 8, 8);
+        let dest_rect = Rect::new(x, y, 8, 8);
 
-        let screen_y_range =
-            usize::try_from(cmp::max(0, y)).unwrap()..usize::try_from(cmp::max(0, y + 8)).unwrap();
-        let screen_x_range =
-            usize::try_from(cmp::max(0, x)).unwrap()..usize::try_from(cmp::max(0, x + 8)).unwrap();
-
-        // Copy each of tile's eight rows into the screen
-        for screen_y in screen_y_range.clone() {
-            let sprite_y = usize::try_from(screen_y - screen_y_range.start).unwrap();
-            let sprite_row = if !oam_data.y_flip() {
-                &tile_data.0[sprite_y * 8..sprite_y * 8 + 8]
-            } else {
-                let sprite_y = 7 - sprite_y;
-                &tile_data.0[sprite_y * 8..sprite_y * 8 + 8]
-            };
-
-            self.screen
-                [screen_y * WIDTH + screen_x_range.start..screen_y * WIDTH + screen_x_range.end]
-                .copy_from_slice(
-                    &sprite_row[usize::try_from(i32::try_from(screen_x_range.start).unwrap() - x)
-                        .unwrap()
-                        ..usize::try_from(i32::try_from(screen_x_range.end).unwrap() - x).unwrap()],
-                );
-        }
+        texture_canvas
+            .copy_ex(
+                &self.tile_map, 
+                Some(source_rect), 
+                Some(dest_rect), 
+                0., 
+                None, 
+                oam_data.x_flip(), 
+                oam_data.y_flip(),
+            );
 
         Ok(())
     }
@@ -428,32 +407,30 @@ impl<'a> CanvasPpu<'a> {
         Ok(())
     }
 
-    /*
-    pub fn render_sprites<T: sdl2::render::RenderTarget>(
+    pub fn render_sprites(
         &mut self,
-        texture_canvas: &mut sdl2::render::Canvas<T>,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
         for i in 0..40 {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
 
             if !self.lcdc.obj_size {
                 // 8x8
-                self.set_sprite(&oam_data, 0, 0)?;
+                self.set_sprite(texture_canvas, &oam_data, 0, 0)?;
             } else {
                 // 8x16
                 if !oam_data.y_flip() {
-                    self.set_sprite(&oam_data, 0, 0)?;
-                    self.set_sprite(&oam_data, 1, 8)?;
+                    self.set_sprite(texture_canvas, &oam_data, 0, 0)?;
+                    self.set_sprite(texture_canvas, &oam_data, 1, 8)?;
                 } else {
-                    self.set_sprite(&oam_data, 1, 0)?;
-                    self.set_sprite(&oam_data, 0, 8)?;
+                    self.set_sprite(texture_canvas, &oam_data, 1, 0)?;
+                    self.set_sprite(texture_canvas, &oam_data, 0, 8)?;
                 }
             }
         }
 
         Ok(())
     }
-    */
 }
 
 impl<'a> Steppable for CanvasPpu<'a> {
