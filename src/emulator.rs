@@ -2,6 +2,7 @@ use crate::cartridge::Cartridge;
 use crate::gameboy::GameBoyState;
 use crate::joypad::JoypadInput;
 use crate::ppu::{Ppu, CanvasPpu};
+use crate::gameboy::Interrupt;
 use log::warn;
 use std::cell::RefCell;
 use std::io::{self, Write};
@@ -24,21 +25,19 @@ pub struct GameboyEmulator {
     counter: u64,
 }
 
-/*
 // Maps keyboard keys to corresponding joypad inputs.
-fn map_joypad_to_keys(input: JoypadInput) -> Vec<VirtualKeyCode> {
+fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
     match input {
-        JoypadInput::A => vec![VirtualKeyCode::A],
-        JoypadInput::B => vec![VirtualKeyCode::B],
-        JoypadInput::Start => vec![VirtualKeyCode::Space],
-        JoypadInput::Select => vec![VirtualKeyCode::Return],
-        JoypadInput::Up => vec![VirtualKeyCode::Up],
-        JoypadInput::Down => vec![VirtualKeyCode::Down],
-        JoypadInput::Left => vec![VirtualKeyCode::Left],
-        JoypadInput::Right => vec![VirtualKeyCode::Right],
+        JoypadInput::A => vec![Keycode::A],
+        JoypadInput::B => vec![Keycode::B],
+        JoypadInput::Start => vec![Keycode::Space],
+        JoypadInput::Select => vec![Keycode::Return],
+        JoypadInput::Up => vec![Keycode::Up],
+        JoypadInput::Down => vec![Keycode::Down],
+        JoypadInput::Left => vec![Keycode::Left],
+        JoypadInput::Right => vec![Keycode::Right],
     }
 }
-*/
 
 impl GameboyEmulator {
     pub fn new() -> Self {
@@ -51,8 +50,6 @@ impl GameboyEmulator {
     fn run_gameboy_loop(
         cartridge: Box<dyn Cartridge>,
     ) -> Result<(), String> {
-        let mut current_output: String = String::from("");
-
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
 
@@ -64,7 +61,7 @@ impl GameboyEmulator {
             .map_err(|e| e.to_string())?;
 
         let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        canvas.set_logical_size((16 + 32) * 8, 32 * 8);
+        canvas.set_logical_size((16 + 32) * 8, 32 * 8).map_err(|e| e.to_string())?;
         let creator = canvas.texture_creator();
         let tile_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
@@ -84,7 +81,7 @@ impl GameboyEmulator {
         let mut gameboy_state = GameBoyState::new(canvas_ppu.clone());
         gameboy_state.on_serial_port_data(|chr: char| {
             print!("{}", chr);
-            io::stdout().flush();
+            io::stdout().flush().unwrap();
         });
         gameboy_state.load_cartridge(cartridge);
 
@@ -96,6 +93,38 @@ impl GameboyEmulator {
                         ..
                     }
                     | Event::Quit { .. } => break 'mainloop,
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        let mut send_interrupt = false;
+                        for joypad_input in JoypadInput::iter() {
+                            if map_joypad_to_keys(joypad_input).contains(&keycode) {
+                                let prev_state =
+                                    gameboy_state.joypad.borrow_mut().key_pressed(joypad_input);
+                                // If previous state was not pressed, we send interrupt
+                                send_interrupt |= !prev_state;
+                            }
+                        }
+                        if send_interrupt {
+                            gameboy_state
+                                .memory_bus
+                                .borrow_mut()
+                                .interrupt(Interrupt::Joypad)
+                                .expect("error sending joypad interrupt");
+                        }
+
+                    },
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        for joypad_input in JoypadInput::iter() {
+                            if map_joypad_to_keys(joypad_input).contains(&keycode) {
+                                gameboy_state.joypad.borrow_mut().key_released(joypad_input);
+                            }
+                        }
+                    },
                     _ => {}
                 }
             }
