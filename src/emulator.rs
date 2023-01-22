@@ -4,6 +4,7 @@ use crate::joypad::JoypadInput;
 use crate::ppu::{Ppu, CanvasPpu};
 use crate::gameboy::Interrupt;
 use log::warn;
+use sdl2::render::BlendMode;
 use std::cell::RefCell;
 use std::io::{self, Write};
 use std::rc::Rc;
@@ -62,6 +63,7 @@ impl GameboyEmulator {
 
         let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
         canvas.set_logical_size((16 + 32) * 8, 32 * 8).map_err(|e| e.to_string())?;
+        canvas.set_blend_mode(BlendMode::Blend);
         let creator = canvas.texture_creator();
         let tile_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
@@ -69,9 +71,10 @@ impl GameboyEmulator {
         let mut background_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
-        let sprite_map = creator
+        let mut sprite_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
+        sprite_map.set_blend_mode(BlendMode::Blend);
 
         let canvas = Rc::new(RefCell::new(canvas));
 
@@ -140,23 +143,38 @@ impl GameboyEmulator {
             {
                 let mut canvas = canvas.borrow_mut();
                 let mut canvas_ppu = canvas_ppu.borrow_mut();
+
                 canvas_ppu
                     .render_tile_map(&mut canvas)
                     .expect("error rendering tile map");
+
                 canvas
                     .with_texture_canvas(&mut background_map, |mut texture_canvas| {
                         canvas_ppu
                         .render_background_map(&mut texture_canvas)
                         .expect("error rendering background map");
 
+                    })
+                    .map_err(|e| e.to_string())?;
+
+                canvas
+                    .with_texture_canvas(&mut sprite_map, |mut texture_canvas| {
+                        texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 0));
+                        texture_canvas.clear();
                         // Render sprites over background map for now
                         canvas_ppu
                             .render_sprites(&mut texture_canvas)
                             .expect("error rendering sprite");
                     })
                     .map_err(|e| e.to_string())?;
+
                 canvas.copy(
                     &background_map,
+                    None,
+                    Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
+                )?;
+                canvas.copy(
+                    &sprite_map,
                     None,
                     Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
                 )?;
@@ -184,68 +202,6 @@ impl GameboyEmulator {
         }
 
         Ok(())
-
-        /*
-        event_loop.run(move |event, _, control_flow| {
-            control_flow.set_poll();
-
-            if input.update(&event) {
-                // Handle joypad inputs
-                let mut send_interrupt = false;
-                for joypad_input in JoypadInput::iter() {
-                    for virtual_key_code in map_joypad_to_keys(joypad_input).iter() {
-                        if input.key_pressed(*virtual_key_code) {
-                            let prev_state =
-                                gameboy_state.joypad.borrow_mut().key_pressed(joypad_input);
-                            // If previous state was not pressed, we send interrupt
-                            send_interrupt |= !prev_state;
-                        }
-                        if input.key_released(*virtual_key_code) {
-                            gameboy_state.joypad.borrow_mut().key_released(joypad_input);
-                        }
-                    }
-                }
-
-                if send_interrupt {
-                    gameboy_state
-                        .memory_bus
-                        .borrow_mut()
-                        .interrupt(Interrupt::Joypad)
-                        .expect("error sending joypad interrupt");
-                }
-
-                let start = Instant::now();
-                let mut cycle_total = 0;
-                // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
-                // Dividing by 4 and 60 should roughly give the number of machine cycles that
-                // need to run per frame at 60fps.
-                while cycle_total < 4_194_304 / 60 {
-                    cycle_total += emulator.update(&mut gameboy_state);
-                }
-                gameboy_state
-                    .ppu
-                    .borrow_mut()
-                    .render_tile_map()
-                    .expect("error rending tile map");
-                gameboy_state
-                    .ppu
-                    .borrow_mut()
-                    .render_background_map()
-                    .expect("error rendering background");
-                gameboy_state
-                    .ppu
-                    .borrow_mut()
-                    .render_sprites()
-                    .expect("error rendering sprites");
-                let duration = start.elapsed();
-                if duration > Duration::from_millis(1000 / 60) {
-                    warn!("Time elapsed this frame is: {:?} > 16ms", duration);
-                }
-
-                emulator.redraw_screen(&gameboy_state, &mut screen);
-            }
-        });
-        */
     }
 
     fn run_gameboy_loop_no_gui(mut emulator: Self, mut gameboy_state: GameBoyState) {
@@ -269,49 +225,6 @@ impl GameboyEmulator {
         gameboy_state.tick()
     }
 
-    /*
-    fn redraw_screen(&mut self, gameboy_state: &GameBoyState, screen: &mut PixelsScreen) {
-        gameboy_state
-            .ppu
-            .borrow_mut()
-            .step(gameboy_state)
-            .expect("Error while stepping ppu");
-
-        let ppu_screen = &gameboy_state.ppu.borrow().screen;
-        for row in 0..HEIGHT {
-            for col in 0..WIDTH {
-                let index = row * WIDTH + col;
-                let pixel_id = ppu_screen[index];
-                let rgba: [u8; 4] = match pixel_id {
-                    0 => [255, 255, 255, 255],
-                    1 => [128, 128, 128, 255],
-                    2 => [64, 64, 64, 255],
-                    3 => [0, 0, 0, 255],
-                    _ => unreachable!(),
-                };
-                screen
-                    .set_pixel(row.try_into().unwrap(), col.try_into().unwrap(), &rgba)
-                    .unwrap();
-            }
-        }
-        screen.redraw();
-    }
-    */
-
-    fn spawn_input_handler_thread(&mut self) {
-        //let pause_state = self.pause_state.clone();
-
-        thread::spawn(move || loop {
-            let mut input = String::new();
-
-            io::stdin()
-                .read_line(&mut input)
-                .expect("Failed to read line");
-
-            //pause_state.lock().unwrap().toggle_paused();
-        });
-    }
-
     pub fn run(cartridge: Box<dyn Cartridge>) {
         Self::run_gameboy_loop(cartridge);
     }
@@ -328,31 +241,4 @@ impl GameboyEmulator {
 
         unimplemented!()
     }
-
-    /*
-    pub fn pause(&mut self) {
-    self.pause_state.lock().unwrap().pause();
-    }
-
-    pub fn resume(&mut self) {
-    self.pause_state.lock().unwrap().resume();
-    }
-
-    pub fn add_breakpoint(&mut self, breakpoint: u16) {
-    self.breakpoints.lock().unwrap().insert(breakpoint);
-    }
-
-    pub fn remove_breakpoint(&mut self, breakpoint: u16) {
-    self.breakpoints.lock().unwrap().remove(&breakpoint);
-    }
-
-    pub fn toggle_breakpoint(&mut self, breakpoint: u16) {
-    let mut breakpoints = self.breakpoints.lock().unwrap();
-    if breakpoints.contains(&breakpoint) {
-    breakpoints.remove(&breakpoint);
-    } else {
-    breakpoints.insert(breakpoint);
-    }
-    }
-    */
 }

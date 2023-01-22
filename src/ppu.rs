@@ -143,8 +143,8 @@ pub trait Ppu<'a>: Addressable + Steppable {}
 /// The PPU is responsible for the emulated gameboy's graphics.
 pub struct CanvasPpu<'a> {
     tile_map: Texture<'a>,
+    oam_tile_map: Texture<'a>,
 
-    pub screen: Vec<u8>,
     /// Tile data takes up addresses 0x8000-0x97ff.
     tile_data: Vec<u8>,
 
@@ -192,15 +192,32 @@ impl Tile {
         }
         color_data
     }
+
+    fn as_oam_rgba(&self) -> Vec<u8> {
+        let mut color_data = vec![0; 64 * 4];
+        for (i, pixel) in self.0.iter().enumerate() {
+            let rgba = match pixel {
+                0 => [0, 0, 0, 0],
+                1 => [255, 200, 200, 200],
+                2 => [255, 100, 100, 100],
+                3 => [255, 0, 0, 0],
+                _ => panic!()
+            };
+            color_data[i*4..(i+1)*4].copy_from_slice(&rgba);
+        }
+        color_data
+    }
 }
 
 impl<'a> CanvasPpu<'a> {
     pub fn new(creator: &'a TextureCreator<WindowContext>) -> Self {
         let tile_map = creator.create_texture_target(PixelFormatEnum::RGBA8888, 128, 192).unwrap();
+        let oam_tile_map = creator.create_texture_target(PixelFormatEnum::RGBA8888, 128, 192).unwrap();
 
         let ppu = CanvasPpu {
             tile_map,
-            screen: vec![0; WIDTH * HEIGHT],
+            oam_tile_map,
+
             tile_data: vec![0; 0x1800],
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
             tile_cache: vec![Tile::new(); 384],
@@ -256,6 +273,7 @@ impl<'a> CanvasPpu<'a> {
         let x = (tile_index % 16) * 8;
         let y = tile_index / 16 * 8;
         self.tile_map.update(Some(Rect::new(x as i32, y as i32, 8, 8)), &tile.as_rgba(), 8*4).unwrap();
+        self.oam_tile_map.update(Some(Rect::new(x as i32, y as i32, 8, 8)), &tile.as_oam_rgba(), 8*4).unwrap();
     }
 
     /// Uses the tile addressing method to adjust the provided index so it can be used with the tile cache.
@@ -310,7 +328,7 @@ impl<'a> CanvasPpu<'a> {
 
         texture_canvas
             .copy_ex(
-                &self.tile_map, 
+                &self.oam_tile_map, 
                 Some(source_rect), 
                 Some(dest_rect), 
                 0., 
