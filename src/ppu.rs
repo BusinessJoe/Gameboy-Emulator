@@ -289,31 +289,12 @@ impl<'a> CanvasPpu<'a> {
         tile_index: usize,
         method: TileDataAddressingMethod,
     ) -> Result<()> {
-        let tile_data = &self.tile_cache[self.adjust_tile_index(tile_index, method)];
+        let adjusted_index = self.adjust_tile_index(tile_index, method);
+        let source_rect = Rect::new((adjusted_index as i32 % 16) * 8, adjusted_index as i32 / 16 * 8, 8, 8);
+        let dest_rect = Rect::new(col as i32 * 8, row as i32 * 8, 8, 8);
 
-        // Copy each of tile's eight rows into the screen
-        for row_offset in 0..8 {
-            let row_idx = row * 8 + row_offset;
-            let col_idx_start = col * 8;
-            let col_idx_end = col_idx_start + 8;
-
-            let tile_data_slice = &tile_data.0[(row_offset * 8)..(8 + row_offset * 8)];
-
-            for col_idx in col_idx_start..col_idx_end {
-                let color = match tile_data_slice[col_idx - col_idx_start] {
-                    0 => Color::RGBA(0, 0, 0, 255),
-                    1 => Color::RGBA(100, 100, 100, 255),
-                    2 => Color::RGBA(200, 200, 200, 255),
-                    3 => Color::RGBA(255, 255, 255, 255),
-                    _ => panic!("invalid color id"),
-                };
-                texture_canvas.set_draw_color(color);
-                texture_canvas.draw_point(Point::new(col_idx as i32, row_idx as i32));
-            }
-
-            //self.screen[(col_idx_start + row_idx * WIDTH)..(col_idx_end + row_idx * WIDTH)]
-            //    .copy_from_slice(tile_data_slice);
-        }
+        texture_canvas
+            .copy(&self.tile_map, Some(source_rect), Some(dest_rect));
 
         Ok(())
     }
