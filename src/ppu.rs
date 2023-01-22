@@ -9,16 +9,13 @@ use crate::{
     error::{Error, Result},
     gameboy::{GameBoyState, Interrupt},
 };
-use sdl2::{rect::{Point, Rect}, render::TextureCreator, video::WindowContext};
+use sdl2::{rect::Rect, render::TextureCreator, video::WindowContext};
 use sdl2::{
-    pixels::{Color, PixelFormatEnum},
-    render::{Canvas, RenderTarget, Texture},
+    pixels::PixelFormatEnum,
+    render::{RenderTarget, Texture},
 };
 use sdl2::video::Window;
-use std::cell::RefCell;
-use std::cmp;
 use std::collections::VecDeque;
-use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TileDataAddressingMethod {
@@ -153,8 +150,6 @@ pub struct CanvasPpu<'a> {
 
     /// Cache of decoded tile data -- the gameboy can store 384 different tiles
     tile_cache: Vec<Tile>,
-    /// Cache of decoded tile data, reversed along the x axis.
-    backwards_tile_cache: Vec<Tile>,
     /// Addresses 0x9800-0x9bff are a 32x32 map of background tiles.
     /// Each byte contains the number of a tile to be displayed.
     background_map: Vec<u8>,
@@ -209,7 +204,6 @@ impl<'a> CanvasPpu<'a> {
             tile_data: vec![0; 0x1800],
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
             tile_cache: vec![Tile::new(); 384],
-            backwards_tile_cache: vec![Tile::new(); 384],
             background_map: vec![0; 32 * 32],
             sprite_tiles_table: vec![0; 160],
             ly: 0,
@@ -236,10 +230,8 @@ impl<'a> CanvasPpu<'a> {
         let row_index: usize = (address % 16) / 2;
 
         let tile = &mut self.tile_cache[tile_index];
-        let backwards_tile = &mut self.backwards_tile_cache[tile_index];
 
         let row_to_update = &mut tile.0[(row_index * 8)..(row_index * 8 + 8)];
-        let backwards_row_to_update = &mut backwards_tile.0[(row_index * 8)..(row_index * 8 + 8)];
 
         // Update row.
         // If the address is even, then it is the first byte for the row, otherwise it is the
@@ -259,7 +251,6 @@ impl<'a> CanvasPpu<'a> {
             let bit_2 = (byte_2 >> i) & 1;
             let color_id = (bit_2 << 1) | bit_1;
             row_to_update[7 - i] = color_id;
-            backwards_row_to_update[i] = color_id;
         }
 
         let x = (tile_index % 16) * 8;
@@ -367,21 +358,7 @@ impl<'a> CanvasPpu<'a> {
                            texture_canvas: &mut sdl2::render::Canvas<T>) -> Result<()> {
         texture_canvas
             .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)));
-        /*
-        // Render tile map
-        for row in 0..24 {
-            for col in 0..16 {
-                let tile_number = col + row * 16;
-                self.set_tile(
-                    texture_canvas,
-                    row,
-                    col,
-                    tile_number.into(),
-                    TileDataAddressingMethod::Method8000,
-                )?;
-            }
-        }
-        */
+
         Ok(())
     }
 

@@ -1,9 +1,7 @@
 use crate::cartridge::Cartridge;
-use crate::component::Steppable;
-use crate::gameboy::{GameBoyState, Interrupt};
+use crate::gameboy::GameBoyState;
 use crate::joypad::JoypadInput;
 use crate::ppu::{Ppu, CanvasPpu};
-use crate::screen::{PixelsScreen, Screen};
 use log::warn;
 use std::cell::RefCell;
 use std::io::{self, Write};
@@ -14,8 +12,8 @@ use strum::IntoEnumIterator;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::{Color, PixelFormat, PixelFormatEnum};
-use sdl2::rect::{Point, Rect};
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect;
 
 pub const WIDTH: usize = 8 * (16 + 32);
 pub const HEIGHT: usize = 8 * 32;
@@ -66,14 +64,15 @@ impl GameboyEmulator {
             .map_err(|e| e.to_string())?;
 
         let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        canvas.set_logical_size((16 + 32) * 8, 32 * 8);
         let creator = canvas.texture_creator();
-        let mut tile_map = creator
+        let tile_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
             .map_err(|e| e.to_string())?;
         let mut background_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
-        let mut sprite_map = creator
+        let sprite_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
 
