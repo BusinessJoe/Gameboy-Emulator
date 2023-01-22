@@ -4,15 +4,28 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use gameboy_emulator::cartridge::{Address, AddressingError, Cartridge, MBCControllerType};
 use gameboy_emulator::cpu::CPU;
 use gameboy_emulator::gameboy::GameBoyState;
-use gameboy_emulator::{Joypad, MemoryBus, PPU};
+use gameboy_emulator::{Joypad, MemoryBus, CanvasPpu, Ppu};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 fn repeat_regular_opcode(c: &mut Criterion, name: &str, opcode: u8) {
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem
+        .window("Gameboy Emulator", 800, 600)
+        .position_centered()
+        .opengl()
+        .build()
+        .map_err(|e| e.to_string()).unwrap();
+
+    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string()).unwrap();
+    let creator = canvas.texture_creator();
+    let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&creator)));
+
     let mut cpu = CPU::new();
-    let ppu = Rc::new(RefCell::new(PPU::new()));
     let joypad = Rc::new(RefCell::new(Joypad::new()));
-    let mut memory_bus = MemoryBus::new(ppu, joypad);
+    let mut memory_bus = MemoryBus::new(canvas_ppu as Rc<RefCell<dyn Ppu>>, joypad);
 
     c.bench_function(name, |b| {
         b.iter(|| cpu.execute_regular_opcode(&mut memory_bus, black_box(opcode)))
@@ -28,7 +41,21 @@ fn repeat_inc_b_reg(c: &mut Criterion) {
 }
 
 fn bench_gameboy_tick(c: &mut Criterion) {
-    let mut gameboy = GameBoyState::new();
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem
+        .window("Gameboy Emulator", 800, 600)
+        .position_centered()
+        .opengl()
+        .build()
+        .map_err(|e| e.to_string()).unwrap();
+
+    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string()).unwrap();
+    let creator = canvas.texture_creator();
+    let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&creator)));
+
+    let mut gameboy = GameBoyState::new(canvas_ppu);
     let cart = MockCartridge::new(vec![0; 32 * 1024]);
     gameboy.load_cartridge(Box::new(cart)).unwrap();
 
