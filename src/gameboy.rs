@@ -20,7 +20,7 @@ pub struct GameBoyState<'a> {
     pub cpu: Rc<RefCell<CPU>>,
     pub ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     pub joypad: Rc<RefCell<Joypad>>,
-    timer: Rc<RefCell<Timer>>,
+    pub timer: Rc<RefCell<Timer>>,
     pub memory_bus: Rc<RefCell<MemoryBus<'a>>>,
     serial_port_observer: Option<Observer>,
 }
@@ -66,22 +66,6 @@ impl<'a> GameBoyState<'a> {
             .borrow_mut()
             .step(&self)
             .expect("error while stepping cpu");
-        {
-            let mut ppu = self.ppu.borrow_mut();
-            for _ in 0..elapsed_cycles {
-                ppu
-                    .step(&self)
-                    .expect("error while stepping ppu");
-            }
-        }
-        {
-            let mut timer = self.timer.borrow_mut();
-            for _ in 0..elapsed_cycles {
-                timer
-                    .step(&self)
-                    .expect("error while stepping ppu");
-            }
-        }
 
         // If data exists on the serial port, forward it to the observer
         let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data;
@@ -92,6 +76,17 @@ impl<'a> GameBoyState<'a> {
         }
 
         elapsed_cycles
+    }
+
+    pub fn tick_components(&self) {
+        self.ppu
+            .borrow_mut()
+            .step(&self)
+            .expect("error while stepping ppu");
+        self.timer
+            .borrow_mut()
+            .step(&self)
+            .expect("error while stepping timer");
     }
 
     pub fn on_serial_port_data(&mut self, observer: Observer) {

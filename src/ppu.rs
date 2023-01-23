@@ -5,10 +5,10 @@
 
 use crate::{
     component::{Address, Addressable, ElapsedTime, Steppable},
-    emulator::{HEIGHT, WIDTH},
     error::{Error, Result},
     gameboy::{GameBoyState, Interrupt},
 };
+use log::trace;
 use sdl2::{rect::Rect, render::TextureCreator, video::WindowContext};
 use sdl2::{
     pixels::PixelFormatEnum,
@@ -356,6 +356,7 @@ impl<'a> CanvasPpu<'a> {
     fn _write(&mut self, address: Address, data: u8) -> Result<()> {
         match address {
             0x8000..=0x97ff => {
+                trace!("write to tile data: {:#x} into {:#x}", data, address);
                 self.tile_data[address - 0x8000] = data;
                 self.update_tile_cache(address);
             }

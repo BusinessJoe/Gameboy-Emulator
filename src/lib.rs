@@ -9,7 +9,6 @@ mod joypad;
 mod memory;
 mod ppu;
 mod register;
-pub mod screen;
 mod timer;
 
 pub use joypad::Joypad;
