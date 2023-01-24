@@ -228,6 +228,15 @@ impl Steppable for CPU {
                 self.sp,
                 self.pc
             );
+            {
+                trace!(
+                    "DIV: {:#06x} TIMA: {:#06x} TMA: {:#06x} TAC: {:#06x}",
+                    memory_bus.read_u8(0xff04).unwrap(),
+                    memory_bus.read_u8(0xff05).unwrap(),
+                    memory_bus.read_u8(0xff06).unwrap(),
+                    memory_bus.read_u8(0xff07).unwrap(),
+                )
+            }
             elapsed_cycles
         } else {
             trace!("Halted");

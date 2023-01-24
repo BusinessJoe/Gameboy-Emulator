@@ -407,6 +407,7 @@ impl<'a> CanvasPpu<'a> {
         &mut self,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
+
         for i in 0..40 {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
 

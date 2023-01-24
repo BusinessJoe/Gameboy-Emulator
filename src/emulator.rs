@@ -24,6 +24,8 @@ pub const HEIGHT: usize = 8 * 32;
 /// Runs the GameBoy in a separate thread.
 pub struct GameboyEmulator {
     counter: u64,
+    breakpoint: Option<u16>,
+    step: bool,
 }
 
 // Maps keyboard keys to corresponding joypad inputs.
@@ -42,7 +44,7 @@ fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
 
 impl GameboyEmulator {
     pub fn new() -> Self {
-        let emulator = Self { counter: 0 };
+        let emulator = Self { counter: 0, breakpoint: Some(0xc317), step: false };
 
         emulator
     }
@@ -51,18 +53,20 @@ impl GameboyEmulator {
     fn run_gameboy_loop(
         cartridge: Box<dyn Cartridge>,
     ) -> Result<(), String> {
+        let mut emulator = GameboyEmulator::new();
+
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
 
         let window = video_subsystem
-            .window("Gameboy Emulator", 800, 600)
+            .window("Gameboy Emulator", 1200, 900)
             .position_centered()
             .opengl()
             .build()
             .map_err(|e| e.to_string())?;
 
         let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        canvas.set_logical_size((16 + 32) * 8, 32 * 8).map_err(|e| e.to_string())?;
+        canvas.set_logical_size(128 + 32 * 8 + 160, 32 * 8).map_err(|e| e.to_string())?;
         canvas.set_blend_mode(BlendMode::Blend);
         let creator = canvas.texture_creator();
         let tile_map = creator
@@ -72,7 +76,10 @@ impl GameboyEmulator {
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
         let mut sprite_map = creator
-            .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
+            .create_texture_target(PixelFormatEnum::RGBA8888, 160, 144)
+            .map_err(|e| e.to_string())?;
+        let mut lcd_display = creator
+            .create_texture_target(PixelFormatEnum::RGBA8888, 160, 144)
             .map_err(|e| e.to_string())?;
         sprite_map.set_blend_mode(BlendMode::Blend);
 
@@ -138,7 +145,7 @@ impl GameboyEmulator {
             // Dividing by 4 and 60 should roughly give the number of machine cycles that
             // need to run per frame at 60fps.
             while cycle_total < 4_194_304 / 4 / 60 {
-                cycle_total += Self::update(&mut gameboy_state);
+                cycle_total += emulator.update(&mut gameboy_state);
             }
             {
                 let mut canvas = canvas.borrow_mut();
@@ -154,6 +161,13 @@ impl GameboyEmulator {
                         .render_background_map(&mut texture_canvas)
                         .expect("error rendering background map");
 
+                    })
+                    .map_err(|e| e.to_string())?;
+
+                canvas
+                    .with_texture_canvas(&mut lcd_display, |mut texture_canvas| {
+                        texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(255, 0, 0, 255));
+                        texture_canvas.clear();
                     })
                     .map_err(|e| e.to_string())?;
 
@@ -174,16 +188,21 @@ impl GameboyEmulator {
                     Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
                 )?;
                 canvas.copy(
+                    &lcd_display,
+                    None,
+                    Some(Rect::new(128 + 32 * 8, 0, 160, 144)),
+                )?;
+                canvas.copy(
                     &sprite_map,
                     None,
-                    Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
+                    Some(Rect::new(128 + 32 * 8, 0, 160, 144)),
                 )?;
             }
             let duration = start.elapsed();
             if duration > Duration::from_millis(1000 / 60) {
                 warn!("Time elapsed this frame is: {:?} > 16ms", duration);
             } else {
-                std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
+                //std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
             }
 
             canvas.borrow_mut().present();
@@ -200,7 +219,8 @@ impl GameboyEmulator {
             // Dividing by 4 and 60 should roughly give the number of machine cycles that
             // need to run per frame at 60fps.
             while cycle_total < 4_194_304 / 4 / 60 {
-                cycle_total += Self::update(&mut gameboy_state);
+                todo!("uncomment next line");
+                //cycle_total += Self::update(&mut gameboy_state);
             }
             let duration = start.elapsed();
             if duration > Duration::from_millis(1000 / 60) {
@@ -211,14 +231,16 @@ impl GameboyEmulator {
         }
     }
 
-    fn update(gameboy_state: &mut GameBoyState) -> u64 {
-        /*
-        if gameboy_state.cpu.borrow().pc == 0x40 {
-            println!("breakpoint");
+    fn update(&mut self, gameboy_state: &mut GameBoyState) -> u64 {
+        if self.step {
+            println!("step");
+            self.step = true;
             let mut buffer = String::new();
             std::io::stdin().read_line(&mut buffer);
+            if let Ok(breakpoint) = u16::from_str_radix(&buffer, 16) {
+                self.breakpoint = Some(breakpoint);
+            }
         }
-        */
 
         gameboy_state.tick()
     }

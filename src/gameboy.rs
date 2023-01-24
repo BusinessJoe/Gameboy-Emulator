@@ -7,12 +7,9 @@ use crate::memory::MemoryBus;
 use crate::ppu::Ppu;
 use crate::timer::Timer;
 use log::trace;
-use sdl2::render::Canvas;
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
-
-const CLOCK_SPEED: u64 = 4_194_304;
 
 pub type Observer = fn(chr: char);
 
@@ -28,7 +25,7 @@ pub struct GameBoyState<'a> {
 impl<'a> GameBoyState<'a> {
     pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
-        let timer = Rc::new(RefCell::new(Timer::new(CLOCK_SPEED)));
+        let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(
             MemoryBus::new(
                 ppu.clone(), 
