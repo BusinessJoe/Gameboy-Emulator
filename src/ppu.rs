@@ -5,7 +5,6 @@
 
 use crate::{
     component::{Address, Addressable, ElapsedTime, Steppable},
-    emulator::{HEIGHT, WIDTH},
     error::{Error, Result},
     gameboy::{GameBoyState, Interrupt},
 };
@@ -16,6 +15,7 @@ use sdl2::{
 };
 use sdl2::video::Window;
 use std::collections::VecDeque;
+use log::trace;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TileDataAddressingMethod {
@@ -356,6 +356,7 @@ impl<'a> CanvasPpu<'a> {
     fn _write(&mut self, address: Address, data: u8) -> Result<()> {
         match address {
             0x8000..=0x97ff => {
+                trace!("write to tile data: {:#x} into {:#x}", data, address);
                 self.tile_data[address - 0x8000] = data;
                 self.update_tile_cache(address);
             }

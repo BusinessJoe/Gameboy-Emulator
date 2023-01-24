@@ -60,8 +60,9 @@ impl CPU {
                 }
             );
 
-            // Reset IF flag
-            memory_bus.write_u8(0xFF0F, ie_flag & !(1 << bit))?;
+            // Reset interrupt bit in IF flag
+            let if_flag = memory_bus.read_u8(0xff0f)?;
+            memory_bus.write_u8(0xff0f, if_flag & !(1 << bit))?;
 
             // Reset IME flag
             self.interrupt_enabled = false;

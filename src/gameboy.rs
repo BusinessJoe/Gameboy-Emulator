@@ -66,21 +66,19 @@ impl<'a> GameBoyState<'a> {
             .borrow_mut()
             .step(&self)
             .expect("error while stepping cpu");
+        let elapsed_cycles = 4 * elapsed_cycles;
         {
             let mut ppu = self.ppu.borrow_mut();
+            let mut timer = self.timer.borrow_mut();
             for _ in 0..elapsed_cycles {
                 ppu
                     .step(&self)
                     .expect("error while stepping ppu");
-            }
-        }
-        {
-            let mut timer = self.timer.borrow_mut();
-            for _ in 0..elapsed_cycles {
                 timer
                     .step(&self)
                     .expect("error while stepping ppu");
             }
+            trace!("stepped ppu and timer for {} cycles", elapsed_cycles);
         }
 
         // If data exists on the serial port, forward it to the observer

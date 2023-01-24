@@ -222,6 +222,14 @@ impl GameboyEmulator {
     }
 
     fn update(gameboy_state: &mut GameBoyState) -> u64 {
+        /*
+        if gameboy_state.cpu.borrow().pc == 0x40 {
+            println!("breakpoint");
+            let mut buffer = String::new();
+            std::io::stdin().read_line(&mut buffer);
+        }
+        */
+
         gameboy_state.tick()
     }
 
