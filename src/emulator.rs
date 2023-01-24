@@ -137,7 +137,7 @@ impl GameboyEmulator {
             // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
             // Dividing by 4 and 60 should roughly give the number of machine cycles that
             // need to run per frame at 60fps.
-            while cycle_total < 4_194_304 / 60 {
+            while cycle_total < 4_194_304 / 4 / 60 {
                 cycle_total += Self::update(&mut gameboy_state);
             }
             {
@@ -178,24 +178,12 @@ impl GameboyEmulator {
                     None,
                     Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
                 )?;
-                /*
-                canvas.copy(
-                    &sprite_map,
-                    None,
-                    Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
-                )?;
-                */
             }
-            /*
-            gameboy_state
-                .ppu
-                .borrow_mut()
-                .render_sprites()
-                .expect("error rendering sprites");
-            */
             let duration = start.elapsed();
             if duration > Duration::from_millis(1000 / 60) {
                 warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+            } else {
+                std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
             }
 
             canvas.borrow_mut().present();
@@ -217,6 +205,8 @@ impl GameboyEmulator {
             let duration = start.elapsed();
             if duration > Duration::from_millis(1000 / 60) {
                 warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+            } else {
+                std::thread::sleep(Duration::from_millis(1000));
             }
         }
     }
