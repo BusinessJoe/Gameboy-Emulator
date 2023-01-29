@@ -16,3 +16,4 @@ pub use joypad::Joypad;
 pub use memory::MemoryBus;
 pub use ppu::Ppu;
 pub use ppu::CanvasPpu;
+pub use error::{Result, Error};

@@ -22,7 +22,6 @@ pub const HEIGHT: usize = 8 * 32;
 /// Manages GameBoy CPU exectution, adding breakpoint functionality.
 /// Runs the GameBoy in a separate thread.
 pub struct GameboyEmulator {
-    counter: u64,
     breakpoint: Option<u16>,
     step: bool,
 }
@@ -43,7 +42,7 @@ fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
 
 impl GameboyEmulator {
     pub fn new() -> Self {
-        let emulator = Self { counter: 0, breakpoint: Some(0xc317), step: false };
+        let emulator = Self { breakpoint: Some(0xc317), step: false };
 
         emulator
     }
@@ -68,9 +67,6 @@ impl GameboyEmulator {
         canvas.set_logical_size(128 + 32 * 8 + 160, 32 * 8).map_err(|e| e.to_string())?;
         canvas.set_blend_mode(BlendMode::Blend);
         let creator = canvas.texture_creator();
-        let tile_map = creator
-            .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
-            .map_err(|e| e.to_string())?;
         let mut background_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 8 * 32, 8 * 32)
             .map_err(|e| e.to_string())?;
@@ -92,7 +88,7 @@ impl GameboyEmulator {
             print!("{}", chr);
             io::stdout().flush().unwrap();
         });
-        gameboy_state.load_cartridge(cartridge);
+        gameboy_state.load_cartridge(cartridge).map_err(|e| e.to_string())?;
 
         'mainloop: loop {
             for event in sdl_context.event_pump()?.poll_iter() {
@@ -164,7 +160,7 @@ impl GameboyEmulator {
                     .map_err(|e| e.to_string())?;
 
                 canvas
-                    .with_texture_canvas(&mut lcd_display, |mut texture_canvas| {
+                    .with_texture_canvas(&mut lcd_display, |texture_canvas| {
                         texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(255, 0, 0, 255));
                         texture_canvas.clear();
                     })
@@ -210,7 +206,8 @@ impl GameboyEmulator {
         Ok(())
     }
 
-    fn run_gameboy_loop_no_gui(mut emulator: Self, mut gameboy_state: GameBoyState) {
+    /*
+    fn run_gameboy_loop_no_gui(mut _emulator: Self, mut _gameboy_state: GameBoyState) {
         loop {
             let start = Instant::now();
             let mut cycle_total = 0;
@@ -229,13 +226,14 @@ impl GameboyEmulator {
             }
         }
     }
+    */
 
     fn update(&mut self, gameboy_state: &mut GameBoyState) -> u64 {
         if self.step {
             println!("step");
             self.step = true;
             let mut buffer = String::new();
-            std::io::stdin().read_line(&mut buffer);
+            std::io::stdin().read_line(&mut buffer).expect("reading from stdin failed");
             if let Ok(breakpoint) = u16::from_str_radix(&buffer, 16) {
                 self.breakpoint = Some(breakpoint);
             }
@@ -244,10 +242,11 @@ impl GameboyEmulator {
         gameboy_state.tick()
     }
 
-    pub fn run(cartridge: Box<dyn Cartridge>) {
-        Self::run_gameboy_loop(cartridge);
+    pub fn run(cartridge: Box<dyn Cartridge>) -> Result<(), ()> {
+        Self::run_gameboy_loop(cartridge).map_err(|_| ())
     }
 
+    /*
     pub fn test(mut gameboy_state: GameBoyState) -> Result<String, String> {
         let mut emulator = GameboyEmulator::new();
 
@@ -260,4 +259,5 @@ impl GameboyEmulator {
 
         unimplemented!()
     }
+    */
 }

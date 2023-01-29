@@ -1873,7 +1873,7 @@ impl CPU {
         }
     }
 
-    pub fn execute_cb_opcode(&mut self, memory_bus: &mut MemoryBus, opcode: u8) -> u8 {
+    pub fn execute_cb_opcode(&mut self, memory_bus: &mut MemoryBus, opcode: u8) -> Result<u8> {
         let instruction = match opcode {
             0x00 => Instruction::RLC(Box::new(Register::B)),
             0x01 => Instruction::RLC(Box::new(Register::C)),
@@ -2164,7 +2164,7 @@ impl CPU {
             0xFF => Instruction::SET(7, Box::new(Register::A)),
         };
 
-        self.execute(memory_bus, instruction);
-        get_cb_opcode_delay(opcode)
+        self.execute(memory_bus, instruction)?;
+        Ok(get_cb_opcode_delay(opcode))
     }
 }

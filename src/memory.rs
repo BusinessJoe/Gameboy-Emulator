@@ -30,7 +30,7 @@ impl<'a> MemoryBus<'a> {
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
     ) -> Self {
-        let mut memory_bus = Self {
+        let memory_bus = Self {
             cartridge: None,
             ppu,
             joypad,

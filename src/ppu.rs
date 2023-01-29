@@ -303,9 +303,7 @@ impl<'a> CanvasPpu<'a> {
         let dest_rect = Rect::new(col as i32 * 8, row as i32 * 8, 8, 8);
 
         texture_canvas
-            .copy(&self.tile_map, Some(source_rect), Some(dest_rect));
-
-        Ok(())
+            .copy(&self.tile_map, Some(source_rect), Some(dest_rect)).map_err(|e| Error::new(&e.to_string()))
     }
 
     /// x is tile's horizontal position, y is tile's vertical position.
@@ -335,9 +333,8 @@ impl<'a> CanvasPpu<'a> {
                 None, 
                 oam_data.x_flip(), 
                 oam_data.y_flip(),
-            );
-
-        Ok(())
+            )
+            .map_err(|e| Error::new(&e.to_string()))
     }
 
     fn _read(&mut self, address: Address) -> Result<u8> {
@@ -376,9 +373,8 @@ impl<'a> CanvasPpu<'a> {
     pub fn render_tile_map<T: RenderTarget>(&mut self,
                            texture_canvas: &mut sdl2::render::Canvas<T>) -> Result<()> {
         texture_canvas
-            .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)));
-
-        Ok(())
+            .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)))
+            .map_err(|e| Error::new(&e.to_string()))
     }
 
     pub fn render_background_map(

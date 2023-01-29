@@ -214,7 +214,7 @@ impl Steppable for CPU {
             if opcode == 0xCB {
                 let opcode = self.get_byte_from_pc(&mut memory_bus)?;
                 trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
-                elapsed_cycles = self.execute_cb_opcode(&mut memory_bus, opcode);
+                elapsed_cycles = self.execute_cb_opcode(&mut memory_bus, opcode)?;
             } else {
                 trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
                 elapsed_cycles = self.execute_regular_opcode(&mut memory_bus, opcode)?;

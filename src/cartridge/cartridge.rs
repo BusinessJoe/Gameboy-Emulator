@@ -1,5 +1,5 @@
 use crate::register::Register;
-use log::{debug, error, info};
+use log::*;
 
 pub type Address = usize;
 
@@ -119,6 +119,21 @@ impl MBC1Cartridge {
             _ => panic!(),
         }
     }
+
+    fn read_rom(&self, address: Address) -> Result<u8, AddressingError> {
+        let bank_number = self.bank_number(address);
+        let rom_address = bank_number << 14 | address & 0x3fff;
+
+        if let Some(value) = self.rom.get(rom_address) {
+            Ok(*value)
+        } else {
+            Err(AddressingError(address))
+        }
+    }
+
+    fn read_ram(&self, address: Address) -> Result<u8, AddressingError> {
+        todo!("MBC1 ram is not yet implemented")
+    }
 }
 
 impl Cartridge for MBC1Cartridge {
@@ -127,14 +142,10 @@ impl Cartridge for MBC1Cartridge {
     }
 
     fn read(&self, address: Address) -> Result<u8, AddressingError> {
-        let bank_number = self.bank_number(address);
-        let rom_address = bank_number << 14 | address & 0x3fff;
-        match self.rom.get(rom_address) {
-            Some(value) => Ok(*value),
-            None => {
-                error!("rom address {:#x} is out of bounds", rom_address);
-                Err(AddressingError(address))
-            }
+        match address {
+            0x0000..=0x7fff => self.read_rom(address),
+            0xa000..=0xbfff => self.read_ram(address),
+            _ => Err(AddressingError(address)),
         }
     }
 
