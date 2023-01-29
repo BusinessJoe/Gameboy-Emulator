@@ -1,5 +1,4 @@
 use gameboy_emulator::emulator::GameboyEmulator;
-use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::cartridge::build_cartridge;
 use std::env;
 use std::fs;

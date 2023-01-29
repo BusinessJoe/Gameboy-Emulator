@@ -1,14 +1,13 @@
 use crate::cartridge::Cartridge;
 use crate::gameboy::GameBoyState;
 use crate::joypad::JoypadInput;
-use crate::ppu::{Ppu, CanvasPpu};
+use crate::ppu::CanvasPpu;
 use crate::gameboy::Interrupt;
 use log::warn;
 use sdl2::render::BlendMode;
 use std::cell::RefCell;
 use std::io::{self, Write};
 use std::rc::Rc;
-use std::thread;
 use std::time::{Duration, Instant};
 use strum::IntoEnumIterator;
 

@@ -1,7 +1,5 @@
-use crate::component::{Address, Addressable, Steppable};
+use crate::component::{Address, Addressable};
 use crate::error::{Error, Result};
-use crate::gameboy::Interrupt;
-use device_query::{DeviceQuery, DeviceState, Keycode};
 use strum_macros::EnumIter;
 
 #[derive(Debug, Clone, Copy, EnumIter)]
