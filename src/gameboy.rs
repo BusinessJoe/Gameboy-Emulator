@@ -96,6 +96,7 @@ impl<'a> GameBoyState<'a> {
 
 pub enum Interrupt {
     VBlank,
+    Stat,
     Timer,
     Joypad,
 }

@@ -111,6 +111,7 @@ impl<'a> MemoryBus<'a> {
         debug!("Interrupting");
         let bit = match interrupt {
             Interrupt::VBlank => 0,
+            Interrupt::Stat => 1,
             Interrupt::Timer => 2,
             Interrupt::Joypad => 4,
         };

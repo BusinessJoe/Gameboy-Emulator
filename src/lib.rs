@@ -11,6 +11,7 @@ mod ppu;
 mod register;
 pub mod screen;
 mod timer;
+mod utils;
 
 pub use joypad::Joypad;
 pub use memory::MemoryBus;
