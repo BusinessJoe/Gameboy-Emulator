@@ -44,8 +44,6 @@ impl LcdControl {
     }
 
     pub fn write(&mut self, value: u8) {
-        let old_4 = self.bg_window_tile_data_area;
-
         self.bg_window_enable = (value >> 0) & 1 == 1;
         self.obj_enable = (value >> 1) & 1 == 1;
         self.obj_size = (value >> 2) & 1 == 1;
@@ -54,10 +52,6 @@ impl LcdControl {
         self.window_enable = (value >> 5) & 1 == 1;
         self.window_tile_map_area = (value >> 6) & 1 == 1;
         self.lcd_ppu_enable = (value >> 7) & 1 == 1;
-
-        if self.bg_window_tile_data_area != old_4 {
-            println!("New: {}", self.bg_window_tile_data_area);
-        }
     }
 }
 
