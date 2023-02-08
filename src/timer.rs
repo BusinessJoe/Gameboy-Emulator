@@ -1,15 +1,10 @@
-use crate::cartridge::AddressingError;
 use crate::component::{Address, Addressable, Steppable};
 use crate::error::Error;
 use crate::gameboy::Interrupt;
-use crate::memory::MemoryBus;
 use log::info;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct Timer {
     /// Number of clock cycles per second.
-    clock_speed: u64,
     div_clocksum: u64,
     timer_clocksum: u64,
 
@@ -21,18 +16,17 @@ pub struct Timer {
 }
 
 // Divider register
-const DIV: usize = 0xFF04;
+const DIV: usize = 0xff04;
 // Timer counter
-const TIMA: usize = 0xFF05;
+const TIMA: usize = 0xff05;
 // Timer modulo
-const TMA: usize = 0xFF06;
+const TMA: usize = 0xff06;
 // Timer control
-const TAC: usize = 0xFF07;
+const TAC: usize = 0xff07;
 
 impl Timer {
-    pub fn new(clock_speed: u64) -> Self {
+    pub fn new() -> Self {
         Self {
-            clock_speed,
             div_clocksum: 0,
             timer_clocksum: 0,
 
@@ -44,7 +38,11 @@ impl Timer {
     }
 
     fn is_enabled(&self) -> bool {
-        (self.tac >> 2) & 1 == 1
+        self.tac & 0b100 != 0
+    }
+
+    fn cpu_clock_speed(&self) -> u64 {
+        1024 * 4096
     }
 
     fn get_frequency(&self) -> u64 {
@@ -71,10 +69,14 @@ impl Timer {
 
     fn _write(&mut self, address: Address, value: u8) -> crate::error::Result<()> {
         match address {
-            DIV => self.div = value,
+            // writing any value to DIV resets it to 0
+            DIV => {
+                self.div = 0;
+                self.div_clocksum = 0;
+            }, 
             TIMA => self.tima = value,
             TMA => self.tma = value,
-            TAC => self.tac = value,
+            TAC => self.tac = 0b11111000 | 0b111 & value,
             _ => return Err(Error::new("invalid address"))
         }
         Ok(())
@@ -101,19 +103,17 @@ impl Addressable for Timer {
 
 impl Steppable for Timer {
     fn step(&mut self, state: &crate::gameboy::GameBoyState) -> crate::error::Result<crate::component::ElapsedTime> {
-        // Manage divider timer
+        // DIV register increments every 256 cycles
         self.div_clocksum += 1;
-        if self.div_clocksum >= 256 {
-            self.div_clocksum -= 256;
+        if self.div_clocksum == 256 {
+            self.div_clocksum = 0;
             self.div = self.div.wrapping_add(1);
         }
 
         if self.is_enabled() {
-            self.timer_clocksum += 4;
+            self.timer_clocksum += 1;
 
-            let freq = self.get_frequency();
-
-            while self.timer_clocksum >= self.clock_speed / freq {
+            if self.timer_clocksum == self.cpu_clock_speed() / self.get_frequency() {
                 // Increment TIMA
                 self.tima = self.tima.wrapping_add(1);
 
@@ -126,7 +126,7 @@ impl Steppable for Timer {
                         .interrupt(Interrupt::Timer)?;
                     self.tima = self.tma;
                 }
-                self.timer_clocksum -= self.clock_speed / freq;
+                self.timer_clocksum = 0;
             }
         }
 

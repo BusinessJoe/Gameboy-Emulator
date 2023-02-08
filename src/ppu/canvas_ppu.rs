@@ -1,174 +1,12 @@
-/*!
- * This PPU serves as an implementation for all the gameboy's graphics. It maintains an internal
- * representation of the screen.
- */
-
-use crate::{
-    component::{Address, Addressable, ElapsedTime, Steppable},
-    error::{Error, Result},
-    gameboy::{GameBoyState, Interrupt},
-};
-use log::trace;
-use sdl2::{rect::Rect, render::TextureCreator, video::WindowContext};
-use sdl2::{
-    pixels::PixelFormatEnum,
-    render::{RenderTarget, Texture},
-};
-use sdl2::video::Window;
-use std::collections::VecDeque;
-
-#[derive(Debug, Clone, Copy)]
-pub enum TileDataAddressingMethod {
-    Method8000,
-    Method8800,
-}
-
-/// Represents the LCD Control register at 0xff40
-#[derive(Debug, Clone, Copy)]
-pub struct LCDC {
-    pub bg_window_enable: bool,
-    pub obj_enable: bool,
-    pub obj_size: bool,
-    pub bg_tile_map_area: bool,
-    pub bg_window_tile_data_area: bool,
-    pub window_enable: bool,
-    pub window_tile_map_area: bool,
-    pub lcd_ppu_enable: bool,
-}
-
-impl LCDC {
-    pub fn new() -> Self {
-        Self {
-            bg_window_enable: false,
-            obj_enable: false,
-            obj_size: false,
-            bg_tile_map_area: false,
-            bg_window_tile_data_area: false,
-            window_enable: false,
-            window_tile_map_area: false,
-            lcd_ppu_enable: false,
-        }
-    }
-
-    pub fn read(&self) -> u8 {
-        (self.bg_window_enable as u8) + (self.obj_enable as u8)
-            << 1 + (self.obj_size as u8)
-            << 2 + (self.bg_tile_map_area as u8)
-            << 3 + (self.bg_window_tile_data_area as u8)
-            << 4 + (self.window_enable as u8)
-            << 5 + (self.window_tile_map_area as u8)
-            << 6 + (self.lcd_ppu_enable as u8)
-            << 7
-    }
-
-    pub fn write(&mut self, value: u8) {
-        let old_4 = self.bg_window_tile_data_area;
-
-        self.bg_window_enable = (value >> 0) & 1 == 1;
-        self.obj_enable = (value >> 1) & 1 == 1;
-        self.obj_size = (value >> 2) & 1 == 1;
-        self.bg_tile_map_area = (value >> 3) & 1 == 1;
-        self.bg_window_tile_data_area = (value >> 4) & 1 == 1;
-        self.window_enable = (value >> 5) & 1 == 1;
-        self.window_tile_map_area = (value >> 6) & 1 == 1;
-        self.lcd_ppu_enable = (value >> 7) & 1 == 1;
-
-        if self.bg_window_tile_data_area != old_4 {
-            println!("New: {}", self.bg_window_tile_data_area);
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct PixelData {
-    color: u8,
-    palette: u8,
-    background_priority: bool,
-}
-
-#[derive(Debug)]
-enum PPUState {
-    OAMSearch,
-    PixelTransfer,
-    VBlank,
-    HBlank,
-}
-
-#[derive(Debug, Clone)]
-pub struct OamData {
-    data: Vec<u8>,
-}
-
-impl OamData {
-    pub fn new(data: &[u8]) -> OamData {
-        OamData {
-            data: data.to_vec(),
-        }
-    }
-
-    fn y_pos(&self) -> u8 {
-        self.data[0]
-    }
-
-    fn x_pos(&self) -> u8 {
-        self.data[1]
-    }
-
-    fn tile_index(&self) -> u8 {
-        self.data[2]
-    }
-
-    fn palette_number(&self) -> u8 {
-        self.data[3] >> 4 & 1
-    }
-
-    /// true iff horizontally mirrored
-    fn x_flip(&self) -> bool {
-        self.data[3] >> 5 & 1 == 1
-    }
-
-    /// true iff vertically mirrored
-    fn y_flip(&self) -> bool {
-        self.data[3] >> 6 & 1 == 1
-    }
-
-    /// false=No, true=BG and Window colors 1-3 over the OBJ
-    fn bg_window_over_obj(&self) -> bool {
-        self.data[3] >> 7 & 1 == 1
-    }
-}
-
-pub trait Ppu<'a>: Addressable + Steppable {}
-
-/// The PPU is responsible for the emulated gameboy's graphics.
-pub struct CanvasPpu<'a> {
-    tile_map: Texture<'a>,
-    oam_tile_map: Texture<'a>,
-
-    /// Tile data takes up addresses 0x8000-0x97ff.
-    tile_data: Vec<u8>,
-
-    /// Cache of decoded tile data -- the gameboy can store 384 different tiles
-    tile_cache: Vec<Tile>,
-    /// Addresses 0x9800-0x9bff are a 32x32 map of background tiles.
-    /// Each byte contains the number of a tile to be displayed.
-    background_map: Vec<u8>,
-
-    /// A table containing data for 40 sprites
-    sprite_tiles_table: Vec<u8>,
-
-    /// LY: LCD Y coordinate (read only)
-    ly: u8,
-    /// Current x position in scanline
-    lx: u32,
-    lcdc: LCDC,
-
-    background_queue: VecDeque<PixelData>,
-    sprite_queue: VecDeque<PixelData>,
-
-    state: PPUState,
-    dots: u32,
-}
+use sdl2::render::{RenderTarget, Texture, TextureCreator};
+use sdl2::video::{Window, WindowContext};
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect;
+use crate::component::{Address, Addressable, ElapsedTime, Steppable};
+use crate::ppu::{Ppu, OamData, TileDataAddressingMethod, lcd};
+use crate::gameboy::GameBoyState;
+use crate::error::{Error, Result};
+use log::*;
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]
@@ -209,6 +47,26 @@ impl Tile {
     }
 }
 
+/// The PPU is responsible for the emulated gameboy's graphics.
+pub struct CanvasPpu<'a> {
+    tile_map: Texture<'a>,
+    oam_tile_map: Texture<'a>,
+
+    /// Tile data takes up addresses 0x8000-0x97ff.
+    tile_data: Vec<u8>,
+
+    /// Cache of decoded tile data -- the gameboy can store 384 different tiles
+    tile_cache: Vec<Tile>,
+    /// Addresses 0x9800-0x9bff are a 32x32 map of background tiles.
+    /// Each byte contains the number of a tile to be displayed.
+    background_map: Vec<u8>,
+
+    /// A table containing data for 40 sprites
+    sprite_tiles_table: Vec<u8>,
+
+    lcd: lcd::Lcd,
+}
+
 impl<'a> CanvasPpu<'a> {
     pub fn new(creator: &'a TextureCreator<WindowContext>) -> Self {
         let tile_map = creator.create_texture_target(PixelFormatEnum::RGBA8888, 128, 192).unwrap();
@@ -223,13 +81,7 @@ impl<'a> CanvasPpu<'a> {
             tile_cache: vec![Tile::new(); 384],
             background_map: vec![0; 32 * 32],
             sprite_tiles_table: vec![0; 160],
-            ly: 0,
-            lx: 0,
-            lcdc: LCDC::new(),
-            background_queue: VecDeque::new(),
-            sprite_queue: VecDeque::new(),
-            state: PPUState::OAMSearch,
-            dots: 0,
+            lcd: lcd::Lcd::new(),
         };
         ppu
     }
@@ -303,9 +155,7 @@ impl<'a> CanvasPpu<'a> {
         let dest_rect = Rect::new(col as i32 * 8, row as i32 * 8, 8, 8);
 
         texture_canvas
-            .copy(&self.tile_map, Some(source_rect), Some(dest_rect));
-
-        Ok(())
+            .copy(&self.tile_map, Some(source_rect), Some(dest_rect)).map_err(|e| Error::new(&e.to_string()))
     }
 
     /// x is tile's horizontal position, y is tile's vertical position.
@@ -335,9 +185,8 @@ impl<'a> CanvasPpu<'a> {
                 None, 
                 oam_data.x_flip(), 
                 oam_data.y_flip(),
-            );
-
-        Ok(())
+            )
+            .map_err(|e| Error::new(&e.to_string()))
     }
 
     fn _read(&mut self, address: Address) -> Result<u8> {
@@ -345,8 +194,10 @@ impl<'a> CanvasPpu<'a> {
             0x8000..=0x97ff => self.tile_data[address - 0x8000],
             0x9800..=0x9bff => self.background_map[address - 0x9800],
             0xfe00..=0xfe9f => self.sprite_tiles_table[address - 0xfe00],
-            0xff40 => self.lcdc.read(),
-            0xff44 => self.ly,
+            0xff40 => self.lcd.lcd_control.read(),
+            0xff41 => self.lcd.stat.0,
+            0xff44 => self.lcd.ly,
+            0xff45 => self.lcd.lyc,
             _ => return Err(Error::new("Invalid address")),
         };
 
@@ -366,7 +217,9 @@ impl<'a> CanvasPpu<'a> {
             0xfe00..=0xfe9f => {
                 self.sprite_tiles_table[address - 0xfe00] = data;
             }
-            0xff40 => self.lcdc.write(data),
+            0xff40 => self.lcd.lcd_control.write(data),
+            0xff41 => self.lcd.stat.0 = data,
+            0xff45 => self.lcd.lyc = data,
             _ => return Err(Error::new("Invalid address")),
         }
 
@@ -376,16 +229,15 @@ impl<'a> CanvasPpu<'a> {
     pub fn render_tile_map<T: RenderTarget>(&mut self,
                            texture_canvas: &mut sdl2::render::Canvas<T>) -> Result<()> {
         texture_canvas
-            .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)));
-
-        Ok(())
+            .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)))
+            .map_err(|e| Error::new(&e.to_string()))
     }
 
     pub fn render_background_map(
         &mut self,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
-        let method = if self.lcdc.bg_window_tile_data_area {
+        let method = if self.lcd.lcd_control.bg_window_tile_data_area {
             TileDataAddressingMethod::Method8000
         } else {
             TileDataAddressingMethod::Method8800
@@ -407,10 +259,11 @@ impl<'a> CanvasPpu<'a> {
         &mut self,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
+
         for i in 0..40 {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
 
-            if !self.lcdc.obj_size {
+            if !self.lcd.lcd_control.obj_size {
                 // 8x8
                 self.set_sprite(texture_canvas, &oam_data, 0, 0)?;
             } else {
@@ -431,57 +284,7 @@ impl<'a> CanvasPpu<'a> {
 
 impl<'a> Steppable for CanvasPpu<'a> {
     fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
-        self.dots += 1;
-
-        match self.state {
-            PPUState::OAMSearch => {
-                if self.dots == 80 {
-                    self.state = PPUState::PixelTransfer;
-                }
-            }
-            PPUState::PixelTransfer => {
-                // TODO: Fetch pixel data into our pixel FIFO.
-                // TODO: Put a pixel (if any) from the FIFO on screen.
-
-                // For now, just use the current xy coordinates as an index into the background map
-                // to get a pixel
-                if self.lx == 0 {
-                    //self.render_background_map()?;
-                }
-
-                self.lx += 1;
-                if self.lx == 160 {
-                    self.lx = 0;
-                    self.state = PPUState::HBlank;
-                }
-            }
-            PPUState::HBlank => {
-                if self.dots == 456 {
-                    self.dots = 0;
-                    self.ly += 1;
-                    if self.ly == 144 {
-                        self.state = PPUState::VBlank;
-                        state.memory_bus.borrow_mut().interrupt(Interrupt::VBlank)?;
-                        //println!("Start VBLANK");
-                    } else {
-                        self.state = PPUState::OAMSearch;
-                    }
-                }
-            }
-            PPUState::VBlank => {
-                if self.dots == 456 {
-                    self.dots = 0;
-                    self.ly += 1;
-                    if self.ly == 153 {
-                        self.ly = 0;
-                        //println!("End VBLANK");
-                        self.state = PPUState::OAMSearch;
-                    }
-                }
-            }
-        }
-
-        Ok(1)
+        self.lcd.step(state)
     }
 }
 

@@ -7,17 +7,25 @@ use crate::memory::MemoryBus;
 use crate::ppu::Ppu;
 use crate::timer::Timer;
 use log::trace;
-use sdl2::render::Canvas;
+use core::fmt;
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 
-const CLOCK_SPEED: u64 = 4_194_304;
-
 pub type Observer = fn(chr: char);
 
+pub struct GameboyDebugInfo {
+    pc: u16,
+    sp: u16,
+    register_a: u8,
+    register_f: [bool; 4],
+    register_bc: u16,
+    register_de: u16,
+    register_hl: u16,
+}
+
 pub struct GameBoyState<'a> {
-    pub cpu: Rc<RefCell<CPU>>,
+    cpu: Rc<RefCell<CPU>>,
     pub ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     pub joypad: Rc<RefCell<Joypad>>,
     pub timer: Rc<RefCell<Timer>>,
@@ -28,7 +36,7 @@ pub struct GameBoyState<'a> {
 impl<'a> GameBoyState<'a> {
     pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
-        let timer = Rc::new(RefCell::new(Timer::new(CLOCK_SPEED)));
+        let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(
             MemoryBus::new(
                 ppu.clone(), 
@@ -44,6 +52,10 @@ impl<'a> GameBoyState<'a> {
             memory_bus: memory_bus.clone(),
             serial_port_observer: None,
         }
+    }
+
+    pub fn get_pc(&self) -> u16 {
+        self.cpu.borrow().pc
     }
 
     pub fn load(&mut self, filename: &str) -> Result<()> {
@@ -66,6 +78,20 @@ impl<'a> GameBoyState<'a> {
             .borrow_mut()
             .step(&self)
             .expect("error while stepping cpu");
+        let elapsed_cycles = 4 * elapsed_cycles;
+        {
+            let mut ppu = self.ppu.borrow_mut();
+            let mut timer = self.timer.borrow_mut();
+            for _ in 0..elapsed_cycles {
+                ppu
+                    .step(&self)
+                    .expect("error while stepping ppu");
+                timer
+                    .step(&self)
+                    .expect("error while stepping ppu");
+            }
+            trace!("stepped ppu and timer for {} cycles", elapsed_cycles);
+        }
 
         // If data exists on the serial port, forward it to the observer
         let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data;
@@ -92,10 +118,51 @@ impl<'a> GameBoyState<'a> {
     pub fn on_serial_port_data(&mut self, observer: Observer) {
         self.serial_port_observer = Some(observer);
     }
+
+    pub fn debug_info(&self) -> GameboyDebugInfo {
+        let cpu = self.cpu.borrow();
+
+        let register_f = [
+            cpu.registers.f.zero,
+            cpu.registers.f.subtract,
+            cpu.registers.f.half_carry,
+            cpu.registers.f.carry,
+        ];
+
+        GameboyDebugInfo { 
+            pc: cpu.pc,
+            sp: cpu.sp,
+            register_a: cpu.registers.a,
+            register_f,
+            register_bc: u16::from_le_bytes([cpu.registers.b, cpu.registers.c]),
+            register_de: u16::from_le_bytes([cpu.registers.d, cpu.registers.e]),
+            register_hl: u16::from_le_bytes([cpu.registers.h, cpu.registers.l]),
+        }
+    }
+}
+
+impl std::fmt::Display for GameboyDebugInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f, 
+            "pc: {:04x}, sp: {:04x}, A: {:02x}, F: {}{}{}{}, BC: {:04x}, DE: {:04x}, HL: {:04x}",
+            self.pc,
+            self.sp,
+            self.register_a,
+            if self.register_f[0] { 'Z' } else { '-' },
+            if self.register_f[1] { 'S' } else { '-' },
+            if self.register_f[2] { 'H' } else { '-' },
+            if self.register_f[3] { 'C' } else { '-' },
+            self.register_bc,
+            self.register_de,
+            self.register_hl,
+       ) 
+    }
 }
 
 pub enum Interrupt {
     VBlank,
+    Stat,
     Timer,
     Joypad,
 }

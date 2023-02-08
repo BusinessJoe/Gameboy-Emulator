@@ -30,7 +30,7 @@ impl<'a> MemoryBus<'a> {
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
     ) -> Self {
-        let mut memory_bus = Self {
+        let memory_bus = Self {
             cartridge: None,
             ppu,
             joypad,
@@ -111,6 +111,7 @@ impl<'a> MemoryBus<'a> {
         debug!("Interrupting");
         let bit = match interrupt {
             Interrupt::VBlank => 0,
+            Interrupt::Stat => 1,
             Interrupt::Timer => 2,
             Interrupt::Joypad => 4,
         };

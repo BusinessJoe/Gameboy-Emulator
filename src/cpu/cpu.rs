@@ -60,8 +60,9 @@ impl CPU {
                 }
             );
 
-            // Reset IF flag
-            memory_bus.write_u8(0xFF0F, ie_flag & !(1 << bit))?;
+            // Reset interrupt bit in IF flag
+            let if_flag = memory_bus.read_u8(0xff0f)?;
+            memory_bus.write_u8(0xff0f, if_flag & !(1 << bit))?;
 
             // Reset IME flag
             self.interrupt_enabled = false;
@@ -213,7 +214,7 @@ impl Steppable for CPU {
             if opcode == 0xCB {
                 let opcode = self.get_byte_from_pc(&mut memory_bus)?;
                 trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
-                elapsed_cycles = self.execute_cb_opcode(&mut memory_bus, opcode);
+                elapsed_cycles = self.execute_cb_opcode(&mut memory_bus, opcode)?;
             } else {
                 trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
                 elapsed_cycles = self.execute_regular_opcode(&mut memory_bus, opcode)?;
@@ -227,6 +228,15 @@ impl Steppable for CPU {
                 self.sp,
                 self.pc
             );
+            {
+                trace!(
+                    "DIV: {:#06x} TIMA: {:#06x} TMA: {:#06x} TAC: {:#06x}",
+                    memory_bus.read_u8(0xff04).unwrap(),
+                    memory_bus.read_u8(0xff05).unwrap(),
+                    memory_bus.read_u8(0xff06).unwrap(),
+                    memory_bus.read_u8(0xff07).unwrap(),
+                )
+            }
             elapsed_cycles
         } else {
             trace!("Halted");

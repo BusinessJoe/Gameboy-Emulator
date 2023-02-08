@@ -34,4 +34,3 @@ pub trait Component {
     }
 }
 
-pub type ComponentBox = Box<dyn Component>;
