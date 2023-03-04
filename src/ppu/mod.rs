@@ -5,8 +5,10 @@
 
 mod canvas_ppu;
 mod lcd;
+mod no_gui_ppu;
 
 pub use canvas_ppu::CanvasPpu;
+pub use no_gui_ppu::NoGuiPpu;
 
 use crate::component::{Addressable, Steppable};
 
@@ -61,4 +63,3 @@ impl OamData {
 }
 
 pub trait Ppu<'a>: Addressable + Steppable {}
-

@@ -1,9 +1,9 @@
-use std::collections::VecDeque;
-use crate::component::{Steppable, ElapsedTime};
-use crate::gameboy::GameBoyState;
+use crate::component::{ElapsedTime, Steppable};
 use crate::error::Result;
+use crate::gameboy::GameBoyState;
 use crate::gameboy::Interrupt;
 use crate::utils::BitField;
+use std::collections::VecDeque;
 
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
@@ -118,9 +118,18 @@ impl Lcd {
     fn change_state(&mut self, new_state: PpuState) -> Option<Interrupt> {
         self.state = new_state;
 
-        self.update_stat_interrupt_line(0, self.stat.get_bit(3).unwrap() && new_state == PpuState::HBlank)
-            .and(self.update_stat_interrupt_line(1, self.stat.get_bit(4).unwrap() && new_state == PpuState::VBlank))
-            .and(self.update_stat_interrupt_line(2, self.stat.get_bit(5).unwrap() && new_state == PpuState::OamSearch))
+        self.update_stat_interrupt_line(
+            0,
+            self.stat.get_bit(3).unwrap() && new_state == PpuState::HBlank,
+        )
+        .and(self.update_stat_interrupt_line(
+            1,
+            self.stat.get_bit(4).unwrap() && new_state == PpuState::VBlank,
+        ))
+        .and(self.update_stat_interrupt_line(
+            2,
+            self.stat.get_bit(5).unwrap() && new_state == PpuState::OamSearch,
+        ))
     }
 
     fn update_stat_interrupt_line(&mut self, index: usize, value: bool) -> Option<Interrupt> {
@@ -130,14 +139,16 @@ impl Lcd {
 
         if value {
             self.stat_interrupt_line[index] = value;
-            return None
+            return None;
         } else {
             // Or all the stat interrupt line values together
-            let old_line_value = self.stat_interrupt_line
+            let old_line_value = self
+                .stat_interrupt_line
                 .iter()
                 .fold(false, |acc, e| acc | e);
             self.stat_interrupt_line[index] = value;
-            let new_line_value = self.stat_interrupt_line
+            let new_line_value = self
+                .stat_interrupt_line
                 .iter()
                 .fold(false, |acc, e| acc | e);
 

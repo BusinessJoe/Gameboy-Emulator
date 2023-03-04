@@ -7,7 +7,7 @@ pub type Address = usize;
 pub struct AddressingError(pub Address);
 
 pub struct Cartridge {
-    mbc: Box<dyn MemoryBankController>,
+    mbc: Box<dyn MemoryBankController + Send>,
     rom: Vec<u8>,
     ram: Vec<u8>,
 }
@@ -265,7 +265,7 @@ impl CartridgeType {
     }
 
     fn build(&self, rom_data: &[u8]) -> Cartridge {
-        let mbc_controller: Box<dyn MemoryBankController> = match self.mbc_controller_type {
+        let mbc_controller: Box<dyn MemoryBankController + Send> = match self.mbc_controller_type {
             MbcType::RomOnly => Box::new(NoMbc::default()),
             MbcType::Mbc1 => Box::new(Mbc1::default()),
         };

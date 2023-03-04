@@ -33,4 +33,3 @@ pub trait Component {
         None
     }
 }
-

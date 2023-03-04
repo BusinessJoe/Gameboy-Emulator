@@ -21,12 +21,12 @@ pub struct MemoryBus<'a> {
     joypad: Rc<RefCell<Joypad>>,
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
-    pub serial_port_data: Vec<char>,
+    pub serial_port_data: Vec<u8>,
 }
 
 impl<'a> MemoryBus<'a> {
     pub fn new(
-        ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>, 
+        ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
     ) -> Self {
@@ -71,8 +71,7 @@ impl<'a> MemoryBus<'a> {
 
     fn _write(&mut self, address: Address, value: u8) -> Result<()> {
         if address == 0xFF02 && value == 0x81 {
-            let chr = char::from_u32(self.data[0xFF01] as u32).unwrap();
-            self.serial_port_data.push(chr);
+            self.serial_port_data.push(self.data[0xFF01]);
         }
         match address {
             0..=0x7fff => {

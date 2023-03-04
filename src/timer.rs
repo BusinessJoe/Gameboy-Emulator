@@ -62,7 +62,7 @@ impl Timer {
             TIMA => self.tima,
             TMA => self.tma,
             TAC => self.tac,
-            _ => return Err(Error::new("invalid address"))
+            _ => return Err(Error::new("invalid address")),
         };
         Ok(value)
     }
@@ -73,11 +73,11 @@ impl Timer {
             DIV => {
                 self.div = 0;
                 self.div_clocksum = 0;
-            }, 
+            }
             TIMA => self.tima = value,
             TMA => self.tma = value,
             TAC => self.tac = 0b11111000 | 0b111 & value,
-            _ => return Err(Error::new("invalid address"))
+            _ => return Err(Error::new("invalid address")),
         }
         Ok(())
     }
@@ -102,7 +102,10 @@ impl Addressable for Timer {
 }
 
 impl Steppable for Timer {
-    fn step(&mut self, state: &crate::gameboy::GameBoyState) -> crate::error::Result<crate::component::ElapsedTime> {
+    fn step(
+        &mut self,
+        state: &crate::gameboy::GameBoyState,
+    ) -> crate::error::Result<crate::component::ElapsedTime> {
         // DIV register increments every 256 cycles
         self.div_clocksum += 1;
         if self.div_clocksum == 256 {
@@ -120,10 +123,7 @@ impl Steppable for Timer {
                 // When TIMA overflows, send an interrupt and reset TIMA to TMA
                 if self.tima == 0x00 {
                     info!("Sending timer interrupt");
-                    state
-                        .memory_bus
-                        .borrow_mut()
-                        .interrupt(Interrupt::Timer)?;
+                    state.memory_bus.borrow_mut().interrupt(Interrupt::Timer)?;
                     self.tima = self.tma;
                 }
                 self.timer_clocksum = 0;

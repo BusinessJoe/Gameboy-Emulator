@@ -6,13 +6,13 @@ use crate::joypad::Joypad;
 use crate::memory::MemoryBus;
 use crate::ppu::Ppu;
 use crate::timer::Timer;
-use log::trace;
 use core::fmt;
+use log::trace;
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 
-pub type Observer = fn(chr: char);
+pub type Observer = Box<dyn FnMut(u8)>;
 
 pub struct GameboyDebugInfo {
     pc: u16,
@@ -37,13 +37,11 @@ impl<'a> GameBoyState<'a> {
     pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
-        let memory_bus = Rc::new(RefCell::new(
-            MemoryBus::new(
-                ppu.clone(), 
-                joypad.clone(),
-                timer.clone(),
-            )
-        ));
+        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
+            ppu.clone(),
+            joypad.clone(),
+            timer.clone(),
+        )));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
             ppu: ppu.clone(),
@@ -83,21 +81,17 @@ impl<'a> GameBoyState<'a> {
             let mut ppu = self.ppu.borrow_mut();
             let mut timer = self.timer.borrow_mut();
             for _ in 0..elapsed_cycles {
-                ppu
-                    .step(&self)
-                    .expect("error while stepping ppu");
-                timer
-                    .step(&self)
-                    .expect("error while stepping ppu");
+                ppu.step(&self).expect("error while stepping ppu");
+                timer.step(&self).expect("error while stepping ppu");
             }
             trace!("stepped ppu and timer for {} cycles", elapsed_cycles);
         }
 
         // If data exists on the serial port, forward it to the observer
         let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data;
-        if let Some(observer) = self.serial_port_observer {
-            for chr in serial_port_data.drain(..) {
-                observer(chr);
+        if let Some(observer) = &mut self.serial_port_observer {
+            for byte in serial_port_data.drain(..) {
+                observer(byte);
             }
         }
 
@@ -129,7 +123,7 @@ impl<'a> GameBoyState<'a> {
             cpu.registers.f.carry,
         ];
 
-        GameboyDebugInfo { 
+        GameboyDebugInfo {
             pc: cpu.pc,
             sp: cpu.sp,
             register_a: cpu.registers.a,
@@ -144,7 +138,7 @@ impl<'a> GameBoyState<'a> {
 impl std::fmt::Display for GameboyDebugInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, 
+            f,
             "pc: {:04x}, sp: {:04x}, A: {:02x}, F: {}{}{}{}, BC: {:04x}, DE: {:04x}, HL: {:04x}",
             self.pc,
             self.sp,
@@ -156,7 +150,7 @@ impl std::fmt::Display for GameboyDebugInfo {
             self.register_bc,
             self.register_de,
             self.register_hl,
-       ) 
+        )
     }
 }
 

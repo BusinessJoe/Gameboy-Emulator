@@ -1,18 +1,18 @@
-use sdl2::render::{RenderTarget, Texture, TextureCreator};
-use sdl2::video::{Window, WindowContext};
+use crate::component::{Address, Addressable, ElapsedTime, Steppable};
+use crate::error::{Error, Result};
+use crate::gameboy::GameBoyState;
+use crate::ppu::{lcd, OamData, Ppu, TileDataAddressingMethod};
+use log::*;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
-use crate::component::{Address, Addressable, ElapsedTime, Steppable};
-use crate::ppu::{Ppu, OamData, TileDataAddressingMethod, lcd};
-use crate::gameboy::GameBoyState;
-use crate::error::{Error, Result};
-use log::*;
+use sdl2::render::{RenderTarget, Texture, TextureCreator};
+use sdl2::video::{Window, WindowContext};
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]
 pub struct Tile(Vec<u8>);
 impl Tile {
-    fn new() -> Tile {
+    pub fn new() -> Tile {
         Tile(vec![0; 64])
     }
 
@@ -24,9 +24,9 @@ impl Tile {
                 1 => [255, 200, 200, 200],
                 2 => [255, 100, 100, 100],
                 3 => [255, 0, 0, 0],
-                _ => panic!()
+                _ => panic!(),
             };
-            color_data[i*4..(i+1)*4].copy_from_slice(&rgba);
+            color_data[i * 4..(i + 1) * 4].copy_from_slice(&rgba);
         }
         color_data
     }
@@ -39,18 +39,18 @@ impl Tile {
                 1 => [255, 200, 200, 200],
                 2 => [255, 100, 100, 100],
                 3 => [255, 0, 0, 0],
-                _ => panic!()
+                _ => panic!(),
             };
-            color_data[i*4..(i+1)*4].copy_from_slice(&rgba);
+            color_data[i * 4..(i + 1) * 4].copy_from_slice(&rgba);
         }
         color_data
     }
 }
 
 /// The PPU is responsible for the emulated gameboy's graphics.
-pub struct CanvasPpu<'a> {
-    tile_map: Texture<'a>,
-    oam_tile_map: Texture<'a>,
+pub struct CanvasPpu {
+    tile_map: Texture,
+    oam_tile_map: Texture,
 
     /// Tile data takes up addresses 0x8000-0x97ff.
     tile_data: Vec<u8>,
@@ -67,10 +67,14 @@ pub struct CanvasPpu<'a> {
     lcd: lcd::Lcd,
 }
 
-impl<'a> CanvasPpu<'a> {
-    pub fn new(creator: &'a TextureCreator<WindowContext>) -> Self {
-        let tile_map = creator.create_texture_target(PixelFormatEnum::RGBA8888, 128, 192).unwrap();
-        let oam_tile_map = creator.create_texture_target(PixelFormatEnum::RGBA8888, 128, 192).unwrap();
+impl CanvasPpu {
+    pub fn new(creator: &TextureCreator<WindowContext>) -> Self {
+        let tile_map = creator
+            .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
+            .unwrap();
+        let oam_tile_map = creator
+            .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
+            .unwrap();
 
         let ppu = CanvasPpu {
             tile_map,
@@ -124,8 +128,20 @@ impl<'a> CanvasPpu<'a> {
 
         let x = (tile_index % 16) * 8;
         let y = tile_index / 16 * 8;
-        self.tile_map.update(Some(Rect::new(x as i32, y as i32, 8, 8)), &tile.as_rgba(), 8*4).unwrap();
-        self.oam_tile_map.update(Some(Rect::new(x as i32, y as i32, 8, 8)), &tile.as_oam_rgba(), 8*4).unwrap();
+        self.tile_map
+            .update(
+                Some(Rect::new(x as i32, y as i32, 8, 8)),
+                &tile.as_rgba(),
+                8 * 4,
+            )
+            .unwrap();
+        self.oam_tile_map
+            .update(
+                Some(Rect::new(x as i32, y as i32, 8, 8)),
+                &tile.as_oam_rgba(),
+                8 * 4,
+            )
+            .unwrap();
     }
 
     /// Uses the tile addressing method to adjust the provided index so it can be used with the tile cache.
@@ -151,11 +167,17 @@ impl<'a> CanvasPpu<'a> {
         method: TileDataAddressingMethod,
     ) -> Result<()> {
         let adjusted_index = self.adjust_tile_index(tile_index, method);
-        let source_rect = Rect::new((adjusted_index as i32 % 16) * 8, adjusted_index as i32 / 16 * 8, 8, 8);
+        let source_rect = Rect::new(
+            (adjusted_index as i32 % 16) * 8,
+            adjusted_index as i32 / 16 * 8,
+            8,
+            8,
+        );
         let dest_rect = Rect::new(col as i32 * 8, row as i32 * 8, 8, 8);
 
         texture_canvas
-            .copy(&self.tile_map, Some(source_rect), Some(dest_rect)).map_err(|e| Error::new(&e.to_string()))
+            .copy(&self.tile_map, Some(source_rect), Some(dest_rect))
+            .map_err(|e| Error::new(&e.to_string()))
     }
 
     /// x is tile's horizontal position, y is tile's vertical position.
@@ -173,17 +195,22 @@ impl<'a> CanvasPpu<'a> {
         let y: i32 = i32::from(oam_data.y_pos()) - 16 + y_offset;
         let tile_index = (oam_data.tile_index() as i16 + tile_index_offset as i16) as u8;
 
-        let source_rect = Rect::new((tile_index as i32 % 16) * 8, tile_index as i32 / 16 * 8, 8, 8);
+        let source_rect = Rect::new(
+            (tile_index as i32 % 16) * 8,
+            tile_index as i32 / 16 * 8,
+            8,
+            8,
+        );
         let dest_rect = Rect::new(x, y, 8, 8);
 
         texture_canvas
             .copy_ex(
-                &self.oam_tile_map, 
-                Some(source_rect), 
-                Some(dest_rect), 
-                0., 
-                None, 
-                oam_data.x_flip(), 
+                &self.oam_tile_map,
+                Some(source_rect),
+                Some(dest_rect),
+                0.,
+                None,
+                oam_data.x_flip(),
                 oam_data.y_flip(),
             )
             .map_err(|e| Error::new(&e.to_string()))
@@ -226,8 +253,10 @@ impl<'a> CanvasPpu<'a> {
         Ok(())
     }
 
-    pub fn render_tile_map<T: RenderTarget>(&mut self,
-                           texture_canvas: &mut sdl2::render::Canvas<T>) -> Result<()> {
+    pub fn render_tile_map<T: RenderTarget>(
+        &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<T>,
+    ) -> Result<()> {
         texture_canvas
             .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)))
             .map_err(|e| Error::new(&e.to_string()))
@@ -259,7 +288,6 @@ impl<'a> CanvasPpu<'a> {
         &mut self,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
-
         for i in 0..40 {
             let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
 
@@ -282,13 +310,13 @@ impl<'a> CanvasPpu<'a> {
     }
 }
 
-impl<'a> Steppable for CanvasPpu<'a> {
+impl Steppable for CanvasPpu {
     fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
         self.lcd.step(state)
     }
 }
 
-impl<'a> Addressable for CanvasPpu<'a> {
+impl Addressable for CanvasPpu {
     fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
         for (offset, byte) in data.iter_mut().enumerate() {
             *byte = self._read(address + offset)?;
@@ -306,4 +334,4 @@ impl<'a> Addressable for CanvasPpu<'a> {
     }
 }
 
-impl<'a> Ppu<'a> for CanvasPpu<'a> {}
+impl<'a> Ppu<'a> for CanvasPpu {}
