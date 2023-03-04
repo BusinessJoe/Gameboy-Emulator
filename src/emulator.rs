@@ -114,7 +114,7 @@ impl GameboyEmulator {
     }
 
     fn run_gameboy_loop(
-        cartridge: Box<dyn Cartridge>,
+        cartridge: Cartridge,
         debug: bool,
         ) -> Result<(), String> {
         let mut emulator = GameboyEmulator::new(debug);
@@ -291,7 +291,7 @@ impl GameboyEmulator {
     }
 
     /// Runs the gameboy emulator with a gui.
-    pub fn run(cartridge: Box<dyn Cartridge>, debug: bool) -> Result<(), ()> {
+    pub fn run(cartridge: Cartridge, debug: bool) -> Result<(), ()> {
         Self::run_gameboy_loop(cartridge, debug).map_err(|_| ())
     }
 

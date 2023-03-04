@@ -11,6 +11,7 @@ mod ppu;
 mod register;
 mod timer;
 mod utils;
+mod bit_field;
 
 pub use joypad::Joypad;
 pub use memory::MemoryBus;

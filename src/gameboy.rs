@@ -60,11 +60,11 @@ impl<'a> GameBoyState<'a> {
 
     pub fn load(&mut self, filename: &str) -> Result<()> {
         let bytes = fs::read(filename).unwrap();
-        let cartridge = cartridge::build_cartridge(&bytes).unwrap();
+        let cartridge = cartridge::Cartridge::cartridge_from_data(&bytes).unwrap();
         self.load_cartridge(cartridge)
     }
 
-    pub fn load_cartridge(&mut self, cartridge: Box<dyn Cartridge>) -> Result<()> {
+    pub fn load_cartridge(&mut self, cartridge: Cartridge) -> Result<()> {
         println!("Loaded cartridge: {:?}", cartridge);
         let mut memory_bus = self.memory_bus.borrow_mut();
         memory_bus.insert_cartridge(cartridge);

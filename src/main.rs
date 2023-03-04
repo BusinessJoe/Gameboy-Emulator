@@ -1,5 +1,5 @@
 use gameboy_emulator::emulator::GameboyEmulator;
-use gameboy_emulator::cartridge::build_cartridge;
+use gameboy_emulator::cartridge::Cartridge;
 use std::fs;
 
 use clap::Parser;
@@ -23,7 +23,7 @@ fn main() -> Result<(), ()> {
     let args = Args::parse();
 
     let bytes = fs::read(args.rom_path).expect("could not read file");
-    let cartridge = build_cartridge(&bytes).expect("failed to build cartridge");
+    let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
 
     GameboyEmulator::run(cartridge, args.debug)?;
 

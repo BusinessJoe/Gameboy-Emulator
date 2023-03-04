@@ -16,7 +16,7 @@ use log::debug;
 
 /// Mock memory bus
 pub struct MemoryBus<'a> {
-    cartridge: Option<Box<dyn Cartridge>>,
+    cartridge: Option<Cartridge>,
     ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
     joypad: Rc<RefCell<Joypad>>,
     timer: Rc<RefCell<Timer>>,
@@ -121,11 +121,11 @@ impl<'a> MemoryBus<'a> {
         Ok(())
     }
 
-    pub fn insert_cartridge(&mut self, cartridge: Box<dyn Cartridge>) {
+    pub fn insert_cartridge(&mut self, cartridge: Cartridge) {
         self.cartridge = Some(cartridge);
     }
 
-    pub fn remove_cartridge(&mut self) -> Option<Box<dyn Cartridge>> {
+    pub fn remove_cartridge(&mut self) -> Option<Cartridge> {
         self.cartridge.take()
     }
 }
