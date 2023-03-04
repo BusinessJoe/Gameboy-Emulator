@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use gameboy_emulator::cartridge::{Address, AddressingError, Cartridge, MBCControllerType};
 use gameboy_emulator::cpu::CPU;
 use gameboy_emulator::gameboy::GameBoyState;
-use gameboy_emulator::{Joypad, MemoryBus, CanvasPpu, Ppu};
+use gameboy_emulator::{CanvasPpu, Joypad, MemoryBus, Ppu};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -17,9 +17,14 @@ fn repeat_regular_opcode(c: &mut Criterion, name: &str, opcode: u8) {
         .position_centered()
         .opengl()
         .build()
-        .map_err(|e| e.to_string()).unwrap();
+        .map_err(|e| e.to_string())
+        .unwrap();
 
-    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string()).unwrap();
+    let mut canvas = window
+        .into_canvas()
+        .build()
+        .map_err(|e| e.to_string())
+        .unwrap();
     let creator = canvas.texture_creator();
     let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&creator)));
 
@@ -49,9 +54,14 @@ fn bench_gameboy_tick(c: &mut Criterion) {
         .position_centered()
         .opengl()
         .build()
-        .map_err(|e| e.to_string()).unwrap();
+        .map_err(|e| e.to_string())
+        .unwrap();
 
-    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string()).unwrap();
+    let mut canvas = window
+        .into_canvas()
+        .build()
+        .map_err(|e| e.to_string())
+        .unwrap();
     let creator = canvas.texture_creator();
     let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&creator)));
 

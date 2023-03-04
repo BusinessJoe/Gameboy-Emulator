@@ -9,7 +9,7 @@ pub fn test_rom(path: &str, target_serial_data: &[u8], mut timeout_duration: Dur
     let bytes = std::fs::read(path).unwrap();
     let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
 
-    let (control_event_sender, event_receiver) =
+    let (_, control_event_sender, event_receiver) =
         GameboyEmulator::gameboy_thread_no_gui(cartridge).unwrap();
 
     let sleep_duration = Duration::from_secs(1);
