@@ -1202,7 +1202,7 @@ impl CPU {
             Instruction::HALT => {
                 info!("Halting");
                 let interrupt_pending =
-                    memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0;
+                    memory_bus.read_u8(0xffff)? & memory_bus.read_u8(0xff0f)? & 0x1f != 0;
                 self.halted = true;
                 if !self.interrupt_enabled && interrupt_pending {
                     let byte = memory_bus.read_u8(self.pc.into())?;

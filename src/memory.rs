@@ -61,6 +61,8 @@ impl<'a> MemoryBus<'a> {
             0xff00 => self.joypad.borrow_mut().read_u8(address),
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
+            // IF register always has top 3 bits high
+            0xff0f => Ok(self.data[address] | 0xe0),
             // LCD Control register (LCDC)
             0xff40 => self.ppu.borrow_mut().read_u8(address),
             0xff44 => self.ppu.borrow_mut().read_u8(address),
