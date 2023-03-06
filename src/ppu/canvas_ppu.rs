@@ -334,4 +334,4 @@ impl Addressable for CanvasPpu {
     }
 }
 
-impl<'a> Ppu<'a> for CanvasPpu {}
+impl Ppu for CanvasPpu {}

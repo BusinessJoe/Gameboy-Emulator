@@ -62,4 +62,4 @@ impl OamData {
     }
 }
 
-pub trait Ppu<'a>: Addressable + Steppable {}
+pub trait Ppu: Addressable + Steppable {}

@@ -15,18 +15,18 @@ use crate::timer::Timer;
 use log::debug;
 
 /// Mock memory bus
-pub struct MemoryBus<'a> {
+pub struct MemoryBus {
     cartridge: Option<Cartridge>,
-    ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
+    ppu: Rc<RefCell<dyn Ppu>>,
     joypad: Rc<RefCell<Joypad>>,
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
 }
 
-impl<'a> MemoryBus<'a> {
+impl MemoryBus {
     pub fn new(
-        ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
+        ppu: Rc<RefCell<dyn Ppu>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
     ) -> Self {
@@ -131,7 +131,7 @@ impl<'a> MemoryBus<'a> {
     }
 }
 
-impl<'a> Addressable for MemoryBus<'a> {
+impl Addressable for MemoryBus {
     fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
         for (offset, byte) in data.iter_mut().enumerate() {
             *byte = self._read(address + offset)?;

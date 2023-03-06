@@ -26,17 +26,17 @@ pub struct GameboyDebugInfo {
     register_hl: u16,
 }
 
-pub struct GameBoyState<'a> {
+pub struct GameBoyState {
     cpu: Rc<RefCell<CPU>>,
-    pub ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>,
+    pub ppu: Rc<RefCell<dyn Ppu>>,
     pub joypad: Rc<RefCell<Joypad>>,
     pub timer: Rc<RefCell<Timer>>,
-    pub memory_bus: Rc<RefCell<MemoryBus<'a>>>,
+    pub memory_bus: Rc<RefCell<MemoryBus>>,
     emulation_event_sender: Sender<EmulationEvent>
 }
 
-impl<'a> GameBoyState<'a> {
-    pub fn new(ppu: Rc<RefCell<dyn Ppu<'a> + 'a>>, emulation_event_sender: Sender<EmulationEvent>) -> Self {
+impl GameBoyState {
+    pub fn new(ppu: Rc<RefCell<dyn Ppu>>, emulation_event_sender: Sender<EmulationEvent>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(MemoryBus::new(

@@ -99,4 +99,4 @@ impl Steppable for NoGuiPpu {
     }
 }
 
-impl<'a> Ppu<'a> for NoGuiPpu {}
+impl Ppu for NoGuiPpu {}
