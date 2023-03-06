@@ -137,10 +137,10 @@ impl GameboyEmulator {
 
             let ppu = NoGuiPpu::new();
 
-            let mut gameboy_state = GameBoyState::new(Rc::new(RefCell::new(ppu)));
-            gameboy_state.on_serial_port_data(Box::new(move |byte: u8| {
-                event_sender.send(EmulationEvent::SerialData(byte)).expect("failed to send event");
-            }));
+            let mut gameboy_state = GameBoyState::new(
+                Rc::new(RefCell::new(ppu)),
+                event_sender
+            );
             gameboy_state
                 .load_cartridge(cartridge)
                 .map_err(|e| e.to_string())?;
@@ -163,7 +163,7 @@ impl GameboyEmulator {
         ),
         String,
     > {
-        let (_event_sender, event_receiver) = mpsc::channel();
+        let (event_sender, event_receiver) = mpsc::channel();
         let (control_event_sender, _control_event_receiver) =
             mpsc::channel::<EmulationControlEvent>();
 
@@ -192,11 +192,7 @@ impl GameboyEmulator {
             let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&texture_book.texture_creator)));
     
             // Initialize gameboy and load cartridge
-            let mut gameboy_state = GameBoyState::new(canvas_ppu.clone());
-            gameboy_state.on_serial_port_data(Box::new(|byte: u8| {
-                println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte);
-                io::stdout().flush().unwrap();
-            }));
+            let mut gameboy_state = GameBoyState::new(canvas_ppu.clone(), event_sender);
             gameboy_state
                 .load_cartridge(cartridge)
                 .map_err(|e| e.to_string())?;
@@ -340,6 +336,14 @@ impl GameboyEmulator {
     /// Runs the gameboy emulator with a gui.
     pub fn run(cartridge: Cartridge, debug: bool) -> Result<(), String> {
         let (join_handle, control_event_sender, event_receiver) = Self::gameboy_thread(cartridge)?;
+
+        thread::spawn(move || {
+            while let Ok(event) = event_receiver.recv() {
+                match event {
+                    EmulationEvent::SerialData(byte) => println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte)
+                }
+            }
+        });
 
         join_handle.join().expect("panic during execution")
     }
