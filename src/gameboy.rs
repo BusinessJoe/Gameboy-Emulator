@@ -16,6 +16,7 @@ use std::sync::mpsc::Sender;
 
 pub type Observer = Box<dyn FnMut(u8)>;
 
+#[derive(Debug)]
 pub struct GameboyDebugInfo {
     pc: u16,
     sp: u16,
@@ -24,6 +25,7 @@ pub struct GameboyDebugInfo {
     register_bc: u16,
     register_de: u16,
     register_hl: u16,
+    mem_TIMA_ff05: u8,
 }
 
 pub struct GameBoyState {
@@ -43,6 +45,7 @@ impl GameBoyState {
             ppu.clone(),
             joypad.clone(),
             timer.clone(),
+            emulation_event_sender.clone(),
         )));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
@@ -73,40 +76,34 @@ impl GameBoyState {
     }
 
     pub fn tick(&mut self) -> u64 {
+        self.emulation_event(EmulationEvent::Trace(self.debug_info()));
+
         let elapsed_cycles = self
             .cpu
             .borrow_mut()
             .step(&self)
             .expect("error while stepping cpu");
-        let elapsed_cycles = 4 * elapsed_cycles;
         {
             let mut ppu = self.ppu.borrow_mut();
             let mut timer = self.timer.borrow_mut();
             for _ in 0..elapsed_cycles {
                 ppu.step(&self).expect("error while stepping ppu");
-                timer.step(&self).expect("error while stepping ppu");
+                // Timer steps each T-cycle
+                for _ in 0..4 {
+                    timer.step(&self).expect("error while stepping timer");
+                }
             }
-            trace!("stepped ppu and timer for {} cycles", elapsed_cycles);
+            trace!("stepped ppu and timer for {} M-cycles", elapsed_cycles);
         }
 
-        // If data exists on the serial port, forward it to the observer
+        // If data exists on the serial port, output it as an emulation event
         let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data;
         for byte in serial_port_data.drain(..) {
             self.emulation_event(EmulationEvent::SerialData(byte));
         }
 
-        elapsed_cycles
-    }
-
-    pub fn tick_components(&self) {
-        self.ppu
-            .borrow_mut()
-            .step(&self)
-            .expect("error while stepping ppu");
-        self.timer
-            .borrow_mut()
-            .step(&self)
-            .expect("error while stepping timer");
+        // Return T-cycles
+        4 * elapsed_cycles
     }
 
     pub fn emulation_event(&self, event: EmulationEvent) {
@@ -131,6 +128,7 @@ impl GameBoyState {
             register_bc: u16::from_le_bytes([cpu.registers.b, cpu.registers.c]),
             register_de: u16::from_le_bytes([cpu.registers.d, cpu.registers.e]),
             register_hl: u16::from_le_bytes([cpu.registers.h, cpu.registers.l]),
+            mem_TIMA_ff05: self.memory_bus.borrow_mut().read_u8(0xff05).unwrap(),
         }
     }
 }

@@ -106,7 +106,7 @@ impl Steppable for Timer {
         &mut self,
         state: &crate::gameboy::GameBoyState,
     ) -> crate::error::Result<crate::component::ElapsedTime> {
-        // DIV register increments every 256 cycles
+        // DIV register increments every 256 T-cycles
         self.div_clocksum += 1;
         if self.div_clocksum == 256 {
             self.div_clocksum = 0;

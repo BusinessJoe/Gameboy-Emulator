@@ -4,9 +4,11 @@
  */
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::mpsc::Sender;
 
 use crate::cartridge::Cartridge;
 use crate::component::{Address, Addressable};
+use crate::emulator::events::EmulationEvent;
 use crate::error::Result;
 use crate::gameboy::Interrupt;
 use crate::joypad::Joypad;
@@ -22,6 +24,7 @@ pub struct MemoryBus {
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
+    emulation_event_sender: Sender<EmulationEvent>
 }
 
 impl MemoryBus {
@@ -29,6 +32,7 @@ impl MemoryBus {
         ppu: Rc<RefCell<dyn Ppu>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
+        emulation_event_sender: Sender<EmulationEvent>
     ) -> Self {
         let memory_bus = Self {
             cartridge: None,
@@ -37,6 +41,7 @@ impl MemoryBus {
             timer,
             data: [0; 0x10000],
             serial_port_data: Vec::new(),
+            emulation_event_sender,
         };
 
         memory_bus
@@ -75,6 +80,11 @@ impl MemoryBus {
         if address == 0xFF02 && value == 0x81 {
             self.serial_port_data.push(self.data[0xFF01]);
         }
+
+        if address == 0x8000 {
+            self.emulation_event(EmulationEvent::MemoryWrite { address: address, value: value });
+        }
+
         match address {
             0..=0x7fff => {
                 let cartridge = self.cartridge.as_mut().expect("No cartridge inserted");
@@ -98,6 +108,10 @@ impl MemoryBus {
         }
 
         Ok(())
+    }
+    
+    pub fn emulation_event(&self, event: EmulationEvent) {
+        self.emulation_event_sender.send(event);
     }
 
     // Initiate an OAM transfer

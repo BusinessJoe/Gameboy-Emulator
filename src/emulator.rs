@@ -1,16 +1,15 @@
 pub mod events;
 mod texture_book;
 
-use crate::cartridge::{self, Cartridge};
+use crate::cartridge::Cartridge;
 use crate::gameboy::Interrupt;
 use crate::gameboy::{GameBoyState, GameboyDebugInfo};
 use crate::joypad::JoypadInput;
 use crate::ppu::{CanvasPpu, NoGuiPpu};
-use log::{info, warn};
-use sdl2::render::{BlendMode, Canvas};
-use sdl2::video::{Window, WindowContext};
+use log::warn;
+use sdl2::render::BlendMode;
 use std::cell::RefCell;
-use std::io::{self, Write};
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
@@ -19,7 +18,6 @@ use strum::IntoEnumIterator;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 
 use self::events::{EmulationControlEvent, EmulationEvent};
@@ -146,7 +144,8 @@ impl GameboyEmulator {
                 .map_err(|e| e.to_string())?;
             let mut total_cycles: u128 = 0;
             loop {
-                emulator.update(&mut gameboy_state, total_cycles);
+                let elapsed_cycles = emulator.update(&mut gameboy_state, total_cycles);
+                total_cycles += elapsed_cycles as u128;
             }
         });
 
@@ -340,7 +339,8 @@ impl GameboyEmulator {
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {
                 match event {
-                    EmulationEvent::SerialData(byte) => println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte)
+                    EmulationEvent::SerialData(byte) => println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte),
+                    event => println!("{:?}", event),
                 }
             }
         });
