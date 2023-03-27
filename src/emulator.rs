@@ -346,17 +346,19 @@ impl GameboyEmulator {
                             println!("{:?}", debug_info);
                         }
                     }
-                    EmulationEvent::SerialData(byte) => println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte),
+                    EmulationEvent::SerialData(byte) => {
+                        println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte)
+                    }
                     EmulationEvent::Trace(debug_info) => {
                         if debug_info.interrupt_enabled {
                             println!("{:?}", debug_info);
                         }
-                    },
+                    }
                     EmulationEvent::Trace(debug_info) => {
                         if debug_info.interrupt_enabled {
                             println!("{:?}", debug_info);
                         }
-                    },
+                    }
                     event => println!("{:?}", event),
                 }
             }

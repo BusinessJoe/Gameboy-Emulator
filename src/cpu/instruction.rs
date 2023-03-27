@@ -950,7 +950,7 @@ impl CPU {
 
                 // Jump to starting address of interrupt
                 self.pc = address;
-            },
+            }
             Instruction::LD(target, source) => {
                 let value = source.get(self, memory_bus)?;
                 target.set(self, memory_bus, value)?

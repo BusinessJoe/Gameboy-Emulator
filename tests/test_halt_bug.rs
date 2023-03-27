@@ -1,6 +1,5 @@
 mod common;
 
-
 /* This test rom doesn't output anything to the serial port - I think I'll need to use the screen's output instead.
 use std::time::Duration;
 

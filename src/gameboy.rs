@@ -35,7 +35,7 @@ pub struct GameBoyState {
     pub joypad: Rc<RefCell<Joypad>>,
     pub timer: Rc<RefCell<Timer>>,
     pub memory_bus: Rc<RefCell<MemoryBus>>,
-    emulation_event_sender: Sender<EmulationEvent>
+    emulation_event_sender: Sender<EmulationEvent>,
 }
 
 impl GameBoyState {
