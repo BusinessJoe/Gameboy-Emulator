@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::component::{Addressable, ElapsedTime, Steppable};
 use crate::cpu::{instruction::*, register::*};
 use crate::error::Result;
@@ -10,7 +12,8 @@ pub struct CPU {
     pub pc: u16,
     pub(crate) interrupt_enabled: bool,
     pub(crate) halted: bool,
-    pub(crate) halt_bug_opcode: Option<u8>,
+    pub(crate) halt_bug_on_next_opcode: bool,
+    pub(crate) opcode_queue: VecDeque<u8>,
 }
 
 impl CPU {
@@ -21,7 +24,8 @@ impl CPU {
             pc: 0,
             interrupt_enabled: false,
             halted: false,
-            halt_bug_opcode: None,
+            halt_bug_on_next_opcode: false,
+            opcode_queue: VecDeque::new(),
         };
         cpu.emulate_bootrom();
         cpu
@@ -67,13 +71,8 @@ impl CPU {
             // Reset IME flag
             self.interrupt_enabled = false;
 
-            // Push PC onto stack. LSB is last/top of the stack.
-            let bytes = self.pc.to_le_bytes();
-            self.push(memory_bus, bytes[1]).unwrap();
-            self.push(memory_bus, bytes[0]).unwrap();
-
-            // Jump to starting address of interrupt
-            self.pc = address;
+            // Execute jump to interrupt vector instruction.
+            
         } else {
             debug!(
                 "ignoring interrupt {}",
@@ -114,15 +113,18 @@ impl CPU {
     }
 
     pub fn get_byte_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
-        let byte = match self.halt_bug_opcode {
+        let byte = match self.opcode_queue.pop_front() {
             Some(opcode) => {
-                self.halt_bug_opcode = None;
-                trace!("Read halt bug byte {:#04x}", opcode);
+                trace!("Read queued byte {:#04x}", opcode);
                 opcode
             }
             None => {
                 let byte = memory_bus.read_u8(self.pc.into())?;
                 trace!("Read byte {:#04x}", byte);
+                if self.halt_bug_on_next_opcode {
+                    self.opcode_queue.push_back(byte);
+                    self.halt_bug_on_next_opcode = false;
+                }
                 self.pc = self.pc.wrapping_add(1);
                 byte
             }

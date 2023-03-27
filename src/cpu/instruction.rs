@@ -7,6 +7,9 @@ use strum_macros::AsRefStr;
 #[allow(non_camel_case_types)]
 #[derive(AsRefStr)]
 pub enum Instruction {
+    // Internal instruction to jump to an interrupt vector. Has no associated opcode.
+    INTERNAL_JUMP_INTERRUPT(u16),
+
     /* LD nn,n */
     LD(Box<dyn CPUWritable<u8>>, Box<dyn CPUReadable<u8>>),
     LD_16(Box<dyn CPUWritable<u16>>, Box<dyn CPUReadable<u16>>),
@@ -939,6 +942,15 @@ impl CPU {
         debug!("Executing instruction {}", instruction.as_ref());
         let mut branch_status = BranchStatus::NoBranch;
         match instruction {
+            Instruction::INTERNAL_JUMP_INTERRUPT(address) => {
+                // Push PC onto stack. LSB is last/top of the stack.
+                let bytes = self.pc.to_le_bytes();
+                self.push(memory_bus, bytes[1]).unwrap();
+                self.push(memory_bus, bytes[0]).unwrap();
+
+                // Jump to starting address of interrupt
+                self.pc = address;
+            },
             Instruction::LD(target, source) => {
                 let value = source.get(self, memory_bus)?;
                 target.set(self, memory_bus, value)?
@@ -1208,7 +1220,7 @@ impl CPU {
                     let byte = memory_bus.read_u8(self.pc.into())?;
                     info!("Performing halt bug with byte {:#04x}", byte);
                     println!("Performing halt bug with byte {:#04x}", byte);
-                    self.halt_bug_opcode = Some(byte);
+                    self.halt_bug_on_next_opcode = true;
                 }
             }
             Instruction::STOP => error!("STOP is not implemented"),
