@@ -43,15 +43,16 @@ impl CPU {
     }
 
     /// Called at the beginning of an interrupt helper
-    fn handle_single_interrupt(
+    fn check_single_interrupt(
         &mut self,
         memory_bus: &mut MemoryBus,
         bit: u8,
         address: u16,
-    ) -> Result<()> {
+    ) -> Result<u8> {
         // Check IME flag and relevant bit in IE flag.
-        let ie_flag = memory_bus.read_u8(address.into())?;
-        if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) {
+        let ie_flag = memory_bus.read_u8(0xffff)?;
+        let if_flag = memory_bus.read_u8(0xff0f)?;
+        if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) && ((if_flag >> bit) & 1 == 1) {
             info!(
                 "Handling interrupt: {}",
                 match bit {
@@ -72,7 +73,10 @@ impl CPU {
             self.interrupt_enabled = false;
 
             // Execute jump to interrupt vector instruction.
-            
+            self.execute_instruction(memory_bus, Instruction::INTERNAL_JUMP_INTERRUPT(address))?;
+
+            // Routine takes 5 M-cycles
+            return Ok(5);
         } else {
             debug!(
                 "ignoring interrupt {}",
@@ -85,12 +89,11 @@ impl CPU {
                     _ => "UNKNOWN",
                 }
             );
+            return Ok(0);
         }
-
-        Ok(())
     }
 
-    fn handle_interrupts(&mut self, memory_bus: &mut MemoryBus) -> Result<()> {
+    fn check_interrupts(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
         // If IE and IF
         if memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0 {
             // Unhalt
@@ -102,14 +105,17 @@ impl CPU {
             for bit in 0..=4 {
                 if self.interrupt_enabled {
                     let address = 0x40 + bit * 0x8;
-                    self.handle_single_interrupt(memory_bus, bit, address.into())?;
+                    let elapsed_cycles = self.check_single_interrupt(memory_bus, bit, address.into())?;
+                    if elapsed_cycles > 0 {
+                        return Ok(elapsed_cycles);
+                    }
                 } else {
                     // info!("IME not set");
                 }
             }
         }
 
-        Ok(())
+        Ok(0)
     }
 
     pub fn get_byte_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
@@ -208,7 +214,7 @@ impl Steppable for CPU {
     fn step(&mut self, state: &crate::gameboy::GameBoyState) -> Result<ElapsedTime> {
         let mut memory_bus = state.memory_bus.borrow_mut();
 
-        let elapsed_cycles = if !self.halted {
+        let mut elapsed_cycles = if !self.halted {
             // Get and execute opcode
             let pc = self.pc;
             let opcode = self.get_byte_from_pc(&mut memory_bus)?;
@@ -246,7 +252,7 @@ impl Steppable for CPU {
             1
         };
 
-        self.handle_interrupts(&mut memory_bus)?;
+        elapsed_cycles += self.check_interrupts(&mut memory_bus)?;
 
         Ok(elapsed_cycles.into())
     }

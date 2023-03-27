@@ -338,8 +338,14 @@ impl GameboyEmulator {
 
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {
+                continue;
                 match event {
                     EmulationEvent::SerialData(byte) => println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte),
+                    EmulationEvent::Trace(debug_info) => {
+                        if debug_info.interrupt_enabled {
+                            println!("{:?}", debug_info);
+                        }
+                    },
                     event => println!("{:?}", event),
                 }
             }

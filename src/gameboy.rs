@@ -18,14 +18,15 @@ pub type Observer = Box<dyn FnMut(u8)>;
 
 #[derive(Debug)]
 pub struct GameboyDebugInfo {
-    pc: u16,
-    sp: u16,
-    register_a: u8,
-    register_f: [bool; 4],
-    register_bc: u16,
-    register_de: u16,
-    register_hl: u16,
-    mem_TIMA_ff05: u8,
+    pub pc: u16,
+    pub sp: u16,
+    pub register_a: u8,
+    pub register_f: [bool; 4],
+    pub register_bc: u16,
+    pub register_de: u16,
+    pub register_hl: u16,
+    pub mem_TIMA_ff05: u8,
+    pub interrupt_enabled: bool,
 }
 
 pub struct GameBoyState {
@@ -83,13 +84,14 @@ impl GameBoyState {
             .borrow_mut()
             .step(&self)
             .expect("error while stepping cpu");
+
         {
             let mut ppu = self.ppu.borrow_mut();
             let mut timer = self.timer.borrow_mut();
             for _ in 0..elapsed_cycles {
-                ppu.step(&self).expect("error while stepping ppu");
-                // Timer steps each T-cycle
+                // Timer and ppu step each T-cycle
                 for _ in 0..4 {
+                    ppu.step(&self).expect("error while stepping ppu");
                     timer.step(&self).expect("error while stepping timer");
                 }
             }
@@ -129,6 +131,7 @@ impl GameBoyState {
             register_de: u16::from_le_bytes([cpu.registers.d, cpu.registers.e]),
             register_hl: u16::from_le_bytes([cpu.registers.h, cpu.registers.l]),
             mem_TIMA_ff05: self.memory_bus.borrow_mut().read_u8(0xff05).unwrap(),
+            interrupt_enabled: cpu.interrupt_enabled,
         }
     }
 }

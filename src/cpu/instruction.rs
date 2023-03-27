@@ -360,7 +360,7 @@ pub enum Flag {
     C,
 }
 
-enum BranchStatus {
+pub enum BranchStatus {
     Branch,
     NoBranch,
 }
@@ -934,7 +934,7 @@ impl CPU {
         }
     }
 
-    fn execute(
+    pub fn execute_instruction(
         &mut self,
         memory_bus: &mut MemoryBus,
         instruction: Instruction,
@@ -975,26 +975,26 @@ impl CPU {
             Instruction::LDD_A_FROM_HL => {
                 let value = WordRegister::HL.into_address().get(self, memory_bus)?;
                 Register::A.set(self, memory_bus, value)?;
-                self.execute(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
+                self.execute_instruction(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
             }
             Instruction::LDD_A_INTO_HL => {
                 let value = Register::A.get(self, memory_bus)?;
                 WordRegister::HL
                     .into_address()
                     .set(self, memory_bus, value)?;
-                self.execute(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
+                self.execute_instruction(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
             }
             Instruction::LDI_A_FROM_HL => {
                 let value = WordRegister::HL.into_address().get(self, memory_bus)?;
                 Register::A.set(self, memory_bus, value)?;
-                self.execute(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
+                self.execute_instruction(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
             }
             Instruction::LDI_A_INTO_HL => {
                 let value = Register::A.get(self, memory_bus)?;
                 WordRegister::HL
                     .into_address()
                     .set(self, memory_bus, value)?;
-                self.execute(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
+                self.execute_instruction(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
             }
             Instruction::PUSH(pair) => {
                 let reg_value = self.get_word_register(pair.into());
@@ -1244,7 +1244,7 @@ impl CPU {
                 target.set(self, memory_bus, result)?;
             }
             Instruction::RLCA => {
-                self.execute(memory_bus, Instruction::RLC(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RLC(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RL(target) => {
@@ -1261,7 +1261,7 @@ impl CPU {
                 self.registers.f.carry = bit7 == 1;
             }
             Instruction::RLA => {
-                self.execute(memory_bus, Instruction::RL(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RL(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RRC(target) => {
@@ -1277,7 +1277,7 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::RRCA => {
-                self.execute(memory_bus, Instruction::RRC(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RRC(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RR(target) => {
@@ -1294,7 +1294,7 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::RRA => {
-                self.execute(memory_bus, Instruction::RR(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RR(Box::new(Register::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::SLA(target) => {
@@ -1368,7 +1368,7 @@ impl CPU {
             }
             Instruction::JP_CONDITION(flag, addr) => {
                 if self.test_flag(flag) {
-                    self.execute(memory_bus, Instruction::JP(addr))?;
+                    self.execute_instruction(memory_bus, Instruction::JP(addr))?;
                     branch_status = BranchStatus::Branch;
                 }
             }
@@ -1383,7 +1383,7 @@ impl CPU {
             }
             Instruction::JR_CONDITION(flag, imm) => {
                 if self.test_flag(flag) {
-                    self.execute(memory_bus, Instruction::JR(imm))?;
+                    self.execute_instruction(memory_bus, Instruction::JR(imm))?;
                     branch_status = BranchStatus::Branch;
                 }
             }
@@ -1402,7 +1402,7 @@ impl CPU {
             }
             Instruction::CALL_CONDITION(flag, addr) => {
                 if self.test_flag(flag) {
-                    self.execute(memory_bus, Instruction::CALL(addr))?;
+                    self.execute_instruction(memory_bus, Instruction::CALL(addr))?;
                     branch_status = BranchStatus::Branch;
                 }
             }
@@ -1423,13 +1423,13 @@ impl CPU {
             }
             Instruction::RET_CONDITION(flag) => {
                 if self.test_flag(flag) {
-                    self.execute(memory_bus, Instruction::RET)?;
+                    self.execute_instruction(memory_bus, Instruction::RET)?;
                     branch_status = BranchStatus::Branch;
                 }
             }
             Instruction::RETI => {
-                self.execute(memory_bus, Instruction::EI)?;
-                self.execute(memory_bus, Instruction::RET)?;
+                self.execute_instruction(memory_bus, Instruction::EI)?;
+                self.execute_instruction(memory_bus, Instruction::RET)?;
             }
         }
 
@@ -1878,7 +1878,7 @@ impl CPU {
             0xFF => Instruction::RST(Immediate(0x38)),
         };
 
-        let branch_status = self.execute(memory_bus, instruction)?;
+        let branch_status = self.execute_instruction(memory_bus, instruction)?;
         match branch_status {
             BranchStatus::NoBranch => Ok(get_opcode_delay(opcode)),
             BranchStatus::Branch => Ok(get_branched_opcode_delay(opcode)),
@@ -2176,7 +2176,7 @@ impl CPU {
             0xFF => Instruction::SET(7, Box::new(Register::A)),
         };
 
-        self.execute(memory_bus, instruction)?;
+        self.execute_instruction(memory_bus, instruction)?;
         Ok(get_cb_opcode_delay(opcode))
     }
 }
