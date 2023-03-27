@@ -65,6 +65,10 @@ pub struct CanvasPpu {
     sprite_tiles_table: Vec<u8>,
 
     lcd: lcd::Lcd,
+
+    /// Register values
+    scy: u8,
+    scx: u8,
 }
 
 impl CanvasPpu {
@@ -86,6 +90,9 @@ impl CanvasPpu {
             background_map: vec![0; 32 * 32],
             sprite_tiles_table: vec![0; 160],
             lcd: lcd::Lcd::new(),
+
+            scy: 0,
+            scx: 0,
         };
         ppu
     }
@@ -223,6 +230,8 @@ impl CanvasPpu {
             0xfe00..=0xfe9f => self.sprite_tiles_table[address - 0xfe00],
             0xff40 => self.lcd.lcd_control.read(),
             0xff41 => self.lcd.stat.0,
+            0xff42 => self.scy,
+            0xff43 => self.scx,
             0xff44 => self.lcd.ly,
             0xff45 => self.lcd.lyc,
             _ => return Err(Error::new("Invalid address")),
@@ -246,6 +255,8 @@ impl CanvasPpu {
             }
             0xff40 => self.lcd.lcd_control.write(data),
             0xff41 => self.lcd.stat.0 = data,
+            0xff42 => self.scy = data,
+            0xff43 => self.scx = data,
             0xff45 => self.lcd.lyc = data,
             _ => return Err(Error::new("Invalid address")),
         }
@@ -260,6 +271,87 @@ impl CanvasPpu {
         texture_canvas
             .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)))
             .map_err(|e| Error::new(&e.to_string()))
+    }
+
+    pub fn render_main_screen(
+        &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
+        background_map: &sdl2::render::Texture,
+    ) -> Result<()> {
+        // Due to the viewport offset, the screen is split into four rectangles.
+        let top_left = Rect::new(
+            self.scx.into(),
+            self.scy.into(),
+            std::cmp::min(160, 256 - u32::from(self.scx)),
+            std::cmp::min(144, 256 - u32::from(self.scy)),
+        );
+        texture_canvas
+            .copy(
+                background_map,
+                top_left,
+                Rect::new(0, 0, top_left.width(), top_left.height()),
+            )
+            .map_err(|e| Error::new(&e.to_string()))?;
+
+        if top_left.width() < 160 {
+            let top_right = Rect::new(
+                0,
+                self.scy.into(),
+                160 - top_left.width(),
+                top_left.height(),
+            );
+            texture_canvas
+                .copy(
+                    background_map,
+                    top_right,
+                    Rect::new(
+                        top_left.width().try_into().unwrap(),
+                        0,
+                        top_right.width(),
+                        top_right.height(),
+                    ),
+                )
+                .map_err(|e| Error::new(&e.to_string()))?;
+        }
+
+        if top_left.height() < 144 {
+            let bottom_left = Rect::new(
+                self.scx.into(),
+                0,
+                top_left.width(),
+                144 - top_left.height(),
+            );
+            texture_canvas
+                .copy(
+                    background_map,
+                    bottom_left,
+                    Rect::new(
+                        0,
+                        top_left.height().try_into().unwrap(),
+                        bottom_left.width(),
+                        bottom_left.height(),
+                    ),
+                )
+                .map_err(|e| Error::new(&e.to_string()))?;
+        }
+
+        if top_left.width() < 160 && top_left.height() < 144 {
+            let bottom_right = Rect::new(0, 0, 160 - top_left.width(), 144 - top_left.height());
+            texture_canvas
+                .copy(
+                    background_map,
+                    bottom_right,
+                    Rect::new(
+                        top_left.width().try_into().unwrap(),
+                        top_left.height().try_into().unwrap(),
+                        bottom_right.width(),
+                        bottom_right.height(),
+                    ),
+                )
+                .map_err(|e| Error::new(&e.to_string()))?;
+        }
+
+        Ok(())
     }
 
     pub fn render_background_map(

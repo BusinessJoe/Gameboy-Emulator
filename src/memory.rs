@@ -24,7 +24,7 @@ pub struct MemoryBus {
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
-    emulation_event_sender: Sender<EmulationEvent>
+    emulation_event_sender: Sender<EmulationEvent>,
 }
 
 impl MemoryBus {
@@ -32,7 +32,7 @@ impl MemoryBus {
         ppu: Rc<RefCell<dyn Ppu>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
-        emulation_event_sender: Sender<EmulationEvent>
+        emulation_event_sender: Sender<EmulationEvent>,
     ) -> Self {
         let memory_bus = Self {
             cartridge: None,
@@ -68,9 +68,8 @@ impl MemoryBus {
             0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
             // IF register always has top 3 bits high
             0xff0f => Ok(self.data[address] | 0xe0),
-            // LCD Control register (LCDC)
-            0xff40 => self.ppu.borrow_mut().read_u8(address),
-            0xff44 => self.ppu.borrow_mut().read_u8(address),
+            // PPU mappings
+            0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
             0xff4d => Ok(0xff),
             _ => Ok(self.data[address]),
         }
@@ -82,7 +81,10 @@ impl MemoryBus {
         }
 
         if address == 0x8000 {
-            self.emulation_event(EmulationEvent::MemoryWrite { address: address, value: value });
+            self.emulation_event(EmulationEvent::MemoryWrite {
+                address: address,
+                value: value,
+            });
         }
 
         match address {
@@ -100,8 +102,8 @@ impl MemoryBus {
             0xff00 => self.joypad.borrow_mut().write_u8(address, value)?,
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
-            // LCD Control register (LCDC)
-            0xff40 => self.ppu.borrow_mut().write_u8(address, value)?,
+            // PPU mappings
+            0xff40..=0xff45 => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
             _ => self.data[address] = value,
@@ -109,7 +111,7 @@ impl MemoryBus {
 
         Ok(())
     }
-    
+
     pub fn emulation_event(&self, event: EmulationEvent) {
         self.emulation_event_sender.send(event);
     }

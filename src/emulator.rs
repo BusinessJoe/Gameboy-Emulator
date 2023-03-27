@@ -72,13 +72,6 @@ fn update_frame(
         .map_err(|e| e.to_string())?;
 
     canvas
-        .with_texture_canvas(&mut texture_book.lcd_display, |texture_canvas| {
-            texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(255, 0, 0, 255));
-            texture_canvas.clear();
-        })
-        .map_err(|e| e.to_string())?;
-
-    canvas
         .with_texture_canvas(&mut texture_book.sprite_map, |mut texture_canvas| {
             texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 0));
             texture_canvas.clear();
@@ -89,13 +82,21 @@ fn update_frame(
         })
         .map_err(|e| e.to_string())?;
 
+    canvas
+        .with_texture_canvas(&mut texture_book.main_screen, |texture_canvas| {
+            canvas_ppu
+                .render_main_screen(texture_canvas, &texture_book.background_map)
+                .expect("error rendering main screen");
+        })
+        .map_err(|e| e.to_string())?;
+
     canvas.copy(
         &texture_book.background_map,
         None,
         Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
     )?;
     canvas.copy(
-        &texture_book.lcd_display,
+        &texture_book.main_screen,
         None,
         Some(Rect::new(128 + 32 * 8, 0, 160, 144)),
     )?;
@@ -135,10 +136,7 @@ impl GameboyEmulator {
 
             let ppu = NoGuiPpu::new();
 
-            let mut gameboy_state = GameBoyState::new(
-                Rc::new(RefCell::new(ppu)),
-                event_sender
-            );
+            let mut gameboy_state = GameBoyState::new(Rc::new(RefCell::new(ppu)), event_sender);
             gameboy_state
                 .load_cartridge(cartridge)
                 .map_err(|e| e.to_string())?;
@@ -171,38 +169,38 @@ impl GameboyEmulator {
 
             let sdl_context = sdl2::init()?;
             let video_subsystem = sdl_context.video()?;
-    
+
             let window = video_subsystem
                 .window("Gameboy Emulator", 1200, 900)
                 .position_centered()
                 .opengl()
                 .build()
                 .map_err(|e| e.to_string())?;
-    
+
             let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
             canvas
                 .set_logical_size(128 + 32 * 8 + 160, 32 * 8)
                 .map_err(|e| e.to_string())?;
             canvas.set_blend_mode(BlendMode::Blend);
             let mut texture_book = TextureBook::new(&canvas)?;
-    
+
             let canvas = Rc::new(RefCell::new(canvas));
-    
+
             let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&texture_book.texture_creator)));
-    
+
             // Initialize gameboy and load cartridge
             let mut gameboy_state = GameBoyState::new(canvas_ppu.clone(), event_sender);
             gameboy_state
                 .load_cartridge(cartridge)
                 .map_err(|e| e.to_string())?;
-    
+
             // Keep track of total cycles and current cycles in current frame
             let mut total_cycles: u128 = 0;
             let mut frame_cycles = 0;
-    
+
             // Start timing frames
             let mut start = Instant::now();
-    
+
             'mainloop: loop {
                 for event in sdl_context.event_pump()?.poll_iter() {
                     match event {
@@ -245,13 +243,13 @@ impl GameboyEmulator {
                         _ => {}
                     }
                 }
-    
+
                 for _ in 0..1000 {
                     let elapsed_cycles = emulator.update(&mut gameboy_state, total_cycles);
                     total_cycles += elapsed_cycles as u128;
                     frame_cycles += elapsed_cycles;
                 }
-    
+
                 // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
                 // Dividing by 4 and 60 should roughly give the number of machine cycles that
                 // need to run per frame at 60fps.
@@ -261,9 +259,9 @@ impl GameboyEmulator {
                         &mut canvas_ppu.borrow_mut(),
                         &mut texture_book,
                     )?;
-    
+
                     frame_cycles -= 4_194_304 / 4 / 60;
-    
+
                     let duration = start.elapsed();
                     if duration > Duration::from_millis(1000 / 60) {
                         warn!("Time elapsed this frame is: {:?} > 16ms", duration);
@@ -271,14 +269,14 @@ impl GameboyEmulator {
                         //std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
                     }
                     start = Instant::now();
-    
+
                     canvas.borrow_mut().present();
                 }
             }
 
             Ok(())
         });
-            
+
         Ok((join_handle, control_event_sender, event_receiver))
     }
 
@@ -340,7 +338,20 @@ impl GameboyEmulator {
             while let Ok(event) = event_receiver.recv() {
                 continue;
                 match event {
+                    EmulationEvent::SerialData(byte) => {
+                        println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte)
+                    }
+                    EmulationEvent::Trace(debug_info) => {
+                        if debug_info.interrupt_enabled {
+                            println!("{:?}", debug_info);
+                        }
+                    }
                     EmulationEvent::SerialData(byte) => println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte),
+                    EmulationEvent::Trace(debug_info) => {
+                        if debug_info.interrupt_enabled {
+                            println!("{:?}", debug_info);
+                        }
+                    },
                     EmulationEvent::Trace(debug_info) => {
                         if debug_info.interrupt_enabled {
                             println!("{:?}", debug_info);

@@ -7,8 +7,8 @@ use sdl2::video::Window;
 pub struct TextureBook {
     pub texture_creator: TextureCreator<sdl2::video::WindowContext>,
     pub background_map: Texture,
-    pub lcd_display: Texture,
     pub sprite_map: Texture,
+    pub main_screen: Texture,
 }
 
 impl TextureBook {
@@ -20,16 +20,16 @@ impl TextureBook {
         let mut sprite_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 160, 144)
             .map_err(|e| e.to_string())?;
-        let lcd_display = creator
+        sprite_map.set_blend_mode(BlendMode::Blend);
+        let main_screen = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 160, 144)
             .map_err(|e| e.to_string())?;
-        sprite_map.set_blend_mode(BlendMode::Blend);
 
         Ok(TextureBook {
             texture_creator: creator,
             background_map,
-            lcd_display,
             sprite_map,
+            main_screen,
         })
     }
 }
