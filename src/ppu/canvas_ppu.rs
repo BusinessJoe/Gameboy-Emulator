@@ -184,23 +184,19 @@ impl CanvasPpu {
 
         texture_canvas
             .copy(&self.tile_map, Some(source_rect), Some(dest_rect))
-            .map_err(|e| Error::new(&e.to_string()))
+            .map_err(|e| Error::from_message(e))
     }
 
-    /// x is tile's horizontal position, y is tile's vertical position.
-    /// Keep in mind that the values in OAM are x + 8 and y + 16.
-    /// If bottom_half is true, this method treats the provided object as the top half of a 16 row sprite to
-    /// act on data corresponding to the bottom half.
+    /// Copies an 8x16 sprite described by oam data from the oam tile map onto the canvas.
     pub fn set_sprite(
         &mut self,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
         oam_data: &OamData,
-        tile_index_offset: i8,
-        y_offset: i32,
     ) -> Result<()> {
+        // Position values in OAM data are x + 8 and y + 16. Account for that here.
         let x: i32 = i32::from(oam_data.x_pos()) - 8;
-        let y: i32 = i32::from(oam_data.y_pos()) - 16 + y_offset;
-        let tile_index = (oam_data.tile_index() as i16 + tile_index_offset as i16) as u8;
+        let y: i32 = i32::from(oam_data.y_pos()) - 16;
+        let tile_index = oam_data.tile_index();
 
         let source_rect = Rect::new(
             (tile_index as i32 % 16) * 8,
@@ -220,7 +216,75 @@ impl CanvasPpu {
                 oam_data.x_flip(),
                 oam_data.y_flip(),
             )
-            .map_err(|e| Error::new(&e.to_string()))
+            .map_err(|e| Error::from_message(e))
+    }
+
+    /// Copies an 8x16 sprite described by oam data from the oam tile map onto the canvas.
+    pub fn set_sprite_16(
+        &mut self,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
+        oam_data: &OamData,
+    ) -> Result<()> {
+        let (top_idx, bottom_idx) = if !oam_data.y_flip() {
+            oam_data.tile_index_16()
+        } else {
+            let (top, bottom) = oam_data.tile_index_16();
+            (bottom, top)
+        };
+
+        // top half 
+        let source_rect = Rect::new(
+            (top_idx as i32 % 16) * 8,
+            top_idx as i32 / 16 * 8,
+            8,
+            8,
+        );
+        // Position values in OAM data are x + 8 and y + 16. Account for that here.
+        let dest_rect = Rect::new(
+            i32::from(oam_data.x_pos()) - 8, 
+            i32::from(oam_data.y_pos()) - 16, 
+            8, 
+            8);
+
+        texture_canvas
+        .copy_ex(
+            &self.oam_tile_map,
+            Some(source_rect),
+            Some(dest_rect),
+            0.,
+            None,
+            oam_data.x_flip(),
+            oam_data.y_flip(),
+        )
+        .map_err(|e| Error::from_message(e))?;
+
+        // bottom half
+        let source_rect = Rect::new(
+            (bottom_idx as i32 % 16) * 8,
+            bottom_idx as i32 / 16 * 8,
+            8,
+            8,
+        );
+        // Position values in OAM data are x + 8 and y + 16. Account for that here.
+        let dest_rect = Rect::new(
+            i32::from(oam_data.x_pos()) - 8, 
+            i32::from(oam_data.y_pos()) - 16 + 8, // bottom half is 8 pixels (1 tile) lower 
+            8, 
+            8);
+
+        texture_canvas
+        .copy_ex(
+            &self.oam_tile_map,
+            Some(source_rect),
+            Some(dest_rect),
+            0.,
+            None,
+            oam_data.x_flip(),
+            oam_data.y_flip(),
+        )
+        .map_err(|e| Error::from_message(e))?;
+
+        Ok(())
     }
 
     fn _read(&mut self, address: Address) -> Result<u8> {
@@ -234,7 +298,7 @@ impl CanvasPpu {
             0xff43 => self.scx,
             0xff44 => self.lcd.ly,
             0xff45 => self.lcd.lyc,
-            _ => return Err(Error::new("Invalid address")),
+            _ => return Err(Error::from_address_with_source(address, "ppu read".to_string())),
         };
 
         Ok(value)
@@ -257,8 +321,9 @@ impl CanvasPpu {
             0xff41 => self.lcd.stat.0 = data,
             0xff42 => self.scy = data,
             0xff43 => self.scx = data,
+            0xff44 => (), // ly: lcd y coordinate is read only
             0xff45 => self.lcd.lyc = data,
-            _ => return Err(Error::new("Invalid address")),
+            _ => return Err(Error::from_address_with_source(address, "ppu write".to_string())),
         }
 
         Ok(())
@@ -270,7 +335,7 @@ impl CanvasPpu {
     ) -> Result<()> {
         texture_canvas
             .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)))
-            .map_err(|e| Error::new(&e.to_string()))
+            .map_err(|e| Error::from_message(e))
     }
 
     pub fn render_main_screen(
@@ -291,7 +356,7 @@ impl CanvasPpu {
                 top_left,
                 Rect::new(0, 0, top_left.width(), top_left.height()),
             )
-            .map_err(|e| Error::new(&e.to_string()))?;
+            .map_err(|e| Error::from_message(e))?;
 
         if top_left.width() < 160 {
             let top_right = Rect::new(
@@ -311,7 +376,7 @@ impl CanvasPpu {
                         top_right.height(),
                     ),
                 )
-                .map_err(|e| Error::new(&e.to_string()))?;
+                .map_err(|e| Error::from_message(e))?;
         }
 
         if top_left.height() < 144 {
@@ -332,7 +397,7 @@ impl CanvasPpu {
                         bottom_left.height(),
                     ),
                 )
-                .map_err(|e| Error::new(&e.to_string()))?;
+                .map_err(|e| Error::from_message(e))?;
         }
 
         if top_left.width() < 160 && top_left.height() < 144 {
@@ -348,7 +413,7 @@ impl CanvasPpu {
                         bottom_right.height(),
                     ),
                 )
-                .map_err(|e| Error::new(&e.to_string()))?;
+                .map_err(|e| Error::from_message(e))?;
         }
 
         Ok(())
@@ -385,16 +450,9 @@ impl CanvasPpu {
 
             if !self.lcd.lcd_control.obj_size {
                 // 8x8
-                self.set_sprite(texture_canvas, &oam_data, 0, 0)?;
+                self.set_sprite(texture_canvas, &oam_data)?;
             } else {
-                // 8x16
-                if !oam_data.y_flip() {
-                    self.set_sprite(texture_canvas, &oam_data, 0, 0)?;
-                    self.set_sprite(texture_canvas, &oam_data, 1, 8)?;
-                } else {
-                    self.set_sprite(texture_canvas, &oam_data, 1, 0)?;
-                    self.set_sprite(texture_canvas, &oam_data, 0, 8)?;
-                }
+                self.set_sprite_16(texture_canvas, &oam_data)?;
             }
         }
 

@@ -42,6 +42,11 @@ impl OamData {
         self.data[2]
     }
 
+    /// Returns the tile indices of this sprite in 8x16 mode. (top, bottom)
+    fn tile_index_16(&self) -> (u8, u8) {
+        (self.data[2] & 0xfe, self.data[2] | 0x01)
+    }
+
     fn palette_number(&self) -> u8 {
         self.data[3] >> 4 & 1
     }

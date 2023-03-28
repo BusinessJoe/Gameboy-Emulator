@@ -208,7 +208,15 @@ impl GameboyEmulator {
                             keycode: Some(Keycode::Escape),
                             ..
                         }
-                        | Event::Quit { .. } => break 'mainloop,
+                        | Event::Quit { .. } => {
+                            /*
+                            let mut f = std::fs::File::create("events.log").expect("Unable to create file");
+                            for event in gameboy_state.event_queue.iter() {
+                                writeln!(f, "{:?}", event).expect("unable to write to event log file");
+                            }
+                             */
+                            break 'mainloop
+                        },
                         Event::KeyDown {
                             keycode: Some(keycode),
                             ..
@@ -336,28 +344,12 @@ impl GameboyEmulator {
 
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {
-                continue;
                 match event {
                     EmulationEvent::SerialData(byte) => {
                         println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte)
                     }
                     EmulationEvent::Trace(debug_info) => {
-                        if debug_info.interrupt_enabled {
-                            println!("{:?}", debug_info);
-                        }
-                    }
-                    EmulationEvent::SerialData(byte) => {
-                        println!("serial data: {}/{}/0x{:x}", byte as char, byte, byte)
-                    }
-                    EmulationEvent::Trace(debug_info) => {
-                        if debug_info.interrupt_enabled {
-                            println!("{:?}", debug_info);
-                        }
-                    }
-                    EmulationEvent::Trace(debug_info) => {
-                        if debug_info.interrupt_enabled {
-                            println!("{:?}", debug_info);
-                        }
+                        log::trace!("{:?}", debug_info);
                     }
                     event => println!("{:?}", event),
                 }

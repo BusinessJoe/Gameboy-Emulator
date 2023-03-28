@@ -8,6 +8,7 @@ use crate::memory::MemoryBus;
 use crate::ppu::Ppu;
 use crate::timer::Timer;
 use core::fmt;
+use std::collections::VecDeque;
 use log::trace;
 use std::cell::RefCell;
 use std::fs;
@@ -16,9 +17,10 @@ use std::sync::mpsc::Sender;
 
 pub type Observer = Box<dyn FnMut(u8)>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GameboyDebugInfo {
     pub pc: u16,
+    pub opcode: u8, // opcode at pc
     pub sp: u16,
     pub register_a: u8,
     pub register_f: [bool; 4],
@@ -36,6 +38,7 @@ pub struct GameBoyState {
     pub timer: Rc<RefCell<Timer>>,
     pub memory_bus: Rc<RefCell<MemoryBus>>,
     emulation_event_sender: Sender<EmulationEvent>,
+    pub event_queue: VecDeque<EmulationEvent>,
 }
 
 impl GameBoyState {
@@ -55,6 +58,7 @@ impl GameBoyState {
             timer,
             memory_bus: memory_bus.clone(),
             emulation_event_sender,
+            event_queue: VecDeque::new(),
         }
     }
 
@@ -83,7 +87,8 @@ impl GameBoyState {
             .cpu
             .borrow_mut()
             .step(&self)
-            .expect("error while stepping cpu");
+            .map_err(|e| println!("{}", e))
+            .unwrap();
 
         {
             let mut ppu = self.ppu.borrow_mut();
@@ -99,7 +104,7 @@ impl GameBoyState {
         }
 
         // If data exists on the serial port, output it as an emulation event
-        let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data;
+        let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data.split_off(0);
         for byte in serial_port_data.drain(..) {
             self.emulation_event(EmulationEvent::SerialData(byte));
         }
@@ -108,7 +113,14 @@ impl GameBoyState {
         4 * elapsed_cycles
     }
 
-    pub fn emulation_event(&self, event: EmulationEvent) {
+    pub fn emulation_event(&mut self, event: EmulationEvent) {
+        // store most recent n events
+        /*
+        if self.event_queue.len() > 1_000_000 {
+            self.event_queue.pop_front();
+        }
+        self.event_queue.push_back(event.clone());
+        */
         self.emulation_event_sender.send(event);
     }
 
@@ -122,8 +134,11 @@ impl GameBoyState {
             cpu.registers.f.carry,
         ];
 
+        let opcode = self.memory_bus.borrow_mut().read_u8(cpu.pc.into()).unwrap();
+
         GameboyDebugInfo {
             pc: cpu.pc,
+            opcode,
             sp: cpu.sp,
             register_a: cpu.registers.a,
             register_f,

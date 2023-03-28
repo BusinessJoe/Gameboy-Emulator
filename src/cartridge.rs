@@ -87,7 +87,7 @@ impl MemoryBankController for NoMbc {
         ram: &mut [u8],
     ) -> Result<(), AddressingError> {
         if let Some(elem) = rom.get_mut(address) {
-            *elem = value;
+            // ignore writes to rom
             Ok(())
         } else {
             Err(AddressingError(address))

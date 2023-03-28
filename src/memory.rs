@@ -48,11 +48,7 @@ impl MemoryBus {
     }
 
     fn _read(&mut self, address: Address) -> Result<u8> {
-        if address == 0x8ce0 {
-            println!("Reading correct tile");
-        }
-
-        match address {
+        let byte = match address {
             0..=0x7fff => {
                 let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
                 let value = cartridge.read(address).expect("Error reading cartridge");
@@ -71,20 +67,20 @@ impl MemoryBus {
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
             0xff4d => Ok(0xff),
-            _ => Ok(self.data[address]),
-        }
+            _ => match self.data.get(address) {
+                Some(byte) => Ok(*byte),
+                None => Ok(0xff)
+            }
+        };
+
+        debug_assert!(byte.is_ok());
+
+        byte
     }
 
     fn _write(&mut self, address: Address, value: u8) -> Result<()> {
         if address == 0xFF02 && value == 0x81 {
             self.serial_port_data.push(self.data[0xFF01]);
-        }
-
-        if address == 0x8000 {
-            self.emulation_event(EmulationEvent::MemoryWrite {
-                address: address,
-                value: value,
-            });
         }
 
         match address {
@@ -106,7 +102,10 @@ impl MemoryBus {
             0xff40..=0xff45 => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
-            _ => self.data[address] = value,
+            _ => match self.data.get_mut(address) {
+                Some(entry) => *entry = value,
+                None => ()
+            }
         }
 
         Ok(())

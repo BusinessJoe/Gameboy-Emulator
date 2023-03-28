@@ -47,7 +47,7 @@ impl NoGuiPpu {
             0xff41 => self.lcd.stat.0,
             0xff44 => self.lcd.ly,
             0xff45 => self.lcd.lyc,
-            _ => return Err(Error::new("Invalid address")),
+            _ => return Err(Error::from_address_with_source(address, "ppu read".to_string())),
         };
 
         Ok(value)
@@ -68,7 +68,7 @@ impl NoGuiPpu {
             0xff40 => self.lcd.lcd_control.write(data),
             0xff41 => self.lcd.stat.0 = data,
             0xff45 => self.lcd.lyc = data,
-            _ => return Err(Error::new("Invalid address")),
+            _ => return Err(Error::from_address_with_source(address, "ppu write".to_string())),
         }
 
         Ok(())

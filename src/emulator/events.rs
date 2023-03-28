@@ -1,7 +1,7 @@
 use crate::gameboy::GameboyDebugInfo;
 
 /// Events created by the emulator and broadcasted across a channel
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum EmulationEvent {
     SerialData(u8),
     Trace(GameboyDebugInfo),
