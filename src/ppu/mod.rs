@@ -3,14 +3,14 @@
  * representation of the screen.
  */
 
-mod canvas_ppu;
+mod base_ppu;
+mod canvas_engine;
 mod lcd;
-mod no_gui_ppu;
+mod no_gui_engine;
 
-pub use canvas_ppu::CanvasPpu;
-pub use no_gui_ppu::NoGuiPpu;
-
-use crate::component::{Addressable, Steppable};
+pub use base_ppu::{BasePpu, GraphicsEngine};
+pub use canvas_engine::CanvasEngine;
+pub use no_gui_engine::NoGuiEngine;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TileDataAddressingMethod {
@@ -66,5 +66,3 @@ impl OamData {
         self.data[3] >> 7 & 1 == 1
     }
 }
-
-pub trait Ppu: Addressable + Steppable {}

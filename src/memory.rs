@@ -12,14 +12,14 @@ use crate::emulator::events::EmulationEvent;
 use crate::error::Result;
 use crate::gameboy::Interrupt;
 use crate::joypad::Joypad;
-use crate::ppu::Ppu;
+use crate::ppu::BasePpu;
 use crate::timer::Timer;
 use log::debug;
 
 /// Mock memory bus
 pub struct MemoryBus {
     cartridge: Option<Cartridge>,
-    ppu: Rc<RefCell<dyn Ppu>>,
+    ppu: Rc<RefCell<BasePpu>>,
     joypad: Rc<RefCell<Joypad>>,
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
@@ -29,7 +29,7 @@ pub struct MemoryBus {
 
 impl MemoryBus {
     pub fn new(
-        ppu: Rc<RefCell<dyn Ppu>>,
+        ppu: Rc<RefCell<BasePpu>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
         emulation_event_sender: Sender<EmulationEvent>,
@@ -54,8 +54,7 @@ impl MemoryBus {
                 let value = cartridge.read(address).expect("Error reading cartridge");
                 Ok(value)
             }
-            0x8000..=0x97ff => self.ppu.borrow_mut().read_u8(address),
-            0x9800..=0x9bff => self.ppu.borrow_mut().read_u8(address),
+            0x8000..=0x9fff => self.ppu.borrow_mut().read_u8(address),
             // OAM
             0xfe00..=0xfe9f => self.ppu.borrow_mut().read_u8(address),
             // Joypad
@@ -66,11 +65,12 @@ impl MemoryBus {
             0xff0f => Ok(self.data[address] | 0xe0),
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
+            0xff4a..=0xff4b => self.ppu.borrow_mut().read_u8(address),
             0xff4d => Ok(0xff),
             _ => match self.data.get(address) {
                 Some(byte) => Ok(*byte),
-                None => Ok(0xff)
-            }
+                None => Ok(0xff),
+            },
         };
 
         debug_assert!(byte.is_ok());
@@ -90,8 +90,7 @@ impl MemoryBus {
                     .write(address, value)
                     .expect("Error reading cartridge");
             }
-            0x8000..=0x97ff => self.ppu.borrow_mut().write_u8(address, value)?,
-            0x9800..=0x9bff => self.ppu.borrow_mut().write_u8(address, value)?,
+            0x8000..=0x9fff => self.ppu.borrow_mut().write_u8(address, value)?,
             // OAM
             0xfe00..=0xfe9f => self.ppu.borrow_mut().write_u8(address, value)?,
             // Joypad
@@ -100,12 +99,13 @@ impl MemoryBus {
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xff4a..=0xff4b => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
             _ => match self.data.get_mut(address) {
                 Some(entry) => *entry = value,
-                None => ()
-            }
+                None => (),
+            },
         }
 
         Ok(())

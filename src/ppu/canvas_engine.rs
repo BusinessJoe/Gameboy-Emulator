@@ -1,12 +1,12 @@
-use crate::component::{Address, Addressable, ElapsedTime, Steppable};
+use crate::component::Address;
 use crate::error::{Error, Result};
-use crate::gameboy::GameBoyState;
-use crate::ppu::{lcd, OamData, Ppu, TileDataAddressingMethod};
-use log::*;
+use crate::ppu::{OamData, TileDataAddressingMethod};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::{RenderTarget, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
+
+use super::base_ppu::{GraphicsEngine, PpuState};
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]
@@ -47,59 +47,34 @@ impl Tile {
     }
 }
 
-/// The PPU is responsible for the emulated gameboy's graphics.
-pub struct CanvasPpu {
+pub struct CanvasEngine {
     tile_map: Texture,
     oam_tile_map: Texture,
 
-    /// Tile data takes up addresses 0x8000-0x97ff.
-    tile_data: Vec<u8>,
-
     /// Cache of decoded tile data -- the gameboy can store 384 different tiles
     tile_cache: Vec<Tile>,
-    /// Addresses 0x9800-0x9bff are a 32x32 map of background tiles.
-    /// Each byte contains the number of a tile to be displayed.
-    background_map: Vec<u8>,
-
-    /// A table containing data for 40 sprites
-    sprite_tiles_table: Vec<u8>,
-
-    lcd: lcd::Lcd,
-
-    /// Register values
-    scy: u8,
-    scx: u8,
 }
 
-impl CanvasPpu {
-    pub fn new(creator: &TextureCreator<WindowContext>) -> Self {
+impl CanvasEngine {
+    pub fn new(creator: &TextureCreator<WindowContext>) -> Result<Self> {
         let tile_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
-            .unwrap();
+            .map_err(|e| Error::from_message(e.to_string()))?;
         let oam_tile_map = creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
-            .unwrap();
+            .map_err(|e| Error::from_message(e.to_string()))?;
 
-        let ppu = CanvasPpu {
+        Ok(Self {
             tile_map,
             oam_tile_map,
-
-            tile_data: vec![0; 0x1800],
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
             tile_cache: vec![Tile::new(); 384],
-            background_map: vec![0; 32 * 32],
-            sprite_tiles_table: vec![0; 160],
-            lcd: lcd::Lcd::new(),
-
-            scy: 0,
-            scx: 0,
-        };
-        ppu
+        })
     }
 
     /// Update the cached forwards and backwards tile data associated with this memory address.
     /// Called after a write to tile data to keep caches valid.
-    fn update_tile_cache(&mut self, address: Address) {
+    fn update_tile_cache(&mut self, tile_data: &[u8], address: Address) {
         // Translate the address into a relative address from 0x8000
         let address = address - 0x8000;
 
@@ -119,11 +94,11 @@ impl CanvasPpu {
         let byte_1;
         let byte_2;
         if address % 2 == 0 {
-            byte_1 = self.tile_data[address];
-            byte_2 = self.tile_data[address + 1];
+            byte_1 = tile_data[address];
+            byte_2 = tile_data[address + 1];
         } else {
-            byte_1 = self.tile_data[address - 1];
-            byte_2 = self.tile_data[address];
+            byte_1 = tile_data[address - 1];
+            byte_2 = tile_data[address];
         }
 
         for i in 0..8 {
@@ -232,31 +207,27 @@ impl CanvasPpu {
             (bottom, top)
         };
 
-        // top half 
-        let source_rect = Rect::new(
-            (top_idx as i32 % 16) * 8,
-            top_idx as i32 / 16 * 8,
+        // top half
+        let source_rect = Rect::new((top_idx as i32 % 16) * 8, top_idx as i32 / 16 * 8, 8, 8);
+        // Position values in OAM data are x + 8 and y + 16. Account for that here.
+        let dest_rect = Rect::new(
+            i32::from(oam_data.x_pos()) - 8,
+            i32::from(oam_data.y_pos()) - 16,
             8,
             8,
         );
-        // Position values in OAM data are x + 8 and y + 16. Account for that here.
-        let dest_rect = Rect::new(
-            i32::from(oam_data.x_pos()) - 8, 
-            i32::from(oam_data.y_pos()) - 16, 
-            8, 
-            8);
 
         texture_canvas
-        .copy_ex(
-            &self.oam_tile_map,
-            Some(source_rect),
-            Some(dest_rect),
-            0.,
-            None,
-            oam_data.x_flip(),
-            oam_data.y_flip(),
-        )
-        .map_err(|e| Error::from_message(e))?;
+            .copy_ex(
+                &self.oam_tile_map,
+                Some(source_rect),
+                Some(dest_rect),
+                0.,
+                None,
+                oam_data.x_flip(),
+                oam_data.y_flip(),
+            )
+            .map_err(|e| Error::from_message(e))?;
 
         // bottom half
         let source_rect = Rect::new(
@@ -267,64 +238,23 @@ impl CanvasPpu {
         );
         // Position values in OAM data are x + 8 and y + 16. Account for that here.
         let dest_rect = Rect::new(
-            i32::from(oam_data.x_pos()) - 8, 
-            i32::from(oam_data.y_pos()) - 16 + 8, // bottom half is 8 pixels (1 tile) lower 
-            8, 
-            8);
+            i32::from(oam_data.x_pos()) - 8,
+            i32::from(oam_data.y_pos()) - 16 + 8, // bottom half is 8 pixels (1 tile) lower
+            8,
+            8,
+        );
 
         texture_canvas
-        .copy_ex(
-            &self.oam_tile_map,
-            Some(source_rect),
-            Some(dest_rect),
-            0.,
-            None,
-            oam_data.x_flip(),
-            oam_data.y_flip(),
-        )
-        .map_err(|e| Error::from_message(e))?;
-
-        Ok(())
-    }
-
-    fn _read(&mut self, address: Address) -> Result<u8> {
-        let value = match address {
-            0x8000..=0x97ff => self.tile_data[address - 0x8000],
-            0x9800..=0x9bff => self.background_map[address - 0x9800],
-            0xfe00..=0xfe9f => self.sprite_tiles_table[address - 0xfe00],
-            0xff40 => self.lcd.lcd_control.read(),
-            0xff41 => self.lcd.stat.0,
-            0xff42 => self.scy,
-            0xff43 => self.scx,
-            0xff44 => self.lcd.ly,
-            0xff45 => self.lcd.lyc,
-            _ => return Err(Error::from_address_with_source(address, "ppu read".to_string())),
-        };
-
-        Ok(value)
-    }
-
-    fn _write(&mut self, address: Address, data: u8) -> Result<()> {
-        match address {
-            0x8000..=0x97ff => {
-                trace!("write to tile data: {:#x} into {:#x}", data, address);
-                self.tile_data[address - 0x8000] = data;
-                self.update_tile_cache(address);
-            }
-            0x9800..=0x9bff => {
-                self.background_map[address - 0x9800] = data;
-            }
-            0xfe00..=0xfe9f => {
-                self.sprite_tiles_table[address - 0xfe00] = data;
-            }
-            0xff40 => self.lcd.lcd_control.write(data),
-            0xff41 => self.lcd.stat.0 = data,
-            0xff42 => self.scy = data,
-            0xff43 => self.scx = data,
-            0xff44 => (), // ly: lcd y coordinate is read only
-            0xff45 => self.lcd.lyc = data,
-            _ => return Err(Error::from_address_with_source(address, "ppu write".to_string())),
-        }
+            .copy_ex(
+                &self.oam_tile_map,
+                Some(source_rect),
+                Some(dest_rect),
+                0.,
+                None,
+                oam_data.x_flip(),
+                oam_data.y_flip(),
+            )
+            .map_err(|e| Error::from_message(e))?;
 
         Ok(())
     }
@@ -332,23 +262,27 @@ impl CanvasPpu {
     pub fn render_tile_map<T: RenderTarget>(
         &mut self,
         texture_canvas: &mut sdl2::render::Canvas<T>,
+        dst: Rect,
     ) -> Result<()> {
         texture_canvas
-            .copy(&self.tile_map, None, Some(Rect::new(0, 0, 16 * 8, 24 * 8)))
+            .copy(&self.tile_map, None, Some(dst))
             .map_err(|e| Error::from_message(e))
     }
 
     pub fn render_main_screen(
         &mut self,
+        ppu_state: &PpuState,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
         background_map: &sdl2::render::Texture,
+        window_map: &sdl2::render::Texture,
+        sprite_map: &sdl2::render::Texture,
     ) -> Result<()> {
         // Due to the viewport offset, the screen is split into four rectangles.
         let top_left = Rect::new(
-            self.scx.into(),
-            self.scy.into(),
-            std::cmp::min(160, 256 - u32::from(self.scx)),
-            std::cmp::min(144, 256 - u32::from(self.scy)),
+            ppu_state.scx.into(),
+            ppu_state.scy.into(),
+            std::cmp::min(160, 256 - u32::from(ppu_state.scx)),
+            std::cmp::min(144, 256 - u32::from(ppu_state.scy)),
         );
         texture_canvas
             .copy(
@@ -361,7 +295,7 @@ impl CanvasPpu {
         if top_left.width() < 160 {
             let top_right = Rect::new(
                 0,
-                self.scy.into(),
+                ppu_state.scy.into(),
                 160 - top_left.width(),
                 top_left.height(),
             );
@@ -381,7 +315,7 @@ impl CanvasPpu {
 
         if top_left.height() < 144 {
             let bottom_left = Rect::new(
-                self.scx.into(),
+                ppu_state.scx.into(),
                 0,
                 top_left.width(),
                 144 - top_left.height(),
@@ -416,24 +350,64 @@ impl CanvasPpu {
                 .map_err(|e| Error::from_message(e))?;
         }
 
+        texture_canvas.copy(sprite_map, None, None)?;
+
+        {
+            if ppu_state.lcd.lcd_control.bg_window_enable
+                && (0..=166).contains(&ppu_state.wx)
+                && (0..=143).contains(&ppu_state.wy)
+            {
+                let dst = Rect::new(
+                    ppu_state.wx as i32 - 7,
+                    ppu_state.wy as i32,
+                    160 - (ppu_state.wx as u32 - 7),
+                    144 - ppu_state.wy as u32,
+                );
+                let src = Rect::new(0, 0, dst.width(), dst.height());
+                texture_canvas.copy(window_map, Some(src), Some(dst))?;
+            }
+        }
+
         Ok(())
     }
 
     pub fn render_background_map(
         &mut self,
+        ppu_state: &PpuState,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
-        let method = if self.lcd.lcd_control.bg_window_tile_data_area {
+        let method = if ppu_state.lcd.lcd_control.bg_window_tile_data_area {
             TileDataAddressingMethod::Method8000
         } else {
             TileDataAddressingMethod::Method8800
         };
-        //println!("Method: {:?}", &method);
 
         // Render background map
         for row in 0..32 {
             for col in 0..32 {
-                let tile_number = self.background_map[col + row * 32];
+                let tile_number = ppu_state.background_map[col + row * 32];
+                self.set_tile(texture_canvas, row, col, tile_number.into(), method)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn render_window_map(
+        &mut self,
+        ppu_state: &PpuState,
+        texture_canvas: &mut sdl2::render::Canvas<Window>,
+    ) -> Result<()> {
+        let method = if ppu_state.lcd.lcd_control.bg_window_tile_data_area {
+            TileDataAddressingMethod::Method8000
+        } else {
+            TileDataAddressingMethod::Method8800
+        };
+
+        // Render background map
+        for row in 0..32 {
+            for col in 0..32 {
+                let tile_number = ppu_state.window_map[col + row * 32];
                 self.set_tile(texture_canvas, row, col, tile_number.into(), method)?;
             }
         }
@@ -443,12 +417,13 @@ impl CanvasPpu {
 
     pub fn render_sprites(
         &mut self,
+        ppu_state: &PpuState,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
     ) -> Result<()> {
         for i in 0..40 {
-            let oam_data = OamData::new(&self.sprite_tiles_table[i * 4..i * 4 + 4]);
+            let oam_data = OamData::new(&ppu_state.sprite_tiles_table[i * 4..i * 4 + 4]);
 
-            if !self.lcd.lcd_control.obj_size {
+            if !ppu_state.lcd.lcd_control.obj_size {
                 // 8x8
                 self.set_sprite(texture_canvas, &oam_data)?;
             } else {
@@ -460,28 +435,77 @@ impl CanvasPpu {
     }
 }
 
-impl Steppable for CanvasPpu {
-    fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
-        self.lcd.step(state)
-    }
-}
-
-impl Addressable for CanvasPpu {
-    fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
-        for (offset, byte) in data.iter_mut().enumerate() {
-            *byte = self._read(address + offset)?;
+impl GraphicsEngine for CanvasEngine {
+    fn after_write(&mut self, ppu_addressables: &PpuState, address: Address) {
+        match address {
+            0x8000..=0x97ff => {
+                self.update_tile_cache(&ppu_addressables.tile_data, address);
+            }
+            _ => {}
         }
+    }
+
+    fn render(
+        &mut self,
+        ppu_state: &PpuState,
+        canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+        texture_book: &mut crate::texture::TextureBook,
+    ) -> Result<()> {
+        self.render_tile_map(canvas, Rect::new(0, 0, 16 * 8, 24 * 8))
+            .expect("error rendering tile map");
+
+        canvas
+            .with_texture_canvas(
+                &mut texture_book.background_map.get_texture_mut(),
+                |mut texture_canvas| {
+                    self.render_background_map(ppu_state, &mut texture_canvas)
+                        .expect("error rendering background map");
+                },
+            )
+            .map_err(|e| Error::from_message(e.to_string()))?;
+
+        canvas
+            .with_texture_canvas(
+                &mut texture_book.window_map.get_texture_mut(),
+                |mut texture_canvas| {
+                    self.render_window_map(ppu_state, &mut texture_canvas)
+                        .expect("error rendering window map");
+                },
+            )
+            .map_err(|e| Error::from_message(e.to_string()))?;
+
+        canvas
+            .with_texture_canvas(&mut texture_book.sprite_map, |mut texture_canvas| {
+                texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 0));
+                texture_canvas.clear();
+                // Render sprites over background map for now
+                self.render_sprites(ppu_state, &mut texture_canvas)
+                    .expect("error rendering sprite");
+            })
+            .map_err(|e| Error::from_message(e.to_string()))?;
+
+        canvas
+            .with_texture_canvas(&mut texture_book.main_screen, |texture_canvas| {
+                self.render_main_screen(
+                    ppu_state,
+                    texture_canvas,
+                    &texture_book.background_map.get_texture(),
+                    &texture_book.window_map.get_texture(),
+                    &texture_book.sprite_map,
+                )
+                .expect("error rendering main screen");
+            })
+            .map_err(|e| Error::from_message(e.to_string()))?;
+
+        texture_book.background_map.copy_to(canvas, 20 + 1, 0)?;
+        texture_book.window_map.copy_to(canvas, 20 + 1, 32 + 1)?;
+
+        canvas.copy(
+            &texture_book.main_screen,
+            None,
+            Some(Rect::new(0, (32 + 1) * 8, 160, 144)),
+        )?;
 
         Ok(())
     }
-
-    fn write(&mut self, address: Address, data: &[u8]) -> Result<()> {
-        for (offset, byte) in data.iter().enumerate() {
-            self._write(address + offset, *byte)?;
-        }
-
-        Ok(())
-    }
 }
-
-impl Ppu for CanvasPpu {}

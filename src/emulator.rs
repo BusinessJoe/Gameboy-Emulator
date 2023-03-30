@@ -1,11 +1,10 @@
 pub mod events;
-mod texture_book;
 
 use crate::cartridge::Cartridge;
-use crate::gameboy::Interrupt;
-use crate::gameboy::{GameBoyState, GameboyDebugInfo};
+use crate::error::Result;
+use crate::gameboy::{GameBoyState, GameboyDebugInfo, Interrupt};
 use crate::joypad::JoypadInput;
-use crate::ppu::{CanvasPpu, NoGuiPpu};
+use crate::ppu::{BasePpu, CanvasEngine, NoGuiEngine};
 use log::warn;
 use sdl2::render::BlendMode;
 use std::cell::RefCell;
@@ -18,10 +17,9 @@ use strum::IntoEnumIterator;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::rect::Rect;
 
 use self::events::{EmulationControlEvent, EmulationEvent};
-use self::texture_book::TextureBook;
+use crate::texture::TextureBook;
 
 pub const WIDTH: usize = 8 * (16 + 32);
 pub const HEIGHT: usize = 8 * 32;
@@ -56,57 +54,10 @@ fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
 
 fn update_frame(
     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-    canvas_ppu: &mut CanvasPpu,
+    ppu: &mut BasePpu,
     texture_book: &mut TextureBook,
-) -> Result<(), String> {
-    canvas_ppu
-        .render_tile_map(canvas)
-        .expect("error rendering tile map");
-
-    canvas
-        .with_texture_canvas(&mut texture_book.background_map, |mut texture_canvas| {
-            canvas_ppu
-                .render_background_map(&mut texture_canvas)
-                .expect("error rendering background map");
-        })
-        .map_err(|e| e.to_string())?;
-
-    canvas
-        .with_texture_canvas(&mut texture_book.sprite_map, |mut texture_canvas| {
-            texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 0));
-            texture_canvas.clear();
-            // Render sprites over background map for now
-            canvas_ppu
-                .render_sprites(&mut texture_canvas)
-                .expect("error rendering sprite");
-        })
-        .map_err(|e| e.to_string())?;
-
-    canvas
-        .with_texture_canvas(&mut texture_book.main_screen, |texture_canvas| {
-            canvas_ppu
-                .render_main_screen(texture_canvas, &texture_book.background_map)
-                .expect("error rendering main screen");
-        })
-        .map_err(|e| e.to_string())?;
-
-    canvas.copy(
-        &texture_book.background_map,
-        None,
-        Some(Rect::new(128, 0, 32 * 8, 32 * 8)),
-    )?;
-    canvas.copy(
-        &texture_book.main_screen,
-        None,
-        Some(Rect::new(128 + 32 * 8, 0, 160, 144)),
-    )?;
-    canvas.copy(
-        &texture_book.sprite_map,
-        None,
-        Some(Rect::new(128 + 32 * 8, 0, 160, 144)),
-    )?;
-
-    Ok(())
+) -> Result<()> {
+    ppu.render(canvas, texture_book)
 }
 
 impl GameboyEmulator {
@@ -119,24 +70,22 @@ impl GameboyEmulator {
 
     pub fn gameboy_thread_no_gui(
         cartridge: Cartridge,
-    ) -> Result<
-        (
-            JoinHandle<Result<(), String>>,
-            mpsc::Sender<EmulationControlEvent>,
-            mpsc::Receiver<EmulationEvent>,
-        ),
-        String,
-    > {
+    ) -> Result<(
+        JoinHandle<Result<()>>,
+        mpsc::Sender<EmulationControlEvent>,
+        mpsc::Receiver<EmulationEvent>,
+    )> {
         let (event_sender, event_receiver) = mpsc::channel();
         let (control_event_sender, control_event_receiver) =
             mpsc::channel::<EmulationControlEvent>();
 
-        let join_handle = thread::spawn(move || -> Result<(), String> {
+        let join_handle = thread::spawn(move || -> Result<()> {
             let mut emulator = GameboyEmulator::new(false);
 
-            let ppu = NoGuiPpu::new();
+            let graphics_engine = Box::new(NoGuiEngine {});
+            let ppu = Rc::new(RefCell::new(BasePpu::new(graphics_engine)));
 
-            let mut gameboy_state = GameBoyState::new(Rc::new(RefCell::new(ppu)), event_sender);
+            let mut gameboy_state = GameBoyState::new(ppu.clone(), event_sender);
             gameboy_state
                 .load_cartridge(cartridge)
                 .map_err(|e| e.to_string())?;
@@ -152,19 +101,16 @@ impl GameboyEmulator {
 
     pub fn gameboy_thread(
         cartridge: Cartridge,
-    ) -> Result<
-        (
-            JoinHandle<Result<(), String>>,
-            mpsc::Sender<EmulationControlEvent>,
-            mpsc::Receiver<EmulationEvent>,
-        ),
-        String,
-    > {
+    ) -> Result<(
+        JoinHandle<Result<()>>,
+        mpsc::Sender<EmulationControlEvent>,
+        mpsc::Receiver<EmulationEvent>,
+    )> {
         let (event_sender, event_receiver) = mpsc::channel();
         let (control_event_sender, _control_event_receiver) =
             mpsc::channel::<EmulationControlEvent>();
 
-        let join_handle = thread::spawn(move || -> Result<(), String> {
+        let join_handle = thread::spawn(move || -> Result<()> {
             let mut emulator = GameboyEmulator::new(false);
 
             let sdl_context = sdl2::init()?;
@@ -179,17 +125,18 @@ impl GameboyEmulator {
 
             let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
             canvas
-                .set_logical_size(128 + 32 * 8 + 160, 32 * 8)
+                .set_logical_size((20 + 1 + 32) * 8, (32 + 1 + 32) * 8)
                 .map_err(|e| e.to_string())?;
             canvas.set_blend_mode(BlendMode::Blend);
             let mut texture_book = TextureBook::new(&canvas)?;
 
             let canvas = Rc::new(RefCell::new(canvas));
 
-            let canvas_ppu = Rc::new(RefCell::new(CanvasPpu::new(&texture_book.texture_creator)));
+            let graphics_engine = Box::new(CanvasEngine::new(&texture_book.texture_creator)?);
+            let ppu = Rc::new(RefCell::new(BasePpu::new(graphics_engine)));
 
             // Initialize gameboy and load cartridge
-            let mut gameboy_state = GameBoyState::new(canvas_ppu.clone(), event_sender);
+            let mut gameboy_state = GameBoyState::new(ppu.clone(), event_sender);
             gameboy_state
                 .load_cartridge(cartridge)
                 .map_err(|e| e.to_string())?;
@@ -215,8 +162,8 @@ impl GameboyEmulator {
                                 writeln!(f, "{:?}", event).expect("unable to write to event log file");
                             }
                              */
-                            break 'mainloop
-                        },
+                            break 'mainloop;
+                        }
                         Event::KeyDown {
                             keycode: Some(keycode),
                             ..
@@ -261,20 +208,20 @@ impl GameboyEmulator {
                 // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
                 // Dividing by 4 and 60 should roughly give the number of machine cycles that
                 // need to run per frame at 60fps.
-                if frame_cycles >= 4_194_304 / 4 / 60 {
+                if frame_cycles >= 4_194_304 / 60 {
                     update_frame(
                         &mut canvas.borrow_mut(),
-                        &mut canvas_ppu.borrow_mut(),
+                        &mut ppu.borrow_mut(),
                         &mut texture_book,
                     )?;
 
-                    frame_cycles -= 4_194_304 / 4 / 60;
+                    frame_cycles -= 4_194_304 / 60;
 
                     let duration = start.elapsed();
                     if duration > Duration::from_millis(1000 / 60) {
                         warn!("Time elapsed this frame is: {:?} > 16ms", duration);
                     } else {
-                        //std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
+                        std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
                     }
                     start = Instant::now();
 
@@ -339,7 +286,7 @@ impl GameboyEmulator {
     }
 
     /// Runs the gameboy emulator with a gui.
-    pub fn run(cartridge: Cartridge, debug: bool) -> Result<(), String> {
+    pub fn run(cartridge: Cartridge, debug: bool) -> Result<()> {
         let (join_handle, control_event_sender, event_receiver) = Self::gameboy_thread(cartridge)?;
 
         thread::spawn(move || {

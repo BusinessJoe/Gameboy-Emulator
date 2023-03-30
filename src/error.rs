@@ -1,5 +1,7 @@
 use std::{error::Error as StdError, fmt::write};
 
+use sdl2::render::TextureValueError;
+
 #[derive(Debug)]
 pub enum Error {
     AddresssingError {
@@ -12,10 +14,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> core::result::Result<(), std::fmt::Error> {
         match self {
-            Error::AddresssingError {
-                address,
-                source
-            } => {
+            Error::AddresssingError { address, source } => {
                 if let Some(source) = source {
                     write!(f, "AddressingError at {:x} from {}", address, source)
                 } else {
@@ -43,12 +42,15 @@ impl Error {
     pub fn from_address(address: usize) -> Self {
         Error::AddresssingError {
             address,
-            source: None
+            source: None,
         }
     }
 
     pub fn from_address_with_source(address: usize, source: String) -> Self {
-        Error::AddresssingError { address, source: Some(source) }
+        Error::AddresssingError {
+            address,
+            source: Some(source),
+        }
     }
 
     pub fn from_message(msg: String) -> Self {
@@ -60,8 +62,13 @@ impl From<crate::cartridge::AddressingError> for Error {
     fn from(value: crate::cartridge::AddressingError) -> Self {
         Error::AddresssingError {
             address: value.0,
-            source: None
+            source: None,
         }
     }
 }
 
+impl From<String> for Error {
+    fn from(str: String) -> Self {
+        Error::from_message(str)
+    }
+}

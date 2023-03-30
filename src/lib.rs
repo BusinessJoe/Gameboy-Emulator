@@ -10,11 +10,10 @@ mod joypad;
 mod memory;
 mod ppu;
 mod register;
+mod texture;
 mod timer;
 mod utils;
 
 pub use error::{Error, Result};
 pub use joypad::Joypad;
 pub use memory::MemoryBus;
-pub use ppu::CanvasPpu;
-pub use ppu::Ppu;

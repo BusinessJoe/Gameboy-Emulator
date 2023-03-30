@@ -5,12 +5,12 @@ use crate::emulator::events::EmulationEvent;
 use crate::error::Result;
 use crate::joypad::Joypad;
 use crate::memory::MemoryBus;
-use crate::ppu::Ppu;
+use crate::ppu::BasePpu;
 use crate::timer::Timer;
 use core::fmt;
-use std::collections::VecDeque;
 use log::trace;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::fs;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
@@ -33,7 +33,7 @@ pub struct GameboyDebugInfo {
 
 pub struct GameBoyState {
     cpu: Rc<RefCell<CPU>>,
-    pub ppu: Rc<RefCell<dyn Ppu>>,
+    pub ppu: Rc<RefCell<BasePpu>>,
     pub joypad: Rc<RefCell<Joypad>>,
     pub timer: Rc<RefCell<Timer>>,
     pub memory_bus: Rc<RefCell<MemoryBus>>,
@@ -42,7 +42,7 @@ pub struct GameBoyState {
 }
 
 impl GameBoyState {
-    pub fn new(ppu: Rc<RefCell<dyn Ppu>>, emulation_event_sender: Sender<EmulationEvent>) -> Self {
+    pub fn new(ppu: Rc<RefCell<BasePpu>>, emulation_event_sender: Sender<EmulationEvent>) -> Self {
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
