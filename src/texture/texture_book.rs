@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::texture::TileTexture;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::{BlendMode, Canvas, Texture, TextureCreator};
-use sdl2::video::{Window, WindowContext};
+use sdl2::video::Window;
 
 /// Stores all the textures displayed in the gui in one place.
 /// Requires the "unsafe_textures" feature of sdl2 because lifetimes were too confusing.

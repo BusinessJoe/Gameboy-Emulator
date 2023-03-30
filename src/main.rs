@@ -25,7 +25,7 @@ fn main() -> Result<(), ()> {
     let bytes = fs::read(args.rom_path).expect("could not read file");
     let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
 
-    GameboyEmulator::run(cartridge, args.debug).expect("error during running");
+    GameboyEmulator::run(cartridge).expect("error during running");
 
     Ok(())
 }

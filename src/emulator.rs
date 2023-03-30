@@ -76,7 +76,7 @@ impl GameboyEmulator {
         mpsc::Receiver<EmulationEvent>,
     )> {
         let (event_sender, event_receiver) = mpsc::channel();
-        let (control_event_sender, control_event_receiver) =
+        let (control_event_sender, _control_event_receiver) =
             mpsc::channel::<EmulationControlEvent>();
 
         let join_handle = thread::spawn(move || -> Result<()> {
@@ -286,8 +286,8 @@ impl GameboyEmulator {
     }
 
     /// Runs the gameboy emulator with a gui.
-    pub fn run(cartridge: Cartridge, debug: bool) -> Result<()> {
-        let (join_handle, control_event_sender, event_receiver) = Self::gameboy_thread(cartridge)?;
+    pub fn run(cartridge: Cartridge) -> Result<()> {
+        let (join_handle, _control_event_sender, event_receiver) = Self::gameboy_thread(cartridge)?;
 
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {

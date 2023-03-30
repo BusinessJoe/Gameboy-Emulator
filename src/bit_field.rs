@@ -20,14 +20,17 @@ impl<T> BitField<T> {
         self.values.len()
     }
 
+    #[allow(unused)]
     pub fn get(&self, index: usize) -> bool {
         self.values[index]
     }
 
+    #[allow(unused)]
     pub fn set(&mut self, index: usize, value: bool) {
         self.values[index] = value;
     }
 
+    #[allow(unused)]
     pub fn get_range<U>(&self, indices: U) -> &[bool]
     where
         U: SliceIndex<[bool], Output = [bool]>,
@@ -35,6 +38,7 @@ impl<T> BitField<T> {
         &self.values[indices]
     }
 
+    #[allow(unused)]
     pub fn set_range<U>(&mut self, indices: U, values: &[bool])
     where
         U: SliceIndex<[bool], Output = [bool]>,

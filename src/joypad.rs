@@ -112,7 +112,10 @@ impl Joypad {
 impl Addressable for Joypad {
     fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
         if data.len() != 1 || address != 0xff00 {
-            return Err(Error::from_address_with_source(address, "joypad read".to_string()));
+            return Err(Error::from_address_with_source(
+                address,
+                "joypad read".to_string(),
+            ));
         }
         data[0] = self.get_state();
         Ok(())
@@ -120,7 +123,10 @@ impl Addressable for Joypad {
 
     fn write(&mut self, address: Address, data: &[u8]) -> Result<()> {
         if data.len() != 1 || address != 0xff00 {
-            return Err(Error::from_address_with_source(address, "joypad write".to_string()));
+            return Err(Error::from_address_with_source(
+                address,
+                "joypad write".to_string(),
+            ));
         }
         self.state_byte = data[0];
         Ok(())

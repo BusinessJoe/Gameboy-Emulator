@@ -112,7 +112,7 @@ impl MemoryBus {
     }
 
     pub fn emulation_event(&self, event: EmulationEvent) {
-        self.emulation_event_sender.send(event);
+        self.emulation_event_sender.send(event).unwrap();
     }
 
     // Initiate an OAM transfer

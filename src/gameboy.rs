@@ -27,7 +27,7 @@ pub struct GameboyDebugInfo {
     pub register_bc: u16,
     pub register_de: u16,
     pub register_hl: u16,
-    pub mem_TIMA_ff05: u8,
+    pub mem_tima_ff05: u8,
     pub interrupt_enabled: bool,
 }
 
@@ -121,7 +121,7 @@ impl GameBoyState {
         }
         self.event_queue.push_back(event.clone());
         */
-        self.emulation_event_sender.send(event);
+        self.emulation_event_sender.send(event).unwrap();
     }
 
     pub fn debug_info(&self) -> GameboyDebugInfo {
@@ -145,7 +145,7 @@ impl GameBoyState {
             register_bc: u16::from_le_bytes([cpu.registers.b, cpu.registers.c]),
             register_de: u16::from_le_bytes([cpu.registers.d, cpu.registers.e]),
             register_hl: u16::from_le_bytes([cpu.registers.h, cpu.registers.l]),
-            mem_TIMA_ff05: self.memory_bus.borrow_mut().read_u8(0xff05).unwrap(),
+            mem_tima_ff05: self.memory_bus.borrow_mut().read_u8(0xff05).unwrap(),
             interrupt_enabled: cpu.interrupt_enabled,
         }
     }

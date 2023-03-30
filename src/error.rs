@@ -1,6 +1,4 @@
-use std::{error::Error as StdError, fmt::write};
-
-use sdl2::render::TextureValueError;
+use std::error::Error as StdError;
 
 #[derive(Debug)]
 pub enum Error {

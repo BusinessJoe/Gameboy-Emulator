@@ -9,7 +9,6 @@ pub mod gameboy;
 mod joypad;
 mod memory;
 mod ppu;
-mod register;
 mod texture;
 mod timer;
 mod utils;

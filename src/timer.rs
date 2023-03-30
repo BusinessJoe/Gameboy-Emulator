@@ -62,7 +62,12 @@ impl Timer {
             TIMA => self.tima,
             TMA => self.tma,
             TAC => self.tac,
-            _ => return Err(Error::from_address_with_source(address, "timer read".to_string())),
+            _ => {
+                return Err(Error::from_address_with_source(
+                    address,
+                    "timer read".to_string(),
+                ))
+            }
         };
         Ok(value)
     }
@@ -77,7 +82,12 @@ impl Timer {
             TIMA => self.tima = value,
             TMA => self.tma = value,
             TAC => self.tac = 0b11111000 | 0b111 & value,
-            _ => return return Err(Error::from_address_with_source(address, "timer write".to_string())),
+            _ => {
+                return Err(Error::from_address_with_source(
+                    address,
+                    "timer write".to_string(),
+                ))
+            }
         }
         Ok(())
     }
