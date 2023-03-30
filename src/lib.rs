@@ -4,12 +4,12 @@ mod error;
 mod bit_field;
 pub mod cartridge;
 pub mod cpu;
+pub mod ppu;
 pub mod emulator;
 pub mod gameboy;
 mod joypad;
 mod memory;
-mod ppu;
-mod texture;
+pub mod texture;
 mod timer;
 mod utils;
 

@@ -18,7 +18,7 @@ sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"] }
 clap = { version = "4.1.4", features = ["derive"] }
 
 [dev-dependencies]
-# pprof = { version = "0.3", features = ["flamegraph"] }
+pprof = { version = "0.3", features = ["flamegraph"] }
 criterion = "0.4.0"
 
 [profile.release]

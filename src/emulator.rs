@@ -6,6 +6,8 @@ use crate::gameboy::{GameBoyState, GameboyDebugInfo, Interrupt};
 use crate::joypad::JoypadInput;
 use crate::ppu::{BasePpu, CanvasEngine, NoGuiEngine};
 use log::warn;
+use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 use sdl2::render::BlendMode;
 use std::cell::RefCell;
 use std::io::Write;
@@ -57,7 +59,13 @@ fn update_frame(
     ppu: &mut BasePpu,
     texture_book: &mut TextureBook,
 ) -> Result<()> {
-    ppu.render(canvas, texture_book)
+    canvas.set_draw_color(Color::RGBA(50, 131, 168, 255));
+    let (width, height) = canvas.logical_size();
+    canvas.fill_rect(Rect::new(0, 0, width, height))?;
+
+    ppu.render(canvas, texture_book)?;
+
+    Ok(())
 }
 
 impl GameboyEmulator {

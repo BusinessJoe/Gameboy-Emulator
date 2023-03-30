@@ -32,7 +32,7 @@ pub struct GameboyDebugInfo {
 }
 
 pub struct GameBoyState {
-    cpu: Rc<RefCell<CPU>>,
+    pub cpu: Rc<RefCell<CPU>>,
     pub ppu: Rc<RefCell<BasePpu>>,
     pub joypad: Rc<RefCell<Joypad>>,
     pub timer: Rc<RefCell<Timer>>,

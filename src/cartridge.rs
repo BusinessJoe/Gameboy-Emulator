@@ -23,6 +23,13 @@ impl Cartridge {
         let cartridge_type = CartridgeType::from_data(data)?;
         Some(cartridge_type.build(data))
     }
+    pub fn mock() -> Self {
+        Cartridge {
+            mbc: Box::new(NoMbc {}),
+            rom: vec![0; 0x8000],
+            ram: vec![0; 0x8000],
+        }
+    }
 }
 
 impl std::fmt::Debug for Cartridge {
