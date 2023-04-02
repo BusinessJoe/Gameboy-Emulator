@@ -5,7 +5,7 @@ use crate::{
 };
 use crate::{Error, Result};
 
-use super::lcd;
+use super::lcd::{self, UpdatePixel};
 
 pub trait GraphicsEngine {
     fn after_write(&mut self, ppu_state: &PpuState, address: Address);
@@ -16,6 +16,8 @@ pub trait GraphicsEngine {
         canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
         texture_book: &mut TextureBook,
     ) -> Result<()>;
+
+    fn place_pixel(&mut self, ppu_state: &PpuState, x: u8, y: u8) -> Result<()>;
 }
 
 pub struct PpuState {
@@ -137,11 +139,19 @@ impl BasePpu {
         self.graphics_engine
             .render(&self.state, canvas, texture_book)
     }
+
+    pub fn place_pixel(&mut self, x: u8, y: u8) -> Result<()> {
+        self.graphics_engine.place_pixel(&self.state, x, y)?;
+        Ok(())
+    }
 }
 
 impl Steppable for BasePpu {
     fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
-        self.state.lcd.step(state)
+        if let Some(UpdatePixel { x, y }) = self.state.lcd.step(state)? {
+            self.place_pixel(x, y)?;
+        }
+        Ok(1)
     }
 }
 

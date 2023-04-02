@@ -5,6 +5,8 @@ use crate::gameboy::Interrupt;
 use crate::utils::BitField;
 use std::collections::VecDeque;
 
+use super::BasePpu;
+
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
 pub struct LcdControl {
@@ -70,13 +72,18 @@ enum PpuState {
     HBlank,
 }
 
+/// Struct returned to indicate the pixel with these coords should be updated
+pub struct UpdatePixel {
+    pub x: u8,
+    pub y: u8,
+}
 pub struct Lcd {
     /// LY: LCD Y coordinate (read only)
     pub ly: u8,
     /// LYC: LY compare
     pub lyc: u8,
     /// Current x position in scanline
-    pub scan_x: u32,
+    pub scan_x: u8,
     pub lcd_control: LcdControl,
     pub stat: BitField,
     stat_interrupt_line: [bool; 4],
@@ -162,10 +169,9 @@ impl Lcd {
             }
         }
     }
-}
 
-impl Steppable for Lcd {
-    fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
+    pub fn step(&mut self, state: &GameBoyState) -> Result<Option<UpdatePixel>> {
+        let mut pixel_data = None;
         self.dots += 1;
 
         match self.state {
@@ -180,9 +186,10 @@ impl Steppable for Lcd {
 
                 // For now, just use the current xy coordinates as an index into the background map
                 // to get a pixel
-                if self.scan_x == 0 {
-                    //self.render_background_map()?;
-                }
+                pixel_data = Some(UpdatePixel {
+                    x: self.scan_x,
+                    y: self.ly.into(),
+                });
 
                 self.scan_x += 1;
                 if self.scan_x == 160 {
@@ -228,6 +235,6 @@ impl Steppable for Lcd {
             }
         }
 
-        Ok(1)
+        Ok(pixel_data)
     }
 }
