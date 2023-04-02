@@ -7,6 +7,7 @@ mod base_ppu;
 mod canvas_engine;
 mod lcd;
 mod no_gui_engine;
+mod palette;
 
 pub use base_ppu::{BasePpu, GraphicsEngine};
 pub use canvas_engine::CanvasEngine;

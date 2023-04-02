@@ -1,12 +1,13 @@
 use crate::component::Address;
 use crate::error::{Error, Result};
-use crate::ppu::{OamData, TileDataAddressingMethod};
+use crate::ppu::{OamData, TileDataAddressingMethod, self};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::{RenderTarget, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
 use super::base_ppu::{GraphicsEngine, PpuState};
+use super::palette::TileColor;
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]
@@ -290,33 +291,34 @@ impl CanvasEngine {
         //Render screen pixels (currently just the background layer) onto the canvas
         for x in 0u8..160 {
             for y in 0u8..144 {
-                let color = match self.screen_pixels[x as usize + 160 * y as usize] {
-                    0 => sdl2::pixels::Color::RGBA(255, 255, 255, 255),
-                    1 => sdl2::pixels::Color::RGBA(200, 200, 200, 255),
-                    2 => sdl2::pixels::Color::RGBA(100, 100, 100, 255),
-                    3 => sdl2::pixels::Color::RGBA(0, 0, 0, 255),
-                    _ => sdl2::pixels::Color::RGBA(255, 255, 255, 255),
+                let color_index = self.screen_pixels[x as usize + 160 * y as usize];
+                let color = match ppu_state.background_palette.map_index(color_index) {
+                    TileColor::White => sdl2::pixels::Color::RGBA(255, 255, 255, 255),
+                    TileColor::LightGrey => sdl2::pixels::Color::RGBA(200, 200, 200, 255),
+                    TileColor::DarkGrey => sdl2::pixels::Color::RGBA(100, 100, 100, 255),
+                    TileColor::Black => sdl2::pixels::Color::RGBA(0, 0, 0, 255),
+                    TileColor::Debug => sdl2::pixels::Color::RGBA(255, 0, 0, 255),
                 };
                 texture_canvas.set_draw_color(color);
                 texture_canvas.draw_point((x as i32, y as i32))?;
             }
         }
 
-        {
-            if ppu_state.lcd.lcd_control.bg_window_enable
-                && (0..=166).contains(&ppu_state.wx)
-                && (0..=143).contains(&ppu_state.wy)
-            {
-                let dst = Rect::new(
-                    ppu_state.wx as i32 - 7,
-                    ppu_state.wy as i32,
-                    160 - (ppu_state.wx as u32 - 7),
-                    144 - ppu_state.wy as u32,
-                );
-                let src = Rect::new(0, 0, dst.width(), dst.height());
-                texture_canvas.copy(window_map, Some(src), Some(dst))?;
-            }
-        }
+        // {
+        //     if ppu_state.lcd.lcd_control.bg_window_enable
+        //         && (0..=166).contains(&ppu_state.wx)
+        //         && (0..=143).contains(&ppu_state.wy)
+        //     {
+        //         let dst = Rect::new(
+        //             ppu_state.wx as i32 - 7,
+        //             ppu_state.wy as i32,
+        //             160 - (ppu_state.wx as u32 - 7),
+        //             144 - ppu_state.wy as u32,
+        //         );
+        //         let src = Rect::new(0, 0, dst.width(), dst.height());
+        //         texture_canvas.copy(window_map, Some(src), Some(dst))?;
+        //     }
+        // }
 
         texture_canvas.copy(sprite_map, None, None)?;
 
@@ -505,17 +507,26 @@ impl GraphicsEngine for CanvasEngine {
             self.update_scanline_cache(ppu_state, y);
         }
 
-        if ppu_state.lcd.lcd_control.bg_window_enable {
+        if !ppu_state.lcd.lcd_control.bg_window_enable {
+            self.screen_pixels[160 * y as usize + x as usize] = 4; // values outside 0..3 are white
+            return Ok(());
+        }
+
+        if self.window_contains(ppu_state, x, y) {
+            let win_x = (x - (ppu_state.wx - 7));
+            let win_y = (y - ppu_state.wy);
+            let pixel = self.get_win_pixel(ppu_state, win_x, win_y);
+            self.screen_pixels[160 * y as usize + x as usize] = pixel;
+        } else {
             let bg_x = (ppu_state.scx + x) % 255;
             let bg_y = (ppu_state.scy + y) % 255;
 
             let pixel = self.get_bg_pixel(bg_x, bg_y, ppu_state);
             self.screen_pixels[160 * y as usize + x as usize] = pixel;
-        } else {
-            self.screen_pixels[160 * y as usize + x as usize] = 4; // values outside 0..3 are white
         }
         Ok(())
     }
+
 }
 
 impl CanvasEngine {

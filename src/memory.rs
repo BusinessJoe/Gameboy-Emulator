@@ -65,7 +65,7 @@ impl MemoryBus {
             0xff0f => Ok(self.data[address] | 0xe0),
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
-            0xff4a..=0xff4b => self.ppu.borrow_mut().read_u8(address),
+            0xff47..=0xff4b => self.ppu.borrow_mut().read_u8(address),
             0xff4d => Ok(0xff),
             _ => match self.data.get(address) {
                 Some(byte) => Ok(*byte),
@@ -99,7 +99,7 @@ impl MemoryBus {
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().write_u8(address, value)?,
-            0xff4a..=0xff4b => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xff47..=0xff4b => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
             _ => match self.data.get_mut(address) {

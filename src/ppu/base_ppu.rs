@@ -6,6 +6,7 @@ use crate::{
 use crate::{Error, Result};
 
 use super::lcd::{self, UpdatePixel};
+use super::palette::PaletteRegister;
 
 pub trait GraphicsEngine {
     fn after_write(&mut self, ppu_state: &PpuState, address: Address);
@@ -35,6 +36,10 @@ pub struct PpuState {
 
     pub lcd: lcd::Lcd,
 
+    pub background_palette: PaletteRegister,
+    pub object_palette_1: PaletteRegister,
+    pub object_palette_2: PaletteRegister,
+
     /// Register values
     pub scy: u8,
     pub scx: u8,
@@ -50,6 +55,9 @@ impl PpuState {
             window_map: vec![0; 32 * 32],
             sprite_tiles_table: vec![0; 160],
             lcd: lcd::Lcd::new(),
+            background_palette: PaletteRegister { register_value: 0 },
+            object_palette_1: PaletteRegister { register_value: 0 },
+            object_palette_2: PaletteRegister { register_value: 0 },
 
             scy: 0,
             scx: 0,
@@ -70,6 +78,9 @@ impl PpuState {
             0xff43 => self.scx,
             0xff44 => self.lcd.ly,
             0xff45 => self.lcd.lyc,
+            0xff47 => self.background_palette.register_value,
+            0xff48 => self.object_palette_1.register_value,
+            0xff49 => self.object_palette_2.register_value,
             0xff4a => self.wy,
             0xff4b => self.wx,
             _ => {
@@ -104,6 +115,9 @@ impl PpuState {
             0xff43 => self.scx = data,
             0xff44 => (), // ly: lcd y coordinate is read only
             0xff45 => self.lcd.lyc = data,
+            0xff47 => self.background_palette.register_value = data,
+            0xff48 => self.object_palette_1.register_value = data,
+            0xff49 => self.object_palette_2.register_value = data,
             0xff4a => self.wy = data,
             0xff4b => self.wx = data,
             _ => {
