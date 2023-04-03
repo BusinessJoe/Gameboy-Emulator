@@ -229,7 +229,7 @@ impl GameboyEmulator {
                     if duration > Duration::from_millis(1000 / 60) {
                         warn!("Time elapsed this frame is: {:?} > 16ms", duration);
                     } else {
-                        // std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
+                        std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
                     }
                     start = Instant::now();
 
