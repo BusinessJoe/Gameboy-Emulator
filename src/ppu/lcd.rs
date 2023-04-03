@@ -1,11 +1,7 @@
-use crate::component::{ElapsedTime, Steppable};
 use crate::error::Result;
 use crate::gameboy::GameBoyState;
 use crate::gameboy::Interrupt;
 use crate::utils::BitField;
-use std::collections::VecDeque;
-
-use super::BasePpu;
 
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
@@ -57,13 +53,6 @@ impl LcdControl {
     }
 }
 
-#[derive(Debug)]
-pub struct PixelData {
-    color: u8,
-    palette: u8,
-    background_priority: bool,
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum PpuState {
     OamSearch,
@@ -88,9 +77,6 @@ pub struct Lcd {
     pub stat: BitField,
     stat_interrupt_line: [bool; 4],
 
-    background_queue: VecDeque<PixelData>,
-    sprite_queue: VecDeque<PixelData>,
-
     state: PpuState,
     dots: u32,
 }
@@ -104,8 +90,6 @@ impl Lcd {
             lcd_control: LcdControl::new(),
             stat: BitField(0),
             stat_interrupt_line: [false; 4],
-            background_queue: VecDeque::new(),
-            sprite_queue: VecDeque::new(),
             state: PpuState::OamSearch,
             dots: 0,
         }

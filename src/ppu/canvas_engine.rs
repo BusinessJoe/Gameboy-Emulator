@@ -1,13 +1,13 @@
 use crate::component::Address;
 use crate::error::{Error, Result};
-use crate::ppu::{OamData, TileDataAddressingMethod, self};
+use crate::ppu::{OamData, TileDataAddressingMethod};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::{RenderTarget, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
 use super::base_ppu::{GraphicsEngine, PpuState};
-use super::palette::TileColor;
+use super::palette::{TileColor, SpriteTileColor};
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]
@@ -59,7 +59,9 @@ pub struct CanvasEngine {
     /// Cache of decoded tile data -- the gameboy can store 384 different tiles
     tile_cache: Vec<Tile>,
 
-    screen_pixels: Vec<u8>,
+    screen_pixels: Vec<TileColor>,
+
+    current_scanline_objects: Vec<OamData>,
 }
 
 impl CanvasEngine {
@@ -77,7 +79,9 @@ impl CanvasEngine {
             // The gameboy has room for 384 tiles in addresses 0x8000 to 0x97ff
             tile_cache: vec![Tile::new(); 384],
 
-            screen_pixels: vec![0; 160 * 144],
+            screen_pixels: vec![TileColor::White; 160 * 144],
+
+            current_scanline_objects: vec![],
         })
     }
 
@@ -135,7 +139,9 @@ impl CanvasEngine {
             .unwrap();
     }
 
-    fn update_scanline_cache(&mut self, ppu_state: &PpuState, y_coord: u8) {}
+    fn update_scanline_cache(&mut self, ppu_state: &PpuState, y_coord: u8) {
+        self.current_scanline_objects = self.get_scanline_objects(ppu_state, y_coord);
+    }
 
     /// Uses the tile addressing method to adjust the provided index so it can be used with the tile cache.
     pub fn adjust_tile_index(&self, tile_index: usize, method: TileDataAddressingMethod) -> usize {
@@ -282,17 +288,13 @@ impl CanvasEngine {
 
     pub fn render_main_screen(
         &mut self,
-        ppu_state: &PpuState,
         texture_canvas: &mut sdl2::render::Canvas<Window>,
-        background_map: &sdl2::render::Texture,
-        window_map: &sdl2::render::Texture,
-        sprite_map: &sdl2::render::Texture,
     ) -> Result<()> {
         //Render screen pixels (currently just the background layer) onto the canvas
         for x in 0u8..160 {
             for y in 0u8..144 {
-                let color_index = self.screen_pixels[x as usize + 160 * y as usize];
-                let color = match ppu_state.background_palette.map_index(color_index) {
+                let color_index = &self.screen_pixels[x as usize + 160 * y as usize];
+                let color = match color_index {
                     TileColor::White => sdl2::pixels::Color::RGBA(255, 255, 255, 255),
                     TileColor::LightGrey => sdl2::pixels::Color::RGBA(200, 200, 200, 255),
                     TileColor::DarkGrey => sdl2::pixels::Color::RGBA(100, 100, 100, 255),
@@ -303,24 +305,6 @@ impl CanvasEngine {
                 texture_canvas.draw_point((x as i32, y as i32))?;
             }
         }
-
-        // {
-        //     if ppu_state.lcd.lcd_control.bg_window_enable
-        //         && (0..=166).contains(&ppu_state.wx)
-        //         && (0..=143).contains(&ppu_state.wy)
-        //     {
-        //         let dst = Rect::new(
-        //             ppu_state.wx as i32 - 7,
-        //             ppu_state.wy as i32,
-        //             160 - (ppu_state.wx as u32 - 7),
-        //             144 - ppu_state.wy as u32,
-        //         );
-        //         let src = Rect::new(0, 0, dst.width(), dst.height());
-        //         texture_canvas.copy(window_map, Some(src), Some(dst))?;
-        //     }
-        // }
-
-        texture_canvas.copy(sprite_map, None, None)?;
 
         Ok(())
     }
@@ -464,23 +448,9 @@ impl GraphicsEngine for CanvasEngine {
             .map_err(|e| Error::from_message(e.to_string()))?;
 
         canvas
-            .with_texture_canvas(&mut texture_book.sprite_map, |mut texture_canvas| {
-                texture_canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 0));
-                texture_canvas.clear();
-                // Render sprites over background map for now
-                self.render_sprites(ppu_state, &mut texture_canvas)
-                    .expect("error rendering sprite");
-            })
-            .map_err(|e| Error::from_message(e.to_string()))?;
-
-        canvas
             .with_texture_canvas(&mut texture_book.main_screen, |texture_canvas| {
                 self.render_main_screen(
-                    ppu_state,
                     texture_canvas,
-                    &texture_book.background_map.get_texture(),
-                    &texture_book.window_map.get_texture(),
-                    &texture_book.sprite_map,
                 )
                 .expect("error rendering main screen");
             })
@@ -508,20 +478,25 @@ impl GraphicsEngine for CanvasEngine {
         }
 
         if !ppu_state.lcd.lcd_control.bg_window_enable {
-            self.screen_pixels[160 * y as usize + x as usize] = 4; // values outside 0..3 are white
+            self.screen_pixels[160 * y as usize + x as usize] = TileColor::White; // values outside 0..3 are interpreted as white for convenience
             return Ok(());
         }
 
+        if let SpriteTileColor::TileColor(tile_color) = self.get_obj_pixel(ppu_state, x, y) {
+            self.screen_pixels[160 * y as usize + x as usize] = tile_color;
+            return Ok(());
+        } 
+
         if self.window_contains(ppu_state, x, y) {
-            let win_x = (x - (ppu_state.wx - 7));
-            let win_y = (y - ppu_state.wy);
+            let win_x = x - (ppu_state.wx - 7);
+            let win_y = y - ppu_state.wy;
             let pixel = self.get_win_pixel(ppu_state, win_x, win_y);
             self.screen_pixels[160 * y as usize + x as usize] = pixel;
         } else {
             let bg_x = (ppu_state.scx + x) % 255;
             let bg_y = (ppu_state.scy + y) % 255;
 
-            let pixel = self.get_bg_pixel(bg_x, bg_y, ppu_state);
+            let pixel = self.get_bg_pixel(ppu_state, bg_x, bg_y);
             self.screen_pixels[160 * y as usize + x as usize] = pixel;
         }
         Ok(())
@@ -530,7 +505,7 @@ impl GraphicsEngine for CanvasEngine {
 }
 
 impl CanvasEngine {
-    fn get_bg_pixel(&self, bg_x: u8, bg_y: u8, ppu_state: &PpuState) -> u8 {
+    fn get_bg_pixel(&self, ppu_state: &PpuState, bg_x: u8, bg_y: u8) -> TileColor {
         let tile_x = bg_x / 8;
         let tile_y = bg_y / 8;
         let tile_sub_x = bg_x % 8;
@@ -546,6 +521,116 @@ impl CanvasEngine {
         tile_index = self.adjust_tile_index(tile_index, method);
 
         let tile = &self.tile_cache[tile_index];
-        tile.get_pixel(tile_sub_x, tile_sub_y)
+        let index = tile.get_pixel(tile_sub_x, tile_sub_y);
+        ppu_state.background_palette.map_index(index)
+    }
+
+    fn get_win_pixel(&self, ppu_state: &PpuState, win_x: u8, win_y: u8) -> TileColor {
+        let tile_x = win_x / 8;
+        let tile_y = win_y / 8;
+        let tile_sub_x = win_x % 8;
+        let tile_sub_y = win_y % 8;
+
+        let mut tile_index =
+            ppu_state.window_map[tile_x as usize + 32 * tile_y as usize] as usize;
+        let method = if ppu_state.lcd.lcd_control.bg_window_tile_data_area {
+            TileDataAddressingMethod::Method8000
+        } else {
+            TileDataAddressingMethod::Method8800
+        };
+        tile_index = self.adjust_tile_index(tile_index, method);
+        
+        let tile = &self.tile_cache[tile_index];
+        let index = tile.get_pixel(tile_sub_x, tile_sub_y);
+        ppu_state.background_palette.map_index(index)
+    }
+    
+    fn window_contains(&self, ppu_state: &PpuState, x: u8, y: u8) -> bool {
+        let contains_x = x >= ppu_state.wx - 7;
+        let contains_y = y >= ppu_state.wy;
+        contains_x && contains_y
+    }
+
+    /// returns up to 10 objects
+    /// each object is represented by 4 bytes
+    fn get_scanline_objects(&self, ppu_state: &PpuState, y: u8) -> Vec<OamData> {
+        let mut objects = Vec::new();
+
+
+        for object in ppu_state.sprite_tiles_table.chunks_exact(4) {
+            let y_pos = object[0] - 16;
+
+            let y_upper = y_pos + if ppu_state.lcd.lcd_control.obj_size {
+                16
+            } else {
+                8
+            };
+
+            if y_pos <= y && y < y_upper {
+                // since object guaranteed to be 4 bytes by chunks_exact(), object is always valid oam data.
+                objects.push(OamData::new(object));
+            }
+
+            if objects.len() == 10 {
+                break;
+            }
+        }
+
+        objects
+    }
+
+    fn get_obj_pixel(&self, ppu_state: &PpuState, x: u8, y: u8) -> SpriteTileColor {
+        for object in self.current_scanline_objects.iter() {
+            let x_pos = object.x_pos() - 8;
+            // skip over objects that don't contain this x value
+            if !(x_pos <= x && x < x_pos + 8) {
+                continue;
+            }
+
+            let y_pos = object.y_pos() - 16;
+
+            let tile_index = if !ppu_state.lcd.lcd_control.obj_size {
+                // 8x8
+                object.tile_index()
+            } else {
+                // 8x16
+                let (top_idx, bot_idx) = object.tile_index_16();
+                if (y - y_pos < 8) ^ object.y_flip() {
+                    top_idx
+                } else {
+                    bot_idx
+                }
+            };
+            let tile = &self.tile_cache[tile_index as usize];
+
+            // calculate x-index into tile, accounting for x flip
+            let mut tile_sub_x = x - x_pos;
+            if object.x_flip() {
+                tile_sub_x = 7 - tile_sub_x;
+            }
+            
+            // calculate y-index into tile, accounting for tall tiles and y flip
+            let mut tile_sub_y = if y - y_pos < 8 {
+                y - y_pos
+            } else {
+                y - y_pos - 8
+            };
+            if object.y_flip() {
+                tile_sub_y = 7 - tile_sub_y;
+            }
+
+            let index = tile.get_pixel(tile_sub_x, tile_sub_y);
+            // ignore transparent pixels
+            if index != 0 {
+                let palette = match object.palette_number() {
+                    0 => &ppu_state.object_palette_0,
+                    1 => &ppu_state.object_palette_1,
+                    _ => panic!()
+                };
+                return palette.map_sprite_index(index);
+            }
+        }
+
+        SpriteTileColor::Transparent
     }
 }
