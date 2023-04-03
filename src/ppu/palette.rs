@@ -1,5 +1,5 @@
 pub struct PaletteRegister {
-    pub register_value: u8 // ff47, ff48, or ff49
+    pub register_value: u8, // ff47, ff48, or ff49
 }
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl PaletteRegister {
             1 => (self.register_value >> 2) & 0b11,
             2 => (self.register_value >> 4) & 0b11,
             3 => (self.register_value >> 6) & 0b11,
-            _ => 4
+            _ => 4,
         };
         TileColor::from_u8(color)
     }
@@ -46,7 +46,7 @@ impl PaletteRegister {
             1 => (self.register_value >> 2) & 0b11,
             2 => (self.register_value >> 4) & 0b11,
             3 => (self.register_value >> 6) & 0b11,
-            _ => 4
+            _ => 4,
         };
         SpriteTileColor::TileColor(TileColor::from_u8(color))
     }

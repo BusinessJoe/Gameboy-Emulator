@@ -31,14 +31,14 @@ impl LcdControl {
     }
 
     pub fn read(&self) -> u8 {
-        (self.bg_window_enable as u8) | (self.obj_enable as u8)
-            << 1 | (self.obj_size as u8)
-            << 2 | (self.bg_tile_map_area as u8)
-            << 3 | (self.bg_window_tile_data_area as u8)
-            << 4 | (self.window_enable as u8)
-            << 5 | (self.window_tile_map_area as u8)
-            << 6 | (self.lcd_ppu_enable as u8)
-            << 7
+        (self.bg_window_enable as u8)
+            | (self.obj_enable as u8) << 1
+            | (self.obj_size as u8) << 2
+            | (self.bg_tile_map_area as u8) << 3
+            | (self.bg_window_tile_data_area as u8) << 4
+            | (self.window_enable as u8) << 5
+            | (self.window_tile_map_area as u8) << 6
+            | (self.lcd_ppu_enable as u8) << 7
     }
 
     pub fn write(&mut self, value: u8) {

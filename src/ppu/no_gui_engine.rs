@@ -20,7 +20,12 @@ impl GraphicsEngine for NoGuiEngine {
         Ok(())
     }
 
-    fn place_pixel(&mut self, _ppu_state: &super::base_ppu::PpuState, _x: u8, _y: u8) -> Result<()> {
+    fn place_pixel(
+        &mut self,
+        _ppu_state: &super::base_ppu::PpuState,
+        _x: u8,
+        _y: u8,
+    ) -> Result<()> {
         // do nothing
         Ok(())
     }

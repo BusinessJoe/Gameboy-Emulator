@@ -1,13 +1,13 @@
 use crate::component::Address;
 use crate::error::{Error, Result};
-use crate::ppu::{OamData, TileDataAddressingMethod, self};
+use crate::ppu::{self, OamData, TileDataAddressingMethod};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::{RenderTarget, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
 use super::base_ppu::{GraphicsEngine, PpuState};
-use super::palette::{TileColor, SpriteTileColor};
+use super::palette::{SpriteTileColor, TileColor};
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]
@@ -449,10 +449,8 @@ impl GraphicsEngine for CanvasEngine {
 
         canvas
             .with_texture_canvas(&mut texture_book.main_screen, |texture_canvas| {
-                self.render_main_screen(
-                    texture_canvas,
-                )
-                .expect("error rendering main screen");
+                self.render_main_screen(texture_canvas)
+                    .expect("error rendering main screen");
             })
             .map_err(|e| Error::from_message(e.to_string()))?;
 
@@ -480,7 +478,7 @@ impl GraphicsEngine for CanvasEngine {
         if let SpriteTileColor::TileColor(tile_color) = self.get_obj_pixel(ppu_state, x, y) {
             self.screen_pixels[160 * y as usize + x as usize] = tile_color;
             return Ok(());
-        } 
+        }
 
         if !ppu_state.lcd.lcd_control.bg_window_enable {
             self.screen_pixels[160 * y as usize + x as usize] = TileColor::White; // values outside 0..3 are interpreted as white for convenience
@@ -502,7 +500,6 @@ impl GraphicsEngine for CanvasEngine {
         }
         Ok(())
     }
-
 }
 
 impl CanvasEngine {
@@ -532,20 +529,19 @@ impl CanvasEngine {
         let tile_sub_x = win_x % 8;
         let tile_sub_y = win_y % 8;
 
-        let mut tile_index =
-            ppu_state.window_map[tile_x as usize + 32 * tile_y as usize] as usize;
+        let mut tile_index = ppu_state.window_map[tile_x as usize + 32 * tile_y as usize] as usize;
         let method = if ppu_state.lcd.lcd_control.bg_window_tile_data_area {
             TileDataAddressingMethod::Method8000
         } else {
             TileDataAddressingMethod::Method8800
         };
         tile_index = self.adjust_tile_index(tile_index, method);
-        
+
         let tile = &self.tile_cache[tile_index];
         let index = tile.get_pixel(tile_sub_x, tile_sub_y);
         ppu_state.background_palette.map_index(index)
     }
-    
+
     fn window_contains(&self, ppu_state: &PpuState, x: u8, y: u8) -> bool {
         let contains_x = x + 7 >= ppu_state.wx;
         let contains_y = y >= ppu_state.wy;
@@ -557,15 +553,15 @@ impl CanvasEngine {
     fn get_scanline_objects(&self, ppu_state: &PpuState, y: u8) -> Vec<OamData> {
         let mut objects = Vec::new();
 
-
         for object in ppu_state.sprite_tiles_table.chunks_exact(4) {
             let y_pos = i16::from(object[0]) - 16;
 
-            let y_upper = y_pos + if ppu_state.lcd.lcd_control.obj_size {
-                16
-            } else {
-                8
-            };
+            let y_upper = y_pos
+                + if ppu_state.lcd.lcd_control.obj_size {
+                    16
+                } else {
+                    8
+                };
 
             if y_pos <= y.into() && i16::from(y) < y_upper {
                 // since object guaranteed to be 4 bytes by chunks_exact(), object is always valid oam data.
@@ -609,7 +605,7 @@ impl CanvasEngine {
             if object.x_flip() {
                 tile_sub_x = 7 - tile_sub_x;
             }
-            
+
             // calculate y-index into tile, accounting for tall tiles and y flip
             let mut tile_sub_y: i16 = if i16::from(y) - y_pos < 8 {
                 i16::from(y) - y_pos
@@ -620,13 +616,16 @@ impl CanvasEngine {
                 tile_sub_y = 7 - tile_sub_y;
             }
 
-            let index = tile.get_pixel(tile_sub_x.try_into().unwrap(), tile_sub_y.try_into().unwrap());
+            let index = tile.get_pixel(
+                tile_sub_x.try_into().unwrap(),
+                tile_sub_y.try_into().unwrap(),
+            );
             // ignore transparent pixels
             if index != 0 {
                 let palette = match object.palette_number() {
                     0 => &ppu_state.object_palette_0,
                     1 => &ppu_state.object_palette_1,
-                    _ => panic!()
+                    _ => panic!(),
                 };
                 return palette.map_sprite_index(index);
             }
