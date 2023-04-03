@@ -1,6 +1,6 @@
 use crate::component::Address;
 use crate::error::{Error, Result};
-use crate::ppu::{OamData, TileDataAddressingMethod};
+use crate::ppu::{OamData, TileDataAddressingMethod, self};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::{RenderTarget, Texture, TextureCreator};
@@ -477,19 +477,20 @@ impl GraphicsEngine for CanvasEngine {
             self.update_scanline_cache(ppu_state, y);
         }
 
-        if !ppu_state.lcd.lcd_control.bg_window_enable {
-            self.screen_pixels[160 * y as usize + x as usize] = TileColor::White; // values outside 0..3 are interpreted as white for convenience
-            return Ok(());
-        }
-
         if let SpriteTileColor::TileColor(tile_color) = self.get_obj_pixel(ppu_state, x, y) {
             self.screen_pixels[160 * y as usize + x as usize] = tile_color;
             return Ok(());
         } 
 
-        if self.window_contains(ppu_state, x, y) {
-            let win_x = x - (ppu_state.wx - 7);
+        if !ppu_state.lcd.lcd_control.bg_window_enable {
+            self.screen_pixels[160 * y as usize + x as usize] = TileColor::White; // values outside 0..3 are interpreted as white for convenience
+            return Ok(());
+        }
+
+        if self.window_contains(ppu_state, x, y) && ppu_state.lcd.lcd_control.window_enable {
+            let win_x = x - ppu_state.wx + 7;
             let win_y = y - ppu_state.wy;
+
             let pixel = self.get_win_pixel(ppu_state, win_x, win_y);
             self.screen_pixels[160 * y as usize + x as usize] = pixel;
         } else {
@@ -546,7 +547,7 @@ impl CanvasEngine {
     }
     
     fn window_contains(&self, ppu_state: &PpuState, x: u8, y: u8) -> bool {
-        let contains_x = x >= ppu_state.wx - 7;
+        let contains_x = x + 7 >= ppu_state.wx;
         let contains_y = y >= ppu_state.wy;
         contains_x && contains_y
     }
