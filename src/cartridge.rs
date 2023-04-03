@@ -264,7 +264,7 @@ impl CartridgeType {
                 ram_size,
             },
             _ => {
-                warn!("catridge indicated by {:#x} is not supported", data[0x0147]);
+                eprintln!("catridge indicated by {:#x} is not supported", data[0x0147]);
                 return None;
             }
         };

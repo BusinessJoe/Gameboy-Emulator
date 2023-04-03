@@ -1,9 +1,7 @@
-use crate::component::{ElapsedTime, Steppable};
 use crate::error::Result;
 use crate::gameboy::GameBoyState;
 use crate::gameboy::Interrupt;
 use crate::utils::BitField;
-use std::collections::VecDeque;
 
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
@@ -33,14 +31,14 @@ impl LcdControl {
     }
 
     pub fn read(&self) -> u8 {
-        (self.bg_window_enable as u8) + (self.obj_enable as u8)
-            << 1 + (self.obj_size as u8)
-            << 2 + (self.bg_tile_map_area as u8)
-            << 3 + (self.bg_window_tile_data_area as u8)
-            << 4 + (self.window_enable as u8)
-            << 5 + (self.window_tile_map_area as u8)
-            << 6 + (self.lcd_ppu_enable as u8)
-            << 7
+        (self.bg_window_enable as u8)
+            | (self.obj_enable as u8) << 1
+            | (self.obj_size as u8) << 2
+            | (self.bg_tile_map_area as u8) << 3
+            | (self.bg_window_tile_data_area as u8) << 4
+            | (self.window_enable as u8) << 5
+            | (self.window_tile_map_area as u8) << 6
+            | (self.lcd_ppu_enable as u8) << 7
     }
 
     pub fn write(&mut self, value: u8) {
@@ -55,13 +53,6 @@ impl LcdControl {
     }
 }
 
-#[derive(Debug)]
-pub struct PixelData {
-    color: u8,
-    palette: u8,
-    background_priority: bool,
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum PpuState {
     OamSearch,
@@ -70,19 +61,21 @@ enum PpuState {
     HBlank,
 }
 
+/// Struct returned to indicate the pixel with these coords should be updated
+pub struct UpdatePixel {
+    pub x: u8,
+    pub y: u8,
+}
 pub struct Lcd {
     /// LY: LCD Y coordinate (read only)
     pub ly: u8,
     /// LYC: LY compare
     pub lyc: u8,
     /// Current x position in scanline
-    pub scan_x: u32,
+    pub scan_x: u8,
     pub lcd_control: LcdControl,
     pub stat: BitField,
     stat_interrupt_line: [bool; 4],
-
-    background_queue: VecDeque<PixelData>,
-    sprite_queue: VecDeque<PixelData>,
 
     state: PpuState,
     dots: u32,
@@ -97,8 +90,6 @@ impl Lcd {
             lcd_control: LcdControl::new(),
             stat: BitField(0),
             stat_interrupt_line: [false; 4],
-            background_queue: VecDeque::new(),
-            sprite_queue: VecDeque::new(),
             state: PpuState::OamSearch,
             dots: 0,
         }
@@ -162,10 +153,9 @@ impl Lcd {
             }
         }
     }
-}
 
-impl Steppable for Lcd {
-    fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
+    pub fn step(&mut self, state: &GameBoyState) -> Result<Option<UpdatePixel>> {
+        let mut pixel_data = None;
         self.dots += 1;
 
         match self.state {
@@ -180,9 +170,10 @@ impl Steppable for Lcd {
 
                 // For now, just use the current xy coordinates as an index into the background map
                 // to get a pixel
-                if self.scan_x == 0 {
-                    //self.render_background_map()?;
-                }
+                pixel_data = Some(UpdatePixel {
+                    x: self.scan_x,
+                    y: self.ly.into(),
+                });
 
                 self.scan_x += 1;
                 if self.scan_x == 160 {
@@ -228,6 +219,6 @@ impl Steppable for Lcd {
             }
         }
 
-        Ok(1)
+        Ok(pixel_data)
     }
 }

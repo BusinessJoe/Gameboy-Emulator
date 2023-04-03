@@ -125,7 +125,7 @@ impl GameboyEmulator {
             let video_subsystem = sdl_context.video()?;
 
             let window = video_subsystem
-                .window("Gameboy Emulator", 1200, 900)
+                .window("Gameboy Emulator", 1800, 800)
                 .position_centered()
                 .opengl()
                 .build()
@@ -133,7 +133,7 @@ impl GameboyEmulator {
 
             let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
             canvas
-                .set_logical_size((20 + 1 + 32) * 8, (32 + 1 + 32) * 8)
+                .set_logical_size((20 + 1 + 16 + 1 + 32 + 1 + 32) * 8, (32) * 8)
                 .map_err(|e| e.to_string())?;
             canvas.set_blend_mode(BlendMode::Blend);
             let mut texture_book = TextureBook::new(&canvas)?;
