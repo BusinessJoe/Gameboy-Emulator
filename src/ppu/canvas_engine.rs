@@ -488,7 +488,7 @@ impl GraphicsEngine for CanvasEngine {
         }
 
         if self.window_contains(ppu_state, x, y) && ppu_state.lcd.lcd_control.window_enable {
-            let win_x = x - ppu_state.wx + 7;
+            let win_x = x + 7 - ppu_state.wx;
             let win_y = y - ppu_state.wy;
 
             let pixel = self.get_win_pixel(ppu_state, win_x, win_y);
@@ -559,7 +559,7 @@ impl CanvasEngine {
 
 
         for object in ppu_state.sprite_tiles_table.chunks_exact(4) {
-            let y_pos = object[0] - 16;
+            let y_pos = i16::from(object[0]) - 16;
 
             let y_upper = y_pos + if ppu_state.lcd.lcd_control.obj_size {
                 16
@@ -567,7 +567,7 @@ impl CanvasEngine {
                 8
             };
 
-            if y_pos <= y && y < y_upper {
+            if y_pos <= y.into() && i16::from(y) < y_upper {
                 // since object guaranteed to be 4 bytes by chunks_exact(), object is always valid oam data.
                 objects.push(OamData::new(object));
             }
@@ -582,13 +582,13 @@ impl CanvasEngine {
 
     fn get_obj_pixel(&self, ppu_state: &PpuState, x: u8, y: u8) -> SpriteTileColor {
         for object in self.current_scanline_objects.iter() {
-            let x_pos = object.x_pos() - 8;
+            let x_pos = i16::from(object.x_pos()) - 8;
             // skip over objects that don't contain this x value
-            if !(x_pos <= x && x < x_pos + 8) {
+            if !(x_pos <= x.into() && i16::from(x) < x_pos + 8) {
                 continue;
             }
 
-            let y_pos = object.y_pos() - 16;
+            let y_pos = i16::from(object.y_pos()) - 16;
 
             let tile_index = if !ppu_state.lcd.lcd_control.obj_size {
                 // 8x8
@@ -596,7 +596,7 @@ impl CanvasEngine {
             } else {
                 // 8x16
                 let (top_idx, bot_idx) = object.tile_index_16();
-                if (y - y_pos < 8) ^ object.y_flip() {
+                if (i16::from(y) - y_pos < 8) ^ object.y_flip() {
                     top_idx
                 } else {
                     bot_idx
@@ -605,22 +605,22 @@ impl CanvasEngine {
             let tile = &self.tile_cache[tile_index as usize];
 
             // calculate x-index into tile, accounting for x flip
-            let mut tile_sub_x = x - x_pos;
+            let mut tile_sub_x = i16::from(x) - x_pos;
             if object.x_flip() {
                 tile_sub_x = 7 - tile_sub_x;
             }
             
             // calculate y-index into tile, accounting for tall tiles and y flip
-            let mut tile_sub_y = if y - y_pos < 8 {
-                y - y_pos
+            let mut tile_sub_y: i16 = if i16::from(y) - y_pos < 8 {
+                i16::from(y) - y_pos
             } else {
-                y - y_pos - 8
+                i16::from(y) - y_pos - 8
             };
             if object.y_flip() {
                 tile_sub_y = 7 - tile_sub_y;
             }
 
-            let index = tile.get_pixel(tile_sub_x, tile_sub_y);
+            let index = tile.get_pixel(tile_sub_x.try_into().unwrap(), tile_sub_y.try_into().unwrap());
             // ignore transparent pixels
             if index != 0 {
                 let palette = match object.palette_number() {
