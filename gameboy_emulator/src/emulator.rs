@@ -3,7 +3,13 @@ pub mod events;
 use crate::cartridge::Cartridge;
 use crate::error::Result;
 use crate::gameboy::{GameBoyState, GameboyDebugInfo, Interrupt};
-use crate::mainloop::{sdl2::Sdl2MainloopBuilder, Mainloop, MainloopBuilder};
+use crate::mainloop::{Mainloop, MainloopBuilder};
+
+#[cfg(not(target_arch = "wasm32"))]
+use crate::sdl2::mainloop::Sdl2MainloopBuilder;
+#[cfg(target_arch = "wasm32")]
+use crate::web::mainloop::WebMainloopBuilder;
+
 use crate::ppu::{BasePpu, NoGuiEngine};
 use log::warn;
 use std::cell::RefCell;
@@ -40,6 +46,7 @@ impl GameboyEmulator {
         }
     }
 
+    #[deprecated = "Use gameboy_thread with a NoGuiMainloop instead"]
     pub fn gameboy_thread_no_gui(
         cartridge: Cartridge,
     ) -> Result<(
@@ -204,7 +211,10 @@ impl GameboyEmulator {
 
     /// Runs the gameboy emulator with a gui.
     pub fn run(cartridge: Cartridge) -> Result<()> {
+        #[cfg(not(target_arch = "wasm32"))]
         let mainloop_builder = Sdl2MainloopBuilder {};
+        #[cfg(target_arch = "wasm32")]
+        let mainloop_builder = WebMainloopBuilder {};
 
         let (join_handle, _control_event_sender, event_receiver) =
             Self::gameboy_thread(cartridge, mainloop_builder)?;

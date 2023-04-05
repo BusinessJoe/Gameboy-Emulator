@@ -1,5 +1,3 @@
-pub mod sdl2;
-
 use std::cell::RefCell;
 use std::rc::Rc;
 

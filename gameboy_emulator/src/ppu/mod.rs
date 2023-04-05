@@ -1,17 +1,15 @@
 /*!
- * This PPU serves as an implementation for all the gameboy's graphics. It maintains an internal
+ * The PPU serves as an implementation for all the gameboy's graphics. It maintains an internal
  * representation of the screen.
  */
 
-mod base_ppu;
-mod canvas_engine;
+pub(crate) mod base_ppu;
+mod engines;
 mod lcd;
-mod no_gui_engine;
-mod palette;
+pub(crate) mod palette;
 
 pub use base_ppu::{BasePpu, GraphicsEngine};
-pub use canvas_engine::CanvasEngine;
-pub use no_gui_engine::NoGuiEngine;
+pub use engines::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TileDataAddressingMethod {
@@ -31,39 +29,39 @@ impl OamData {
         }
     }
 
-    fn y_pos(&self) -> u8 {
+    pub fn y_pos(&self) -> u8 {
         self.data[0]
     }
 
-    fn x_pos(&self) -> u8 {
+    pub fn x_pos(&self) -> u8 {
         self.data[1]
     }
 
-    fn tile_index(&self) -> u8 {
+    pub fn tile_index(&self) -> u8 {
         self.data[2]
     }
 
     /// Returns the tile indices of this sprite in 8x16 mode. (top, bottom)
-    fn tile_index_16(&self) -> (u8, u8) {
+    pub fn tile_index_16(&self) -> (u8, u8) {
         (self.data[2] & 0xfe, self.data[2] | 0x01)
     }
 
-    fn palette_number(&self) -> u8 {
+    pub fn palette_number(&self) -> u8 {
         self.data[3] >> 4 & 1
     }
 
     /// true iff horizontally mirrored
-    fn x_flip(&self) -> bool {
+    pub fn x_flip(&self) -> bool {
         self.data[3] >> 5 & 1 == 1
     }
 
     /// true iff vertically mirrored
-    fn y_flip(&self) -> bool {
+    pub fn y_flip(&self) -> bool {
         self.data[3] >> 6 & 1 == 1
     }
 
     /// false=No, true=BG and Window colors 1-3 over the OBJ
-    fn bg_window_over_obj(&self) -> bool {
+    pub fn bg_window_over_obj(&self) -> bool {
         self.data[3] >> 7 & 1 == 1
     }
 }

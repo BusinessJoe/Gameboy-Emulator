@@ -3,19 +3,22 @@ name = "gameboy_emulator"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 env_logger = "0.9"
 log = "0.4"
 strum = "0.24"
 strum_macros = "0.24"
-crossterm = "0.25.0"
-
 num = "0.4.0"
-device_query = "1.1.1"
-sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"] }
 clap = { version = "4.1.4", features = ["derive"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.63"
 
 [dev-dependencies]
 pprof = { version = "0.3", features = ["flamegraph"] }

@@ -3,14 +3,15 @@ use std::{cell::RefCell, rc::Rc};
 use sdl2::{event::Event, keyboard::Keycode, render::BlendMode, Sdl};
 use strum::IntoEnumIterator;
 
+use crate::sdl2::engine::CanvasEngine;
 use crate::{
     joypad::JoypadInput,
-    ppu::{BasePpu, CanvasEngine},
-    texture::TextureBook,
+    ppu::BasePpu,
+    sdl2::texture::TextureBook,
     Result,
 };
 
-use super::{Mainloop, MainloopBuilder};
+use crate::mainloop::{Mainloop, MainloopBuilder};
 
 pub struct Sdl2Mainloop {
     sdl_context: Sdl,

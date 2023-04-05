@@ -1,14 +1,14 @@
 use crate::component::Address;
 use crate::error::{Error, Result};
 use crate::ppu::{OamData, TileDataAddressingMethod};
-use crate::texture::TextureBook;
+use crate::sdl2::texture::TextureBook;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 
-use super::base_ppu::{GraphicsEngine, PpuState};
-use super::palette::{SpriteTileColor, TileColor};
+use crate::ppu::base_ppu::{GraphicsEngine, PpuState};
+use crate::ppu::palette::{SpriteTileColor, TileColor};
 
 /// Decoded tile data which is stored as a vec of 64 integers from 0 to 3
 #[derive(Debug, Clone)]

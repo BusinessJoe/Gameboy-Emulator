@@ -1,8 +1,9 @@
 use crate::error::{Error, Result};
-use crate::texture::TileTexture;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::Window;
+
+use super::TileTexture;
 
 /// Stores all the textures displayed in the gui in one place.
 /// Requires the "unsafe_textures" feature of sdl2 because lifetimes were too confusing.

@@ -3,6 +3,7 @@ members = [
     "gameboy_emulator",
 ]
 
+
 #[profile.bench]
 #debug = true
 [profile.release]
