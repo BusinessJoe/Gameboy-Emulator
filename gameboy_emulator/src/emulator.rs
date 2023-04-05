@@ -3,7 +3,7 @@ pub mod events;
 use crate::cartridge::Cartridge;
 use crate::error::Result;
 use crate::gameboy::{GameBoyState, GameboyDebugInfo, Interrupt};
-use crate::mainloop::{Mainloop, MainloopBuilder, Sdl2MainloopBuilder};
+use crate::mainloop::{sdl2::Sdl2MainloopBuilder, Mainloop, MainloopBuilder};
 use crate::ppu::{BasePpu, NoGuiEngine};
 use log::warn;
 use std::cell::RefCell;
@@ -31,7 +31,6 @@ struct EmulatorDebugInfo {
     gameboy_info: GameboyDebugInfo,
     total_cycles: u128,
 }
-
 
 impl GameboyEmulator {
     pub fn new(debug: bool) -> Self {
@@ -72,7 +71,7 @@ impl GameboyEmulator {
         Ok((join_handle, control_event_sender, event_receiver))
     }
 
-    pub fn gameboy_thread<M: MainloopBuilder + 'static> (
+    pub fn gameboy_thread<M: MainloopBuilder + 'static>(
         cartridge: Cartridge,
         mainloop_builder: M,
     ) -> Result<(
@@ -106,44 +105,46 @@ impl GameboyEmulator {
             let joypad = gameboy_state.joypad.clone();
             let memory_bus = gameboy_state.memory_bus.clone();
 
-            mainloop.mainloop(move |joypad_input, pressed| {
-                if pressed {
-                    let prev_state =
-                        joypad.borrow_mut().key_pressed(joypad_input);
-                    // If previous state was not pressed, we send interrupt
-                    if !prev_state {
-                        memory_bus
-                            .borrow_mut()
-                            .interrupt(Interrupt::Joypad)
-                            .expect("error sending joypad interrupt");
-                    }
-                } else {
-                    joypad.borrow_mut().key_released(joypad_input);
-                }
-            }, move || {
-                for _ in 0..1000 {
-                    let elapsed_cycles = emulator.update(&mut gameboy_state, total_cycles);
-                    total_cycles += elapsed_cycles as u128;
-                    frame_cycles += elapsed_cycles;
-                }
-
-                // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
-                // Dividing by 4 and 60 should roughly give the number of machine cycles that
-                // need to run per frame at 60fps.
-                if frame_cycles >= 4_194_304 / 60 {
-                    ppu.borrow_mut().render().unwrap();
-
-                    frame_cycles -= 4_194_304 / 60;
-
-                    let duration = start.elapsed();
-                    if duration > Duration::from_millis(1000 / 60) {
-                        warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+            mainloop.mainloop(
+                move |joypad_input, pressed| {
+                    if pressed {
+                        let prev_state = joypad.borrow_mut().key_pressed(joypad_input);
+                        // If previous state was not pressed, we send interrupt
+                        if !prev_state {
+                            memory_bus
+                                .borrow_mut()
+                                .interrupt(Interrupt::Joypad)
+                                .expect("error sending joypad interrupt");
+                        }
                     } else {
-                        std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
+                        joypad.borrow_mut().key_released(joypad_input);
                     }
-                    start = Instant::now();
-                }
-            });
+                },
+                move || {
+                    for _ in 0..1000 {
+                        let elapsed_cycles = emulator.update(&mut gameboy_state, total_cycles);
+                        total_cycles += elapsed_cycles as u128;
+                        frame_cycles += elapsed_cycles;
+                    }
+
+                    // The clock runs at 4,194,304 Hz, and every 4 clock cycles is 1 machine cycle.
+                    // Dividing by 4 and 60 should roughly give the number of machine cycles that
+                    // need to run per frame at 60fps.
+                    if frame_cycles >= 4_194_304 / 60 {
+                        ppu.borrow_mut().render().unwrap();
+
+                        frame_cycles -= 4_194_304 / 60;
+
+                        let duration = start.elapsed();
+                        if duration > Duration::from_millis(1000 / 60) {
+                            warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+                        } else {
+                            std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
+                        }
+                        start = Instant::now();
+                    }
+                },
+            );
 
             Ok(())
         });
@@ -205,9 +206,8 @@ impl GameboyEmulator {
     pub fn run(cartridge: Cartridge) -> Result<()> {
         let mainloop_builder = Sdl2MainloopBuilder {};
 
-        let (join_handle, 
-            _control_event_sender, 
-            event_receiver) = Self::gameboy_thread(cartridge, mainloop_builder)?;
+        let (join_handle, _control_event_sender, event_receiver) =
+            Self::gameboy_thread(cartridge, mainloop_builder)?;
 
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {

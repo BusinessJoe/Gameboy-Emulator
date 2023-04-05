@@ -10,10 +10,7 @@ use super::palette::PaletteRegister;
 pub trait GraphicsEngine {
     fn after_write(&mut self, ppu_state: &PpuState, address: Address);
 
-    fn render(
-        &mut self,
-        ppu_state: &PpuState,
-    ) -> Result<()>;
+    fn render(&mut self, ppu_state: &PpuState) -> Result<()>;
 
     fn place_pixel(&mut self, ppu_state: &PpuState, x: u8, y: u8) -> Result<()>;
 }
@@ -142,11 +139,8 @@ impl BasePpu {
         }
     }
 
-    pub fn render(
-        &mut self,
-    ) -> Result<()> {
-        self.graphics_engine
-            .render(&self.state)
+    pub fn render(&mut self) -> Result<()> {
+        self.graphics_engine.render(&self.state)
     }
 
     pub fn place_pixel(&mut self, x: u8, y: u8) -> Result<()> {

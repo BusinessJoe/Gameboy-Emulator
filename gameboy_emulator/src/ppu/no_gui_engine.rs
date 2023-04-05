@@ -10,10 +10,7 @@ impl GraphicsEngine for NoGuiEngine {
         // do nothing
     }
 
-    fn render(
-        &mut self,
-        _ppu_state: &super::base_ppu::PpuState,
-    ) -> Result<()> {
+    fn render(&mut self, _ppu_state: &super::base_ppu::PpuState) -> Result<()> {
         // do nothing
         Ok(())
     }

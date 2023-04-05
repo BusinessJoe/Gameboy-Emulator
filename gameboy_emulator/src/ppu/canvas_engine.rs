@@ -4,7 +4,7 @@ use crate::ppu::{OamData, TileDataAddressingMethod};
 use crate::texture::TextureBook;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
-use sdl2::render::{Texture, Canvas};
+use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 
 use super::base_ppu::{GraphicsEngine, PpuState};
@@ -73,10 +73,12 @@ pub struct CanvasEngine {
 
 impl CanvasEngine {
     pub fn new(canvas: Canvas<Window>, texture_book: TextureBook) -> Result<Self> {
-        let tile_map = texture_book.texture_creator
+        let tile_map = texture_book
+            .texture_creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
             .map_err(|e| Error::from_message(e.to_string()))?;
-        let oam_tile_map = texture_book.texture_creator
+        let oam_tile_map = texture_book
+            .texture_creator
             .create_texture_target(PixelFormatEnum::RGBA8888, 128, 192)
             .map_err(|e| Error::from_message(e.to_string()))?;
 
@@ -192,11 +194,7 @@ impl Renderer {
             .map_err(|e| Error::from_message(e))
     }
 
-    pub fn render_tile_map(
-        &mut self,
-        canvas: &mut Canvas<Window>,
-        dst: Rect,
-    ) -> Result<()> {
+    pub fn render_tile_map(&mut self, canvas: &mut Canvas<Window>, dst: Rect) -> Result<()> {
         canvas
             .copy(&self.tile_map, None, Some(dst))
             .map_err(|e| Error::from_message(e))
@@ -309,24 +307,24 @@ impl GraphicsEngine for CanvasEngine {
     fn after_write(&mut self, ppu_addressables: &PpuState, address: Address) {
         match address {
             0x8000..=0x97ff => {
-                self.renderer.update_tile_cache(&ppu_addressables.tile_data, address);
+                self.renderer
+                    .update_tile_cache(&ppu_addressables.tile_data, address);
             }
             _ => {}
         }
     }
 
-    fn render(
-        &mut self,
-        ppu_state: &PpuState,
-    ) -> Result<()> {
-        self.renderer.render_tile_map(&mut self.canvas, Rect::new((20 + 1) * 8, 0, 16 * 8, 24 * 8))
+    fn render(&mut self, ppu_state: &PpuState) -> Result<()> {
+        self.renderer
+            .render_tile_map(&mut self.canvas, Rect::new((20 + 1) * 8, 0, 16 * 8, 24 * 8))
             .expect("error rendering tile map");
 
         self.canvas
             .with_texture_canvas(
                 self.texture_book.background_map.get_texture_mut(),
                 |mut texture_canvas| {
-                    self.renderer.render_background_map(ppu_state, &mut texture_canvas)
+                    self.renderer
+                        .render_background_map(ppu_state, &mut texture_canvas)
                         .expect("error rendering background map");
                 },
             )
@@ -336,7 +334,8 @@ impl GraphicsEngine for CanvasEngine {
             .with_texture_canvas(
                 &mut self.texture_book.window_map.get_texture_mut(),
                 |mut texture_canvas| {
-                    self.renderer.render_window_map(ppu_state, &mut texture_canvas)
+                    self.renderer
+                        .render_window_map(ppu_state, &mut texture_canvas)
                         .expect("error rendering window map");
                 },
             )
@@ -344,7 +343,8 @@ impl GraphicsEngine for CanvasEngine {
 
         self.canvas
             .with_texture_canvas(&mut self.texture_book.main_screen, |texture_canvas| {
-                self.renderer.render_main_screen(texture_canvas)
+                self.renderer
+                    .render_main_screen(texture_canvas)
                     .expect("error rendering main screen");
             })
             .map_err(|e| Error::from_message(e.to_string()))?;
@@ -356,7 +356,7 @@ impl GraphicsEngine for CanvasEngine {
             .window_map
             .copy_to(&mut self.canvas, 20 + 1 + 16 + 1 + 32 + 1, 0)?;
 
-            self.canvas.copy(
+        self.canvas.copy(
             &self.texture_book.main_screen,
             None,
             Some(Rect::new(0, 0, 160, 144)),
@@ -372,7 +372,8 @@ impl GraphicsEngine for CanvasEngine {
             self.renderer.update_scanline_cache(ppu_state, y);
         }
 
-        if let SpriteTileColor::TileColor(tile_color) = self.renderer.get_obj_pixel(ppu_state, x, y) {
+        if let SpriteTileColor::TileColor(tile_color) = self.renderer.get_obj_pixel(ppu_state, x, y)
+        {
             self.renderer.screen_pixels[160 * y as usize + x as usize] = tile_color;
             return Ok(());
         }
@@ -382,7 +383,8 @@ impl GraphicsEngine for CanvasEngine {
             return Ok(());
         }
 
-        if self.renderer.window_contains(ppu_state, x, y) && ppu_state.lcd.lcd_control.window_enable {
+        if self.renderer.window_contains(ppu_state, x, y) && ppu_state.lcd.lcd_control.window_enable
+        {
             let win_x = x + 7 - ppu_state.wx;
             let win_y = y - ppu_state.wy;
 
