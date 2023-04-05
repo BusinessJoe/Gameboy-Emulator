@@ -1,4 +1,3 @@
-use crate::texture::TextureBook;
 use crate::{
     component::{Address, Addressable, ElapsedTime, Steppable},
     gameboy::GameBoyState,
@@ -14,8 +13,6 @@ pub trait GraphicsEngine {
     fn render(
         &mut self,
         ppu_state: &PpuState,
-        canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-        texture_book: &mut TextureBook,
     ) -> Result<()>;
 
     fn place_pixel(&mut self, ppu_state: &PpuState, x: u8, y: u8) -> Result<()>;
@@ -147,11 +144,9 @@ impl BasePpu {
 
     pub fn render(
         &mut self,
-        canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-        texture_book: &mut TextureBook,
     ) -> Result<()> {
         self.graphics_engine
-            .render(&self.state, canvas, texture_book)
+            .render(&self.state)
     }
 
     pub fn place_pixel(&mut self, x: u8, y: u8) -> Result<()> {

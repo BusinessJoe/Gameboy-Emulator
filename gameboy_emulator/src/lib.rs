@@ -1,5 +1,6 @@
 mod component;
 mod error;
+mod mainloop;
 
 mod bit_field;
 pub mod cartridge;

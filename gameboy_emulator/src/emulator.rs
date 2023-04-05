@@ -3,25 +3,17 @@ pub mod events;
 use crate::cartridge::Cartridge;
 use crate::error::Result;
 use crate::gameboy::{GameBoyState, GameboyDebugInfo, Interrupt};
-use crate::joypad::JoypadInput;
-use crate::ppu::{BasePpu, CanvasEngine, NoGuiEngine};
+use crate::mainloop::{Mainloop, MainloopBuilder, Sdl2MainloopBuilder};
+use crate::ppu::{BasePpu, NoGuiEngine};
 use log::warn;
-use sdl2::pixels::Color;
-use sdl2::rect::Rect;
-use sdl2::render::BlendMode;
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-use strum::IntoEnumIterator;
-
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
 
 use self::events::{EmulationControlEvent, EmulationEvent};
-use crate::texture::TextureBook;
 
 pub const WIDTH: usize = 8 * (16 + 32);
 pub const HEIGHT: usize = 8 * 32;
@@ -40,33 +32,6 @@ struct EmulatorDebugInfo {
     total_cycles: u128,
 }
 
-// Maps keyboard keys to corresponding joypad inputs.
-fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
-    match input {
-        JoypadInput::A => vec![Keycode::A],
-        JoypadInput::B => vec![Keycode::B],
-        JoypadInput::Start => vec![Keycode::Space],
-        JoypadInput::Select => vec![Keycode::Return],
-        JoypadInput::Up => vec![Keycode::Up],
-        JoypadInput::Down => vec![Keycode::Down],
-        JoypadInput::Left => vec![Keycode::Left],
-        JoypadInput::Right => vec![Keycode::Right],
-    }
-}
-
-fn update_frame(
-    canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-    ppu: &mut BasePpu,
-    texture_book: &mut TextureBook,
-) -> Result<()> {
-    canvas.set_draw_color(Color::RGBA(50, 131, 168, 255));
-    let (width, height) = canvas.logical_size();
-    canvas.fill_rect(Rect::new(0, 0, width, height))?;
-
-    ppu.render(canvas, texture_book)?;
-
-    Ok(())
-}
 
 impl GameboyEmulator {
     pub fn new(debug: bool) -> Self {
@@ -107,8 +72,9 @@ impl GameboyEmulator {
         Ok((join_handle, control_event_sender, event_receiver))
     }
 
-    pub fn gameboy_thread(
+    pub fn gameboy_thread<M: MainloopBuilder + 'static> (
         cartridge: Cartridge,
+        mainloop_builder: M,
     ) -> Result<(
         JoinHandle<Result<()>>,
         mpsc::Sender<EmulationControlEvent>,
@@ -119,29 +85,10 @@ impl GameboyEmulator {
             mpsc::channel::<EmulationControlEvent>();
 
         let join_handle = thread::spawn(move || -> Result<()> {
+            let mut mainloop = mainloop_builder.init()?;
+            let ppu = mainloop.get_ppu();
+
             let mut emulator = GameboyEmulator::new(false);
-
-            let sdl_context = sdl2::init()?;
-            let video_subsystem = sdl_context.video()?;
-
-            let window = video_subsystem
-                .window("Gameboy Emulator", 1800, 800)
-                .position_centered()
-                .opengl()
-                .build()
-                .map_err(|e| e.to_string())?;
-
-            let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-            canvas
-                .set_logical_size((20 + 1 + 16 + 1 + 32 + 1 + 32) * 8, (32) * 8)
-                .map_err(|e| e.to_string())?;
-            canvas.set_blend_mode(BlendMode::Blend);
-            let mut texture_book = TextureBook::new(&canvas)?;
-
-            let canvas = Rc::new(RefCell::new(canvas));
-
-            let graphics_engine = Box::new(CanvasEngine::new(&texture_book.texture_creator)?);
-            let ppu = Rc::new(RefCell::new(BasePpu::new(graphics_engine)));
 
             // Initialize gameboy and load cartridge
             let mut gameboy_state = GameBoyState::new(ppu.clone(), event_sender);
@@ -156,57 +103,24 @@ impl GameboyEmulator {
             // Start timing frames
             let mut start = Instant::now();
 
-            'mainloop: loop {
-                for event in sdl_context.event_pump()?.poll_iter() {
-                    match event {
-                        Event::KeyDown {
-                            keycode: Some(Keycode::Escape),
-                            ..
-                        }
-                        | Event::Quit { .. } => {
-                            /*
-                            let mut f = std::fs::File::create("events.log").expect("Unable to create file");
-                            for event in gameboy_state.event_queue.iter() {
-                                writeln!(f, "{:?}", event).expect("unable to write to event log file");
-                            }
-                             */
-                            break 'mainloop;
-                        }
-                        Event::KeyDown {
-                            keycode: Some(keycode),
-                            ..
-                        } => {
-                            let mut send_interrupt = false;
-                            for joypad_input in JoypadInput::iter() {
-                                if map_joypad_to_keys(joypad_input).contains(&keycode) {
-                                    let prev_state =
-                                        gameboy_state.joypad.borrow_mut().key_pressed(joypad_input);
-                                    // If previous state was not pressed, we send interrupt
-                                    send_interrupt |= !prev_state;
-                                }
-                            }
-                            if send_interrupt {
-                                gameboy_state
-                                    .memory_bus
-                                    .borrow_mut()
-                                    .interrupt(Interrupt::Joypad)
-                                    .expect("error sending joypad interrupt");
-                            }
-                        }
-                        Event::KeyUp {
-                            keycode: Some(keycode),
-                            ..
-                        } => {
-                            for joypad_input in JoypadInput::iter() {
-                                if map_joypad_to_keys(joypad_input).contains(&keycode) {
-                                    gameboy_state.joypad.borrow_mut().key_released(joypad_input);
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+            let joypad = gameboy_state.joypad.clone();
+            let memory_bus = gameboy_state.memory_bus.clone();
 
+            mainloop.mainloop(move |joypad_input, pressed| {
+                if pressed {
+                    let prev_state =
+                        joypad.borrow_mut().key_pressed(joypad_input);
+                    // If previous state was not pressed, we send interrupt
+                    if !prev_state {
+                        memory_bus
+                            .borrow_mut()
+                            .interrupt(Interrupt::Joypad)
+                            .expect("error sending joypad interrupt");
+                    }
+                } else {
+                    joypad.borrow_mut().key_released(joypad_input);
+                }
+            }, move || {
                 for _ in 0..1000 {
                     let elapsed_cycles = emulator.update(&mut gameboy_state, total_cycles);
                     total_cycles += elapsed_cycles as u128;
@@ -217,11 +131,7 @@ impl GameboyEmulator {
                 // Dividing by 4 and 60 should roughly give the number of machine cycles that
                 // need to run per frame at 60fps.
                 if frame_cycles >= 4_194_304 / 60 {
-                    update_frame(
-                        &mut canvas.borrow_mut(),
-                        &mut ppu.borrow_mut(),
-                        &mut texture_book,
-                    )?;
+                    ppu.borrow_mut().render().unwrap();
 
                     frame_cycles -= 4_194_304 / 60;
 
@@ -232,10 +142,8 @@ impl GameboyEmulator {
                         std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
                     }
                     start = Instant::now();
-
-                    canvas.borrow_mut().present();
                 }
-            }
+            });
 
             Ok(())
         });
@@ -295,7 +203,11 @@ impl GameboyEmulator {
 
     /// Runs the gameboy emulator with a gui.
     pub fn run(cartridge: Cartridge) -> Result<()> {
-        let (join_handle, _control_event_sender, event_receiver) = Self::gameboy_thread(cartridge)?;
+        let mainloop_builder = Sdl2MainloopBuilder {};
+
+        let (join_handle, 
+            _control_event_sender, 
+            event_receiver) = Self::gameboy_thread(cartridge, mainloop_builder)?;
 
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {

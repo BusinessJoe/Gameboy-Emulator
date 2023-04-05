@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "gameboy_emulator",
+]
+
+#[profile.bench]
+#debug = true
+[profile.release]
+lto = true
+opt-level = 3

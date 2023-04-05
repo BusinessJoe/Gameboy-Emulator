@@ -13,8 +13,6 @@ impl GraphicsEngine for NoGuiEngine {
     fn render(
         &mut self,
         _ppu_state: &super::base_ppu::PpuState,
-        _canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-        _texture_book: &mut crate::texture::TextureBook,
     ) -> Result<()> {
         // do nothing
         Ok(())
