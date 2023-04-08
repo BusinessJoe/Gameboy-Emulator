@@ -414,8 +414,8 @@ impl BasePpu {
             let pixel = self.renderer.get_win_pixel(&self.state, win_x, win_y);
             self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
         } else {
-            let bg_x = (self.state.scx + x) % 255;
-            let bg_y = (self.state.scy + y) % 255;
+            let bg_x = self.state.scx.wrapping_add(x);
+            let bg_y = self.state.scy.wrapping_add(y);
 
             let pixel = self.renderer.get_bg_pixel(&self.state, bg_x, bg_y);
             self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
