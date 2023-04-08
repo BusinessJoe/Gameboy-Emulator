@@ -24,7 +24,7 @@ pub struct MemoryBus {
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
-    emulation_event_sender: Sender<EmulationEvent>,
+    emulation_event_sender: Option<Sender<EmulationEvent>>,
 }
 
 impl MemoryBus {
@@ -32,7 +32,7 @@ impl MemoryBus {
         ppu: Rc<RefCell<BasePpu>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
-        emulation_event_sender: Sender<EmulationEvent>,
+        emulation_event_sender: Option<Sender<EmulationEvent>>,
     ) -> Self {
         let memory_bus = Self {
             cartridge: None,
@@ -112,7 +112,9 @@ impl MemoryBus {
     }
 
     pub fn emulation_event(&self, event: EmulationEvent) {
-        self.emulation_event_sender.send(event).unwrap();
+        if let Some(sender) = &self.emulation_event_sender {
+            sender.send(event).unwrap();
+        }
     }
 
     // Initiate an OAM transfer

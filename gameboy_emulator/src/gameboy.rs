@@ -41,7 +41,7 @@ pub struct GameBoyState {
     pub(crate) joypad: Rc<RefCell<Joypad>>,
     pub(crate) timer: Rc<RefCell<Timer>>,
     pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
-    emulation_event_sender: Sender<EmulationEvent>,
+    emulation_event_sender: Option<Sender<EmulationEvent>>,
     pub(crate) event_queue: VecDeque<EmulationEvent>,
 }
 
@@ -54,7 +54,7 @@ impl GameBoyState {
             ppu.clone(),
             joypad.clone(),
             timer.clone(),
-            emulation_event_sender.clone(),
+            Some(emulation_event_sender.clone()),
         )));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
@@ -62,7 +62,7 @@ impl GameBoyState {
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
-            emulation_event_sender,
+            emulation_event_sender: Some(emulation_event_sender),
             event_queue: VecDeque::new(),
         }
     }
@@ -126,7 +126,9 @@ impl GameBoyState {
         }
         self.event_queue.push_back(event.clone());
         */
-        self.emulation_event_sender.send(event).unwrap();
+        if let Some(sender) = &self.emulation_event_sender {
+            sender.send(event).unwrap();
+        }
     }
 
     pub fn debug_info(&self) -> GameboyDebugInfo {
@@ -171,18 +173,8 @@ impl GameBoyState {
         self.ppu.clone()
     }
 
-    pub fn tick_for_frame(&mut self) -> u128 {
-        let mut elapsed_cycles = 0;
-        let old_frame_count = self.ppu.borrow().get_frame_count();
-        loop {
-            elapsed_cycles += self.tick() as u128;
-
-            // Done frame at start of VBLANK
-            if self.ppu.borrow().get_frame_count() > old_frame_count {
-                break;
-            }
-        }
-        elapsed_cycles
+    pub fn get_screen(&self) -> Vec<TileColor> {
+        self.ppu.borrow().get_screen().to_vec()
     }
 }
 
@@ -212,19 +204,56 @@ pub enum Interrupt {
     Joypad,
 }
 
-impl GameBoyState {
-    pub fn get_screen(&self) -> Vec<TileColor> {
-        self.ppu.borrow().get_screen().to_vec()
-    }
-}
-
 #[wasm_bindgen]
 impl GameBoyState {
+    pub fn new_web() -> Self {
+        console_error_panic_hook::set_once();
+
+        let ppu = Rc::new(RefCell::new(BasePpu::new()));
+        let joypad = Rc::new(RefCell::new(Joypad::new()));
+        let timer = Rc::new(RefCell::new(Timer::new()));
+        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
+            ppu.clone(),
+            joypad.clone(),
+            timer.clone(),
+            None,
+        )));
+        Self {
+            cpu: Rc::new(RefCell::new(CPU::new())),
+            ppu: ppu.clone(),
+            joypad,
+            timer,
+            memory_bus: memory_bus.clone(),
+            emulation_event_sender: None,
+            event_queue: VecDeque::new(),
+        }
+    }
+
+    pub fn load_zelda(&mut self) {
+        let bytes = include_bytes!("../../roms/Legend of Zelda, The - Link's Awakening (USA, Europe).gb");
+        let cartridge = Cartridge::cartridge_from_data(bytes).expect("failed to build cartridge");
+        self.load_cartridge(cartridge).unwrap();
+    }
+
     pub fn get_web_screen(&self) -> Uint8Array {
         let colors = self.get_screen();
         let colors: Vec<u8> = colors.iter().map(|c| c.to_u8()).collect();
         let mut array = Uint8Array::new_with_length(colors.len() as u32);
         array.copy_from(&colors);
         array
+    }
+
+    pub fn tick_for_frame(&mut self) -> u64 {
+        let mut elapsed_cycles = 0;
+        let old_frame_count = self.ppu.borrow().get_frame_count();
+        loop {
+            elapsed_cycles += self.tick();
+
+            // Done frame at start of VBLANK
+            if self.ppu.borrow().get_frame_count() > old_frame_count {
+                break;
+            }
+        }
+        elapsed_cycles
     }
 }
