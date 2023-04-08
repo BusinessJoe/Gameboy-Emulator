@@ -16,9 +16,7 @@ clap = { version = "4.1.4", features = ["derive"] }
 wasm-bindgen = "0.2.63"
 js-sys = "0.3.61"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"] }
-
+sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"], optional = true }
 
 [dev-dependencies]
 pprof = { version = "0.3", features = ["flamegraph"] }
@@ -30,3 +28,11 @@ debug = true
 [[bench]]
 name = "emu_benches"
 harness = false
+
+[features]
+sdl2-emu= ["sdl2"]
+
+[[bin]]
+name = "emulator"
+path = "src/main.rs"
+required-features = ["sdl2-emu"]
