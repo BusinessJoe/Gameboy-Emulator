@@ -5,18 +5,18 @@ use crate::emulator::events::EmulationEvent;
 use crate::error::Result;
 use crate::joypad::Joypad;
 use crate::memory::MemoryBus;
-use crate::ppu::BasePpu;
 use crate::ppu::palette::TileColor;
+use crate::ppu::BasePpu;
 use crate::timer::Timer;
 use core::fmt;
-use log::trace;
-use wasm_bindgen::prelude::*;
 use js_sys::{Array, Uint8Array};
+use log::trace;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fs;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
+use wasm_bindgen::prelude::*;
 
 pub type Observer = Box<dyn FnMut(u8)>;
 
@@ -158,7 +158,7 @@ impl GameBoyState {
     pub fn get_cpu(&self) -> Rc<RefCell<CPU>> {
         self.cpu.clone()
     }
-    
+
     pub fn get_joypad(&self) -> Rc<RefCell<Joypad>> {
         self.joypad.clone()
     }

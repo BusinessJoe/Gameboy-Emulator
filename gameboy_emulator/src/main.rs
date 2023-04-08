@@ -1,20 +1,20 @@
-use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
 use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::joypad::JoypadInput;
 use gameboy_emulator::ppu::TileColor;
+use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
 use js_sys::Intl::Collator;
-use sdl2::pixels::Color;
-use strum::IntoEnumIterator;
 use log::*;
 use sdl2;
-use sdl2::keyboard::Keycode;
-use sdl2::render::{BlendMode, Canvas};
 use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
+use sdl2::render::{BlendMode, Canvas};
 use sdl2::video::Window;
+use strum::IntoEnumIterator;
 
-use std::time::{Duration, Instant};
 use std::fs;
 use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use clap::Parser;
 
@@ -54,13 +54,13 @@ fn main() -> Result<(), String> {
         .set_logical_size((20) * 8, (18) * 8)
         .map_err(|e| e.to_string())?;
     canvas.set_blend_mode(BlendMode::Blend);
-    
+
     let (event_sender, event_receiver) = mpsc::channel();
 
     let mut gameboy_state = GameBoyState::new(event_sender);
     gameboy_state
-                .load_cartridge(cartridge)
-                .map_err(|e| e.to_string())?;
+        .load_cartridge(cartridge)
+        .map_err(|e| e.to_string())?;
 
     let joypad = gameboy_state.get_joypad();
     let memory_bus = gameboy_state.get_memory_bus();
@@ -128,7 +128,6 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-
 // Maps keyboard keys to corresponding joypad inputs.
 fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
     match input {
@@ -143,10 +142,9 @@ fn map_joypad_to_keys(input: JoypadInput) -> Vec<Keycode> {
     }
 }
 
-
 fn render_screen(screen: Vec<TileColor>, canvas: &mut Canvas<Window>) {
-    for x in 0 .. 160 {
-        for y in 0 .. 144 {
+    for x in 0..160 {
+        for y in 0..144 {
             let color = match screen[x + y * 160] {
                 TileColor::White => Color::RGB(255, 255, 255),
                 TileColor::LightGrey => Color::RGB(200, 200, 200),

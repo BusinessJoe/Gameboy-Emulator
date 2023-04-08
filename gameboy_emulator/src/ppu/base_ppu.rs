@@ -4,8 +4,12 @@ use crate::{
 };
 use crate::{Error, Result};
 
-use super::{lcd::{self, UpdatePixel}, palette::{TileColor, SpriteTileColor}, OamData, TileDataAddressingMethod};
 use super::palette::PaletteRegister;
+use super::{
+    lcd::{self, UpdatePixel},
+    palette::{SpriteTileColor, TileColor},
+    OamData, TileDataAddressingMethod,
+};
 
 pub struct PpuState {
     /// Tile data takes up addresses 0x8000-0x97ff.
@@ -358,7 +362,6 @@ impl Renderer {
     }
 }
 
-
 pub struct BasePpu {
     pub(super) state: PpuState,
     renderer: Renderer,
@@ -390,7 +393,8 @@ impl BasePpu {
             self.renderer.update_scanline_cache(&self.state, y);
         }
 
-        if let SpriteTileColor::TileColor(tile_color) = self.renderer.get_obj_pixel(&self.state, x, y)
+        if let SpriteTileColor::TileColor(tile_color) =
+            self.renderer.get_obj_pixel(&self.state, x, y)
         {
             self.renderer.screen_pixels[160 * y as usize + x as usize] = tile_color;
             return Ok(());
@@ -401,7 +405,8 @@ impl BasePpu {
             return Ok(());
         }
 
-        if self.renderer.window_contains(&self.state, x, y) && self.state.lcd.lcd_control.window_enable
+        if self.renderer.window_contains(&self.state, x, y)
+            && self.state.lcd.lcd_control.window_enable
         {
             let win_x = x + 7 - self.state.wx;
             let win_y = y - self.state.wy;
