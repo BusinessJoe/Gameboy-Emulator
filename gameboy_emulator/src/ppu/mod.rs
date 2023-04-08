@@ -4,12 +4,11 @@
  */
 
 pub(crate) mod base_ppu;
-mod engines;
 mod lcd;
 pub(crate) mod palette;
 
-pub use base_ppu::{BasePpu, GraphicsEngine};
-pub use engines::*;
+pub use base_ppu::BasePpu;
+pub use palette::TileColor;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TileDataAddressingMethod {

@@ -17,12 +17,11 @@ fn repeat_regular_opcode(c: &mut Criterion, name: &str, opcode: u8) {
     let (control_event_sender, _control_event_receiver) = mpsc::channel::<EmulationControlEvent>();
 
     let graphics_engine = Box::new(NoGuiEngine {});
-    let ppu = Rc::new(RefCell::new(BasePpu::new(graphics_engine)));
 
-    let mut gameboy_state = GameBoyState::new(ppu.clone(), event_sender);
+    let mut gameboy_state = GameBoyState::new(event_sender);
 
-    let mut cpu = gameboy_state.cpu.borrow_mut();
-    let mut memory_bus = gameboy_state.memory_bus.borrow_mut();
+    let mut cpu = gameboy_state.get_cpu();
+    let mut memory_bus = gameboy_state.get_memory_bus();
 
     c.bench_function(name, |b| {
         b.iter(|| cpu.execute_regular_opcode(&mut memory_bus, black_box(opcode)))
@@ -61,10 +60,7 @@ fn bench_gameboy_tick(c: &mut Criterion) {
 
     let canvas = Rc::new(RefCell::new(canvas));
 
-    let graphics_engine = Box::new(CanvasEngine::new(&texture_book.texture_creator)?);
-    let ppu = Rc::new(RefCell::new(BasePpu::new(graphics_engine)));
-
-    let mut gameboy_state = GameBoyState::new(ppu.clone(), event_sender);
+    let mut gameboy_state = GameBoyState::new(event_sender);
 
     let cart = Cartridge::mock();
     gameboy_state

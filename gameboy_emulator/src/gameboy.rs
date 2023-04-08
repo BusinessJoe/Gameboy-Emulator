@@ -6,9 +6,12 @@ use crate::error::Result;
 use crate::joypad::Joypad;
 use crate::memory::MemoryBus;
 use crate::ppu::BasePpu;
+use crate::ppu::palette::TileColor;
 use crate::timer::Timer;
 use core::fmt;
 use log::trace;
+use wasm_bindgen::prelude::*;
+use js_sys::{Array, Uint8Array};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fs;
@@ -31,18 +34,20 @@ pub struct GameboyDebugInfo {
     pub interrupt_enabled: bool,
 }
 
+#[wasm_bindgen]
 pub struct GameBoyState {
-    pub cpu: Rc<RefCell<CPU>>,
-    pub ppu: Rc<RefCell<BasePpu>>,
-    pub joypad: Rc<RefCell<Joypad>>,
-    pub timer: Rc<RefCell<Timer>>,
-    pub memory_bus: Rc<RefCell<MemoryBus>>,
+    pub(crate) cpu: Rc<RefCell<CPU>>,
+    pub(crate) ppu: Rc<RefCell<BasePpu>>,
+    pub(crate) joypad: Rc<RefCell<Joypad>>,
+    pub(crate) timer: Rc<RefCell<Timer>>,
+    pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
     emulation_event_sender: Sender<EmulationEvent>,
-    pub event_queue: VecDeque<EmulationEvent>,
+    pub(crate) event_queue: VecDeque<EmulationEvent>,
 }
 
 impl GameBoyState {
-    pub fn new(ppu: Rc<RefCell<BasePpu>>, emulation_event_sender: Sender<EmulationEvent>) -> Self {
+    pub fn new(emulation_event_sender: Sender<EmulationEvent>) -> Self {
+        let ppu = Rc::new(RefCell::new(BasePpu::new()));
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
@@ -149,6 +154,36 @@ impl GameBoyState {
             interrupt_enabled: cpu.interrupt_enabled,
         }
     }
+
+    pub fn get_cpu(&self) -> Rc<RefCell<CPU>> {
+        self.cpu.clone()
+    }
+    
+    pub fn get_joypad(&self) -> Rc<RefCell<Joypad>> {
+        self.joypad.clone()
+    }
+
+    pub fn get_memory_bus(&self) -> Rc<RefCell<MemoryBus>> {
+        self.memory_bus.clone()
+    }
+
+    pub fn get_ppu(&self) -> Rc<RefCell<BasePpu>> {
+        self.ppu.clone()
+    }
+
+    pub fn tick_for_frame(&mut self) -> u128 {
+        let mut elapsed_cycles = 0;
+        let old_frame_count = self.ppu.borrow().get_frame_count();
+        loop {
+            elapsed_cycles += self.tick() as u128;
+
+            // Done frame at start of VBLANK
+            if self.ppu.borrow().get_frame_count() > old_frame_count {
+                break;
+            }
+        }
+        elapsed_cycles
+    }
 }
 
 impl std::fmt::Display for GameboyDebugInfo {
@@ -175,4 +210,21 @@ pub enum Interrupt {
     Stat,
     Timer,
     Joypad,
+}
+
+impl GameBoyState {
+    pub fn get_screen(&self) -> Vec<TileColor> {
+        self.ppu.borrow().get_screen().to_vec()
+    }
+}
+
+#[wasm_bindgen]
+impl GameBoyState {
+    pub fn get_web_screen(&self) -> Uint8Array {
+        let colors = self.get_screen();
+        let colors: Vec<u8> = colors.iter().map(|c| c.to_u8()).collect();
+        let mut array = Uint8Array::new_with_length(colors.len() as u32);
+        array.copy_from(&colors);
+        array
+    }
 }

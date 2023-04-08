@@ -7,19 +7,13 @@ pub mod cartridge;
 pub mod cpu;
 pub mod emulator;
 pub mod gameboy;
-mod joypad;
+pub mod joypad;
 mod memory;
 pub mod ppu;
 mod timer;
 mod utils;
 
-#[cfg(not(target_arch = "wasm32"))]
-mod sdl2;
-#[cfg(target_arch = "wasm32")]
-mod web;
-
 pub use error::{Error, Result};
-pub use joypad::Joypad;
 pub use memory::MemoryBus;
 
 #[cfg(target_arch = "wasm32")]

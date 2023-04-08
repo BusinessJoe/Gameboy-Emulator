@@ -1,3 +1,6 @@
+use js_sys::Uint8Array;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+
 pub struct PaletteRegister {
     pub register_value: u8, // ff47, ff48, or ff49
 }
@@ -19,6 +22,15 @@ impl TileColor {
             2 => TileColor::DarkGrey,
             3 => TileColor::Black,
             _ => TileColor::Debug,
+        }
+    }
+    pub fn to_u8(&self) -> u8 {
+        match &self {
+            TileColor::White => 0,
+            TileColor::LightGrey => 1,
+            TileColor::DarkGrey => 2,
+            TileColor::Black => 3,
+            TileColor::Debug => 4,
         }
     }
 }

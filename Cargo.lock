@@ -424,6 +424,7 @@ dependencies = [
  "clap 4.2.1",
  "criterion",
  "env_logger",
+ "js-sys",
  "log",
  "num",
  "pprof",

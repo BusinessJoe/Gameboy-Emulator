@@ -79,6 +79,9 @@ pub struct Lcd {
 
     state: PpuState,
     dots: u32,
+
+    /// Count of number of elapsed frames since initialization
+    pub frame_count: u128,
 }
 
 impl Lcd {
@@ -92,6 +95,7 @@ impl Lcd {
             stat_interrupt_line: [false; 4],
             state: PpuState::OamSearch,
             dots: 0,
+            frame_count: 0,
         }
     }
 }
@@ -194,6 +198,7 @@ impl Lcd {
                             state.memory_bus.borrow_mut().interrupt(interrupt)?;
                         }
                         state.memory_bus.borrow_mut().interrupt(Interrupt::VBlank)?;
+                        self.frame_count += 1;
                         //println!("Start VBLANK");
                     } else {
                         if let Some(interrupt) = self.change_state(PpuState::OamSearch) {

@@ -13,12 +13,12 @@ strum = "0.24"
 strum_macros = "0.24"
 num = "0.4.0"
 clap = { version = "4.1.4", features = ["derive"] }
+wasm-bindgen = "0.2.63"
+js-sys = "0.3.61"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"] }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.63"
 
 [dev-dependencies]
 pprof = { version = "0.3", features = ["flamegraph"] }
