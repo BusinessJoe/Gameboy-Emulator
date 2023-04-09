@@ -8,16 +8,20 @@
   },
   "scripts": {
     "build": "webpack --config webpack.config.js",
-    "start": "webpack-dev-server --port 3000 --config webpack.config.js --hot --host 0.0.0.0"
+    "start": "webpack-dev-server --port 3000 --config webpack.config.js --hot --host 0.0.0.0",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
+    "webpack": "webpack --mode development"
   },
   "dependencies": {
     "gameboy-emulator": "file:../pkg"
   },
   "devDependencies": {
+    "copy-webpack-plugin": "^5.0.0",
     "hello-wasm-pack": "^0.1.0",
     "webpack": "^4.29.3",
     "webpack-cli": "^3.1.0",
     "webpack-dev-server": "^3.1.5",
-    "copy-webpack-plugin": "^5.0.0"
+    "gh-pages": "^5.0.0"
   }
 }
