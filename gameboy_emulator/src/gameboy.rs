@@ -3,7 +3,7 @@ use crate::component::{Addressable, Steppable};
 use crate::cpu::CPU;
 use crate::emulator::events::EmulationEvent;
 use crate::error::Result;
-use crate::joypad::Joypad;
+use crate::joypad::{Joypad, JoypadInput};
 use crate::memory::MemoryBus;
 use crate::ppu::palette::TileColor;
 use crate::ppu::BasePpu;
@@ -249,11 +249,53 @@ impl GameBoyState {
         loop {
             elapsed_cycles += self.tick();
 
-            // Done frame at start of VBLANK
             if self.ppu.borrow().get_frame_count() > old_frame_count {
                 break;
             }
         }
         elapsed_cycles
+    }
+
+    /**
+    * Maps the provided u8 to joypad inputs as shown:
+    *   0 => A
+    *   1 => B
+    *   2 => Start
+    *   3 => Select
+    *   4 => Left
+    *   5 => Right
+    *   6 => Up
+    *   7 => Down
+    * Panics on other values.
+    */ 
+    fn map_u8_to_joypad_input(key: u8) -> JoypadInput {
+        match key {
+            0 => JoypadInput::A,
+            1 => JoypadInput::B,
+            2 => JoypadInput::Start,
+            3 => JoypadInput::Select,
+            4 => JoypadInput::Left,
+            5 => JoypadInput::Right,
+            6 => JoypadInput::Up,
+            7 => JoypadInput::Down,
+            _ => panic!("unexpected key"),
+        }
+    }
+
+    pub fn press_key(&mut self, key: u8) {
+        let joypad_input = Self::map_u8_to_joypad_input(key);
+        let prev_state = self.joypad.borrow_mut().key_pressed(joypad_input);
+        // If previous state was not pressed, we send interrupt
+        if !prev_state {
+            self.memory_bus
+                .borrow_mut()
+                .interrupt(Interrupt::Joypad)
+                .expect("error sending joypad interrupt");
+        }
+    }
+
+    pub fn release_key(&mut self, key: u8) {
+        let joypad_input = Self::map_u8_to_joypad_input(key);
+        self.joypad.borrow_mut().key_released(joypad_input);
     }
 }

@@ -6,14 +6,58 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
+let gameboy = wasm.GameBoyState.new_web();
+
+let joypad_inputs = {
+    a: false,
+    b: false,
+    start: false,
+    select: false,
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+};
+
+for (let [type, down] of [['keydown', true], ['keyup', false]]) {
+    document.addEventListener(type, (e) => {
+        console.log(e.code);
+        let key = -1;
+        if (e.code == "Digit1") {
+            key = 0;
+        } else if (e.code == "Digit2") {
+            key = 1;
+        } else if (e.code == "Digit3") {
+            key = 2;
+        } else if (e.code == "Digit4") {
+            key = 3;
+        } else if (e.code == "ArrowLeft") {
+            key = 4;
+        } else if (e.code == "ArrowRight") {
+            key = 5;
+        } else if (e.code == "ArrowUp") {
+            key = 6;
+        } else if (e.code == "ArrowDown") {
+            key = 7;
+        }
+
+        if (key >= 0) {
+            if (down) {
+                gameboy.press_key(key);
+            } else {
+                gameboy.release_key(key);
+            }
+            console.log(key);
+        }
+    });
+}
 
 async function run_gameboy() {
-    let gameboy = wasm.GameBoyState.new_web();
     gameboy.load_zelda();
-    
+
     while (true) {
         await update_frame(gameboy);   
-        await new Promise(r => setTimeout(r, 1));
+        await new Promise(r => setTimeout(r, 0));
     }
 }
 
