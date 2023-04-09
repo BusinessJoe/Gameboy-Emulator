@@ -41,12 +41,11 @@ pub struct GameBoyState {
     pub(crate) joypad: Rc<RefCell<Joypad>>,
     pub(crate) timer: Rc<RefCell<Timer>>,
     pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
-    emulation_event_sender: Option<Sender<EmulationEvent>>,
     pub(crate) event_queue: VecDeque<EmulationEvent>,
 }
 
 impl GameBoyState {
-    pub fn new(emulation_event_sender: Sender<EmulationEvent>) -> Self {
+    pub fn new() -> Self {
         let ppu = Rc::new(RefCell::new(BasePpu::new()));
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
@@ -54,7 +53,6 @@ impl GameBoyState {
             ppu.clone(),
             joypad.clone(),
             timer.clone(),
-            Some(emulation_event_sender.clone()),
         )));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
@@ -62,7 +60,6 @@ impl GameBoyState {
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
-            emulation_event_sender: Some(emulation_event_sender),
             event_queue: VecDeque::new(),
         }
     }
@@ -126,9 +123,9 @@ impl GameBoyState {
         }
         self.event_queue.push_back(event.clone());
         */
-        if let Some(sender) = &self.emulation_event_sender {
-            sender.send(event).unwrap();
-        }
+        // if let Some(sender) = &self.emulation_event_sender {
+        //     sender.send(event).unwrap();
+        // }
     }
 
     pub fn debug_info(&self) -> GameboyDebugInfo {
@@ -216,7 +213,6 @@ impl GameBoyState {
             ppu.clone(),
             joypad.clone(),
             timer.clone(),
-            None,
         )));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
@@ -224,7 +220,6 @@ impl GameBoyState {
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
-            emulation_event_sender: None,
             event_queue: VecDeque::new(),
         }
     }

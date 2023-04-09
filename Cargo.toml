@@ -4,8 +4,10 @@ members = [
 ]
 
 
-#[profile.bench]
-#debug = true
+[profile.bench]
+debug = true
+
 [profile.release]
+debug = true
 lto = true
 opt-level = 3

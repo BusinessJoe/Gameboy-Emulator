@@ -69,14 +69,26 @@ function add_keyboard_listeners(gameboy) {
 
 async function run_gameboy(gameboy) {
     while (true) {
-        await update_frame(gameboy);   
-        await new Promise(r => setTimeout(r, 0));
+        let start = performance.now();
+        await update_frame(gameboy);  
+        let end = performance.now();
+        
+        let elapsed = end - start;
+        if (elapsed > 16) {
+            console.warn("frame took %d ms", elapsed);
+        } else {
+            await new Promise(r => setTimeout(r, 0));
+        }
     }
 }
 
 async function update_frame(gameboy) {
+    let start = performance.now();
     const cycles = gameboy.tick_for_frame();
-    console.log('elapsed for: %d cycles', cycles);
+    let end = performance.now();
+    let elapsed = end - start;
+    console.log("gameboy frame tick took %d ms", elapsed);
+    
     const screen_data = gameboy.get_web_screen();
 
     // allocate space for 4 color values (rgba) per screen pixel

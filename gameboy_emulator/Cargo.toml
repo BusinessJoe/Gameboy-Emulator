@@ -37,3 +37,7 @@ sdl2-emu= ["sdl2"]
 name = "emulator"
 path = "src/main.rs"
 required-features = ["sdl2-emu"]
+
+[[bin]]
+name = "nogui"
+path = "src/no_gui.rs"
