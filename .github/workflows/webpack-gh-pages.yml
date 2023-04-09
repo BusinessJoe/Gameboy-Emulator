@@ -18,6 +18,11 @@ jobs:
       with:
         node-version: 16
 
+    - name: Compile wasm
+      run: |
+        cd gameboy_emulator
+        wasm-pack build
+
     - name: Build
       run: |
         ls
