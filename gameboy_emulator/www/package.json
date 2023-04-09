@@ -17,11 +17,13 @@
     "gameboy-emulator": "file:../pkg"
   },
   "devDependencies": {
-    "copy-webpack-plugin": "^5.0.0",
+    "copy-webpack-plugin": "^5.1.2",
+    "css-loader": "^6.7.3",
+    "gh-pages": "^5.0.0",
     "hello-wasm-pack": "^0.1.0",
-    "webpack": "^4.29.3",
-    "webpack-cli": "^3.1.0",
-    "webpack-dev-server": "^3.1.5",
-    "gh-pages": "^5.0.0"
+    "style-loader": "^3.3.2",
+    "webpack": "^5.0.0",
+    "webpack-cli": "^3.3.12",
+    "webpack-dev-server": "^3.11.3"
   }
 }

@@ -22,6 +22,9 @@ const config = {
   plugins: [
     new CopyWebpackPlugin(['index.html'])
   ],
+  experiments: {
+    asyncWebAssembly: true,
+  },
 };
 
 module.exports = config;

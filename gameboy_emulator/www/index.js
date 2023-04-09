@@ -1,4 +1,5 @@
 import * as wasm from "gameboy-emulator";
+import "./styles.css"
 
 const canvas = document.getElementById("screen");
 
