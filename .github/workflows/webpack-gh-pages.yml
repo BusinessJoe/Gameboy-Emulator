@@ -20,6 +20,8 @@ jobs:
 
     - name: Build
       run: |
+        ls
+        cd gameboy_emulator/www
         npm install
         npm run build
         
