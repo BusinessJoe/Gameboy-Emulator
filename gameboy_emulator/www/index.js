@@ -2,59 +2,72 @@ import * as wasm from "gameboy-emulator";
 import "./styles.css"
 
 const canvas = document.getElementById("screen");
+const rom_upload = document.getElementById("rom-upload");
+const rom_upload_wrapper = document.getElementById("rom-upload-wrapper");
 
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
-let gameboy = wasm.GameBoyState.new_web();
+rom_upload.addEventListener('change', () => {
+    const curFiles = rom_upload.files;
 
-let joypad_inputs = {
-    a: false,
-    b: false,
-    start: false,
-    select: false,
-    left: false,
-    right: false,
-    up: false,
-    down: false,
-};
+    if (curFiles.length === 0) {
 
-for (let [type, down] of [['keydown', true], ['keyup', false]]) {
-    document.addEventListener(type, (e) => {
-        console.log(e.code);
-        let key = -1;
-        if (e.code == "Digit1") {
-            key = 0;
-        } else if (e.code == "Digit2") {
-            key = 1;
-        } else if (e.code == "Digit3") {
-            key = 2;
-        } else if (e.code == "Digit4") {
-            key = 3;
-        } else if (e.code == "ArrowLeft") {
-            key = 4;
-        } else if (e.code == "ArrowRight") {
-            key = 5;
-        } else if (e.code == "ArrowUp") {
-            key = 6;
-        } else if (e.code == "ArrowDown") {
-            key = 7;
-        }
+    } else {
+        const file = curFiles[0];
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const array = new Uint8ClampedArray(evt.target.result);
+            const gameboy = wasm.GameBoyState.new_web();
+            console.log(array);
+            gameboy.load_rom(array);
+            rom_upload_wrapper.style.display = "none";
+            run_gameboy(gameboy);
 
-        if (key >= 0) {
-            if (down) {
-                gameboy.press_key(key);
-            } else {
-                gameboy.release_key(key);
+            add_keyboard_listeners(gameboy);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+});
+
+function add_keyboard_listeners(gameboy) {
+    for (let [type, down] of [['keydown', true], ['keyup', false]]) {
+        document.addEventListener(type, (e) => {
+            if (gameboy) {
+                console.log(e.code);
+                let key = -1;
+                if (e.code == "Digit1") {
+                    key = 0;
+                } else if (e.code == "Digit2") {
+                    key = 1;
+                } else if (e.code == "Digit3") {
+                    key = 2;
+                } else if (e.code == "Digit4") {
+                    key = 3;
+                } else if (e.code == "ArrowLeft") {
+                    key = 4;
+                } else if (e.code == "ArrowRight") {
+                    key = 5;
+                } else if (e.code == "ArrowUp") {
+                    key = 6;
+                } else if (e.code == "ArrowDown") {
+                    key = 7;
+                }
+
+                if (key >= 0) {
+                    if (down) {
+                        gameboy.press_key(key);
+                    } else {
+                        gameboy.release_key(key);
+                    }
+                    console.log(key);
+                }
             }
-            console.log(key);
-        }
-    });
+        });
+    }
 }
 
-async function run_gameboy() {
-    gameboy.load_zelda();
-
+async function run_gameboy(gameboy) {
     while (true) {
         await update_frame(gameboy);   
         await new Promise(r => setTimeout(r, 0));
@@ -98,6 +111,3 @@ async function update_frame(gameboy) {
     const img_data = new ImageData(arr, 160, 144);
     ctx.putImageData(img_data, 0, 0);
 }
-
-
-run_gameboy();

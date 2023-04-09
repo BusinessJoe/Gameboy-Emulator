@@ -229,9 +229,9 @@ impl GameBoyState {
         }
     }
 
-    pub fn load_zelda(&mut self) {
-        let bytes = include_bytes!("../../roms/Legend of Zelda, The - Link's Awakening (USA, Europe).gb");
-        let cartridge = Cartridge::cartridge_from_data(bytes).expect("failed to build cartridge");
+    pub fn load_rom(&mut self, array: Uint8Array) {
+        let bytes: Vec<u8> = array.to_vec();
+        let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
         self.load_cartridge(cartridge).unwrap();
     }
 
