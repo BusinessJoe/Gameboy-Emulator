@@ -1,7 +1,6 @@
 import * as wasm from "gameboy-emulator";
 
-const scale = 5;
-const canvas = document.getElementById("canvas");
+const canvas = document.getElementById("screen");
 
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
@@ -66,6 +65,7 @@ async function update_frame(gameboy) {
     console.log('elapsed for: %d cycles', cycles);
     const screen_data = gameboy.get_web_screen();
 
+    // allocate space for 4 color values (rgba) per screen pixel
     const arr = new Uint8ClampedArray(160 * 144 * 4);
 
     let color;
