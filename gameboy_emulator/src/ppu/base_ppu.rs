@@ -309,6 +309,9 @@ impl Renderer {
             }
         }
 
+        // prioritize smaller x-coordinates
+        objects.sort_by_key(|oam| oam.x_pos());
+
         objects
     }
 
