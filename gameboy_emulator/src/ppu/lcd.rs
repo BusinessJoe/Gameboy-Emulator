@@ -151,7 +151,6 @@ impl Lcd {
             // if the old line value is false, then this change causes the stat line to go high
             // and we should send an interrupt
             if !old_line_value {
-                println!("stat interrupt index {}", index);
                 Some(Interrupt::Stat)
             } else {
                 None
@@ -200,7 +199,6 @@ impl Lcd {
                         }
                         state.memory_bus.borrow_mut().interrupt(Interrupt::VBlank)?;
                         self.frame_count += 1;
-                        //println!("Start VBLANK");
                     } else {
                         if let Some(interrupt) = self.change_state(PpuState::OamSearch) {
                             state.memory_bus.borrow_mut().interrupt(interrupt)?;
