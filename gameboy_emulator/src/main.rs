@@ -116,8 +116,8 @@ fn main() -> Result<(), String> {
         render_screen(gameboy_state.get_screen(), &mut canvas);
 
         let duration = start.elapsed();
-        //const frame_length: Duration = Duration::from_micros(1_000_000 / 60_000);
-        const frame_length: Duration = Duration::from_millis(1000);
+        const frame_length: Duration = Duration::from_micros(1_000_000 / 60_000);
+        //const frame_length: Duration = Duration::from_millis(1000);
         if duration > frame_length {
             warn!("Time elapsed this frame is: {:?} > 16ms", duration);
         } else {

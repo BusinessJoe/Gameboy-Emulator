@@ -27,13 +27,13 @@ const TAC: usize = 0xff07;
 impl Timer {
     pub fn new() -> Self {
         Self {
-            div_clocksum: 0,
+            div_clocksum: 212,
             timer_clocksum: 0,
 
-            div: 0,
+            div: 0xab,
             tima: 0,
             tma: 0,
-            tac: 0,
+            tac: 0xf8,
         }
     }
 
