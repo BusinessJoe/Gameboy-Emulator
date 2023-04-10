@@ -418,26 +418,29 @@ impl BasePpu {
             self.renderer.update_scanline_cache(&self.state, y);
         }
 
-        if let (SpriteTileColor::TileColor(tile_color), Some(oam_data)) =
-            self.renderer.get_obj_pixel(&self.state, x, y)
-        {
-            // We are working with a on transparent sprite pixel
+        // Check sprite pixel first
+        if self.state.lcd.lcd_control.obj_enable {
+            if let (SpriteTileColor::TileColor(tile_color), Some(oam_data)) =
+                self.renderer.get_obj_pixel(&self.state, x, y)
+            {
+                // We are working with a on transparent sprite pixel
 
-            // Check if the bg/window pixel should be rendered over the OBJ
-            let bg_window_pixel = self.get_bg_or_window_pixel(x, y);
-            let pixel: TileColor;
-            if oam_data.bg_window_over_obj() && bg_window_pixel != TileColor::from_u8(0) {
-                pixel = bg_window_pixel;
-            } else {
-                pixel = tile_color;
+                // Check if the bg/window pixel should be rendered over the OBJ
+                let bg_window_pixel = self.get_bg_or_window_pixel(x, y);
+                let pixel: TileColor;
+                if oam_data.bg_window_over_obj() && bg_window_pixel != TileColor::from_u8(0) {
+                    pixel = bg_window_pixel;
+                } else {
+                    pixel = tile_color;
+                }
+
+                self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
+                return Ok(());
             }
-
-            self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
-            return Ok(());
         }
 
         if !self.state.lcd.lcd_control.bg_window_enable {
-            self.renderer.screen_pixels[160 * y as usize + x as usize] = TileColor::White; // values outside 0..3 are interpreted as white for convenience
+            self.renderer.screen_pixels[160 * y as usize + x as usize] = TileColor::White;
             return Ok(());
         }
 
