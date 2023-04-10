@@ -405,7 +405,7 @@ impl BasePpu {
             && self.state.lcd.lcd_control.window_enable
         {
             let win_x = x + 7 - self.state.wx;
-            let win_y = y - self.state.wy;
+            let win_y = self.state.lcd.window_line_counter; //y - self.state.wy;
 
             self.renderer.get_win_pixel(&self.state, win_x, win_y)
         } else {
@@ -455,7 +455,8 @@ impl BasePpu {
 
 impl Steppable for BasePpu {
     fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
-        if let Some(UpdatePixel { x, y }) = self.state.lcd.step(state)? {
+        let mut memory_bus = state.memory_bus.borrow_mut();
+        if let Some(UpdatePixel { x, y }) = self.state.lcd.step(&mut memory_bus, self.state.wx, self.state.wy)? {
             self.place_pixel(x, y)?;
         }
         Ok(1)

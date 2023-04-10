@@ -1,7 +1,10 @@
+use crate::MemoryBus;
 use crate::error::Result;
 use crate::gameboy::GameBoyState;
 use crate::gameboy::Interrupt;
 use crate::utils::BitField;
+
+use super::base_ppu::PpuState;
 
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
@@ -54,7 +57,7 @@ impl LcdControl {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum PpuState {
+enum PpuScanlineState {
     OamSearch,
     PixelTransfer,
     VBlank,
@@ -77,8 +80,9 @@ pub struct Lcd {
     pub stat: BitField,
     stat_interrupt_line: [bool; 4],
 
-    state: PpuState,
+    state: PpuScanlineState,
     dots: u32,
+    pub window_line_counter: u8,
 
     /// Count of number of elapsed frames since initialization
     pub frame_count: u128,
@@ -93,16 +97,29 @@ impl Lcd {
             lcd_control: LcdControl::new(),
             stat: BitField(0),
             stat_interrupt_line: [false; 4],
-            state: PpuState::OamSearch,
+            state: PpuScanlineState::OamSearch,
             dots: 0,
+            window_line_counter: 0,
             frame_count: 0,
         }
     }
 }
 
 impl Lcd {
-    fn increment_ly(&mut self) -> Option<Interrupt> {
+    fn increment_ly(&mut self, wx: u8, wy: u8) -> Option<Interrupt> {
+        let window_enable = self.lcd_control.window_enable;
+        if window_enable && self.ly >= wy && wx <= 166 {
+            self.window_line_counter += 1;
+        }
+        
         self.ly += 1;
+
+
+        if self.ly == 153 {
+            self.ly = 0;
+            self.window_line_counter = 0;
+        }
+
         self.check_ly_equals_lyc()
     }
 
@@ -114,20 +131,20 @@ impl Lcd {
         }
     }
 
-    fn change_state(&mut self, new_state: PpuState) -> Option<Interrupt> {
+    fn change_state(&mut self, new_state: PpuScanlineState) -> Option<Interrupt> {
         self.state = new_state;
 
         self.update_stat_interrupt_line(
             0,
-            self.stat.get_bit(3) && new_state == PpuState::HBlank,
+            self.stat.get_bit(3) && new_state == PpuScanlineState::HBlank,
         )
         .or(self.update_stat_interrupt_line(
             1,
-            self.stat.get_bit(4) && new_state == PpuState::VBlank,
+            self.stat.get_bit(4) && new_state == PpuScanlineState::VBlank,
         ))
         .or(self.update_stat_interrupt_line(
             2,
-            self.stat.get_bit(5) && new_state == PpuState::OamSearch,
+            self.stat.get_bit(5) && new_state == PpuScanlineState::OamSearch,
         ))
     }
 
@@ -158,17 +175,17 @@ impl Lcd {
         }
     }
 
-    pub fn step(&mut self, state: &GameBoyState) -> Result<Option<UpdatePixel>> {
+    pub fn step(&mut self, memory_bus: &mut MemoryBus, wx: u8, wy: u8) -> Result<Option<UpdatePixel>> {
         let mut pixel_data = None;
         self.dots += 1;
 
         match self.state {
-            PpuState::OamSearch => {
+            PpuScanlineState::OamSearch => {
                 if self.dots == 80 {
-                    self.change_state(PpuState::PixelTransfer);
+                    self.change_state(PpuScanlineState::PixelTransfer);
                 }
             }
-            PpuState::PixelTransfer => {
+            PpuScanlineState::PixelTransfer => {
                 // TODO: Fetch pixel data into our pixel FIFO.
                 // TODO: Put a pixel (if any) from the FIFO on screen.
 
@@ -182,41 +199,40 @@ impl Lcd {
                 self.scan_x += 1;
                 if self.scan_x == 160 {
                     self.scan_x = 0;
-                    if let Some(interrupt) = self.change_state(PpuState::HBlank) {
-                        state.memory_bus.borrow_mut().interrupt(interrupt)?;
+                    if let Some(interrupt) = self.change_state(PpuScanlineState::HBlank) {
+                        memory_bus.interrupt(interrupt)?;
                     }
                 }
             }
-            PpuState::HBlank => {
+            PpuScanlineState::HBlank => {
                 if self.dots == 456 {
                     self.dots = 0;
-                    if let Some(interrupt) = self.increment_ly() {
-                        state.memory_bus.borrow_mut().interrupt(interrupt)?;
+                    if let Some(interrupt) = self.increment_ly(wx, wy) {
+                        memory_bus.interrupt(interrupt)?;
                     }
                     if self.ly == 144 {
-                        if let Some(interrupt) = self.change_state(PpuState::VBlank) {
-                            state.memory_bus.borrow_mut().interrupt(interrupt)?;
+                        if let Some(interrupt) = self.change_state(PpuScanlineState::VBlank) {
+                            memory_bus.interrupt(interrupt)?;
                         }
-                        state.memory_bus.borrow_mut().interrupt(Interrupt::VBlank)?;
+                        memory_bus.interrupt(Interrupt::VBlank)?;
                         self.frame_count += 1;
                     } else {
-                        if let Some(interrupt) = self.change_state(PpuState::OamSearch) {
-                            state.memory_bus.borrow_mut().interrupt(interrupt)?;
+                        if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
+                            memory_bus.interrupt(interrupt)?;
                         }
                     }
                 }
             }
-            PpuState::VBlank => {
+            PpuScanlineState::VBlank => {
                 if self.dots == 456 {
                     self.dots = 0;
-                    if let Some(interrupt) = self.increment_ly() {
-                        state.memory_bus.borrow_mut().interrupt(interrupt)?;
+                    if let Some(interrupt) = self.increment_ly(wx, wy) {
+                        memory_bus.interrupt(interrupt)?;
                     }
-                    if self.ly == 153 {
-                        self.ly = 0;
+                    if self.ly == 0 {
                         //println!("End VBLANK");
-                        if let Some(interrupt) = self.change_state(PpuState::OamSearch) {
-                            state.memory_bus.borrow_mut().interrupt(interrupt)?;
+                        if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
+                            memory_bus.interrupt(interrupt)?;
                         }
                     }
                 }
