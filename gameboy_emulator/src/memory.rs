@@ -77,6 +77,7 @@ impl MemoryBus {
 
     fn _write(&mut self, address: Address, value: u8) -> Result<()> {
         if address == 0xFF02 && value == 0x81 {
+            dbg!(self.data[0xff01]);
             self.serial_port_data.push(self.data[0xFF01]);
         }
 
@@ -117,6 +118,10 @@ impl MemoryBus {
         }
 
         Ok(())
+    }
+
+    pub fn get_serial_port_data(&self) -> &[u8] {
+        &self.serial_port_data
     }
 
     pub fn emulation_event(&self, event: EmulationEvent) {

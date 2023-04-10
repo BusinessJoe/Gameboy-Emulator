@@ -9,6 +9,8 @@ use crate::ppu::palette::TileColor;
 use crate::ppu::BasePpu;
 use crate::timer::Timer;
 use core::fmt;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use js_sys::{Array, Uint8Array};
 use log::trace;
 use std::cell::RefCell;
@@ -105,12 +107,6 @@ impl GameBoyState {
             trace!("stepped ppu and timer for {} M-cycles", elapsed_cycles);
         }
 
-        // If data exists on the serial port, output it as an emulation event
-        let serial_port_data = &mut self.memory_bus.borrow_mut().serial_port_data.split_off(0);
-        for byte in serial_port_data.drain(..) {
-            self.emulation_event(EmulationEvent::SerialData(byte));
-        }
-
         // Return T-cycles
         4 * elapsed_cycles
     }
@@ -172,6 +168,15 @@ impl GameBoyState {
 
     pub fn get_screen(&self) -> Vec<TileColor> {
         self.ppu.borrow().get_screen().to_vec()
+    }
+
+    pub fn get_screen_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        let screen_data: Vec<u8> = self.get_screen().iter().map(|c| c.to_u8()).collect();
+        Hash::hash_slice(&screen_data, &mut hasher);
+        let hash = hasher.finish();
+
+        hash
     }
 }
 

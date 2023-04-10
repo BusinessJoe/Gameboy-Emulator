@@ -75,6 +75,7 @@ fn main() -> Result<(), String> {
                     ..
                 }
                 | Event::Quit { .. } => {
+                    dbg!(gameboy_state.get_screen_hash());
                     break 'mainloop;
                 }
                 Event::KeyDown {
