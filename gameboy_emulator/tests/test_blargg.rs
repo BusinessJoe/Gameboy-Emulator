@@ -17,7 +17,7 @@ mod test_blargg {
         common::test_rom_screen_hash(
             "tests/blargg/gb-test-roms-master/halt_bug.gb",
             11824211486473176196,
-            5 * 60
+            5 * 60,
         );
     }
 }

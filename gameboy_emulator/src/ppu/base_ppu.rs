@@ -315,7 +315,12 @@ impl Renderer {
         objects
     }
 
-    fn get_obj_pixel(&self, ppu_state: &PpuState, x: u8, y: u8) -> (SpriteTileColor, Option<OamData>) {
+    fn get_obj_pixel(
+        &self,
+        ppu_state: &PpuState,
+        x: u8,
+        y: u8,
+    ) -> (SpriteTileColor, Option<OamData>) {
         for object in self.current_scanline_objects.iter() {
             let x_pos = i16::from(object.x_pos()) - 8;
             // skip over objects that don't contain this x value
@@ -456,7 +461,11 @@ impl BasePpu {
 impl Steppable for BasePpu {
     fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime> {
         let mut memory_bus = state.memory_bus.borrow_mut();
-        if let Some(UpdatePixel { x, y }) = self.state.lcd.step(&mut memory_bus, self.state.wx, self.state.wy)? {
+        if let Some(UpdatePixel { x, y }) =
+            self.state
+                .lcd
+                .step(&mut memory_bus, self.state.wx, self.state.wy)?
+        {
             self.place_pixel(x, y)?;
         }
         Ok(1)

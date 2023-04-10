@@ -298,4 +298,45 @@ impl GameBoyState {
         let joypad_input = Self::map_u8_to_joypad_input(key);
         self.joypad.borrow_mut().key_released(joypad_input);
     }
+
+    pub fn game_name(&self) -> Option<String> {
+        if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
+            if let Some(cartridge_type) = &cartridge.cartridge_type {
+                return Some(cartridge_type.title.clone())
+            }
+        } 
+        
+        None
+    }
+
+    pub fn saves_available(&self) -> bool {
+        if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
+            if let Some(cartridge_type) = &cartridge.cartridge_type {
+                return cartridge_type.has_battery
+            }
+        }
+
+        false
+    }
+
+    pub fn get_save(&self) -> Option<Uint8Array> {
+        if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
+            let array = Uint8Array::new_with_length(cartridge.ram.len() as u32);
+            array.copy_from(&cartridge.ram);
+            Some(array)
+        } else {
+            None
+        }
+    }
+
+    pub fn load_save(&mut self, ram: Uint8Array) -> bool {
+        let ram: Vec<u8> = ram.to_vec();
+
+        if let Some(cartridge) = &mut self.memory_bus.borrow_mut().cartridge {
+            cartridge.ram = ram;
+            return true;
+        }
+
+        false
+    }
 }

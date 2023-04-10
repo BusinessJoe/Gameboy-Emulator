@@ -18,7 +18,7 @@ use log::debug;
 
 /// Mock memory bus
 pub struct MemoryBus {
-    cartridge: Option<Cartridge>,
+    pub(crate) cartridge: Option<Cartridge>,
     ppu: Rc<RefCell<BasePpu>>,
     joypad: Rc<RefCell<Joypad>>,
     timer: Rc<RefCell<Timer>>,
@@ -52,6 +52,12 @@ impl MemoryBus {
                 Ok(value)
             }
             0x8000..=0x9fff => self.ppu.borrow_mut().read_u8(address),
+            // Cartridge RAM
+            0xa000 ..= 0xbfff => {
+                let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
+                let value = cartridge.read(address).expect("Error reading cartridge");
+                Ok(value)
+            }
             // OAM
             0xfe00..=0xfe9f => self.ppu.borrow_mut().read_u8(address),
             // Joypad
@@ -89,6 +95,13 @@ impl MemoryBus {
                     .expect("Error reading cartridge");
             }
             0x8000..=0x9fff => self.ppu.borrow_mut().write_u8(address, value)?,
+            // Cartridge RAM
+            0xa000 ..= 0xbfff => {
+                let cartridge = self.cartridge.as_mut().expect("No cartridge inserted");
+                cartridge
+                    .write(address, value)
+                    .expect("Error reading cartridge");
+            }
             // OAM
             0xfe00..=0xfe9f => self.ppu.borrow_mut().write_u8(address, value)?,
             // Joypad

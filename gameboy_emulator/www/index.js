@@ -1,6 +1,7 @@
 import * as wasm from "gameboy-emulator";
-import "./styles.css"
+import { save, load } from "./saves.js";
 
+import "./styles.css"
 const canvas = document.getElementById("screen");
 const rom_upload = document.getElementById("rom-upload");
 const rom_upload_wrapper = document.getElementById("rom-upload-wrapper");
@@ -11,6 +12,7 @@ ctx.imageSmoothingEnabled = false;
 let nextTimestamp;
 
 let gameboy;
+let frameCount = 0;
 
 rom_upload.addEventListener('change', () => {
     const curFiles = rom_upload.files;
@@ -25,6 +27,7 @@ rom_upload.addEventListener('change', () => {
             gameboy = wasm.GameBoyState.new_web();
             console.log(array);
             gameboy.load_rom(array);
+            load(gameboy);
             rom_upload_wrapper.style.display = "none";
 
             window.requestAnimationFrame(step);
@@ -39,7 +42,6 @@ function add_keyboard_listeners(gameboy) {
     for (let [type, down] of [['keydown', true], ['keyup', false]]) {
         document.addEventListener(type, (e) => {
             if (gameboy) {
-                console.log(e.code);
                 let key = -1;
                 if (e.code == "Digit1") {
                     key = 0;
@@ -65,7 +67,6 @@ function add_keyboard_listeners(gameboy) {
                     } else {
                         gameboy.release_key(key);
                     }
-                    console.log(key);
                 }
             }
         });
@@ -82,6 +83,10 @@ function step(timestamp) {
         render_frame(gameboy);
         // tick gameboy for 1 frame
         gameboy.tick_for_frame();
+        frameCount += 1;
+        if (frameCount % (5 * 60) === 0) {
+            save(gameboy);
+        }
 
         nextTimestamp += 1000 / 60;
 

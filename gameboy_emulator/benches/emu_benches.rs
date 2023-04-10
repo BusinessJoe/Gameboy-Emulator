@@ -34,8 +34,7 @@ fn bench_gameboy_tick(c: &mut Criterion) {
     let mut gameboy_state = GameBoyState::new();
 
     let cart = Cartridge::mock();
-    gameboy_state
-        .load_cartridge(cart).unwrap();
+    gameboy_state.load_cartridge(cart).unwrap();
 
     c.bench_function("gameboy tick", |b| {
         b.iter(|| {
@@ -50,8 +49,7 @@ fn bench_blargg_cpu_instrs(c: &mut Criterion) {
 
     let bytes = include_bytes!("cpu_instrs.gb");
     let cart = Cartridge::cartridge_from_data(bytes).unwrap();
-    gameboy_state
-        .load_cartridge(cart).unwrap();
+    gameboy_state.load_cartridge(cart).unwrap();
 
     c.bench_function("gameboy tick", |b| {
         b.iter(|| {
@@ -66,8 +64,7 @@ fn bench_blargg_cpu_instrs_frame(c: &mut Criterion) {
 
     let bytes = include_bytes!("cpu_instrs.gb");
     let cart = Cartridge::cartridge_from_data(bytes).unwrap();
-    gameboy_state
-        .load_cartridge(cart).unwrap();
+    gameboy_state.load_cartridge(cart).unwrap();
 
     c.bench_function("gameboy tick for frame", |b| {
         b.iter(|| {

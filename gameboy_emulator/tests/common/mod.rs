@@ -1,9 +1,9 @@
-use std::{collections::hash_map::DefaultHasher, hash::{Hasher, Hash}};
-
-use gameboy_emulator::{
-    cartridge::Cartridge,
-    gameboy::GameBoyState,
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
 };
+
+use gameboy_emulator::{cartridge::Cartridge, gameboy::GameBoyState};
 
 pub fn test_rom_serial_data(path: &str, target_serial_data: &[u8], num_frames: u64) {
     let bytes = std::fs::read(path).unwrap();
@@ -12,7 +12,7 @@ pub fn test_rom_serial_data(path: &str, target_serial_data: &[u8], num_frames: u
     let mut gameboy = GameBoyState::new();
     gameboy.load_cartridge(cartridge).unwrap();
 
-    for _ in 0 .. num_frames {
+    for _ in 0..num_frames {
         gameboy.tick_for_frame();
     }
 
@@ -28,7 +28,9 @@ pub fn test_rom_serial_data(path: &str, target_serial_data: &[u8], num_frames: u
 
 // https://stackoverflow.com/a/35907071
 fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
 pub fn test_rom_screen_hash(path: &str, target_hash: u64, num_frames: u64) {
@@ -38,13 +40,16 @@ pub fn test_rom_screen_hash(path: &str, target_hash: u64, num_frames: u64) {
     let mut gameboy = GameBoyState::new();
     gameboy.load_cartridge(cartridge).unwrap();
 
-    for _ in 0 .. num_frames {
+    for _ in 0..num_frames {
         gameboy.tick_for_frame();
     }
 
     let hash = gameboy.get_screen_hash();
 
     if hash != target_hash {
-        panic!("Incorrect screen hash. Expected {}, actual {}", target_hash, hash);
+        panic!(
+            "Incorrect screen hash. Expected {}, actual {}",
+            target_hash, hash
+        );
     }
 }

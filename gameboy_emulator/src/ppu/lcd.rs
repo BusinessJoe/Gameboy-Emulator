@@ -1,8 +1,8 @@
-use crate::MemoryBus;
 use crate::error::Result;
 use crate::gameboy::GameBoyState;
 use crate::gameboy::Interrupt;
 use crate::utils::BitField;
+use crate::MemoryBus;
 
 use super::base_ppu::PpuState;
 
@@ -111,9 +111,8 @@ impl Lcd {
         if window_enable && self.ly >= wy && wx <= 166 {
             self.window_line_counter += 1;
         }
-        
-        self.ly += 1;
 
+        self.ly += 1;
 
         if self.ly == 153 {
             self.ly = 0;
@@ -158,9 +157,9 @@ impl Lcd {
             return None;
         } else {
             // Or all the stat interrupt line values together
-            let old_line_value = self.stat_interrupt_line[0] 
-                | self.stat_interrupt_line[1] 
-                | self.stat_interrupt_line[2] 
+            let old_line_value = self.stat_interrupt_line[0]
+                | self.stat_interrupt_line[1]
+                | self.stat_interrupt_line[2]
                 | self.stat_interrupt_line[3];
             self.stat_interrupt_line[index] = value;
 
@@ -175,7 +174,12 @@ impl Lcd {
         }
     }
 
-    pub fn step(&mut self, memory_bus: &mut MemoryBus, wx: u8, wy: u8) -> Result<Option<UpdatePixel>> {
+    pub fn step(
+        &mut self,
+        memory_bus: &mut MemoryBus,
+        wx: u8,
+        wy: u8,
+    ) -> Result<Option<UpdatePixel>> {
         let mut pixel_data = None;
         self.dots += 1;
 
