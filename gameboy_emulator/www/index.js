@@ -8,6 +8,10 @@ const rom_upload_wrapper = document.getElementById("rom-upload-wrapper");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
+let nextTimestamp;
+
+let gameboy;
+
 rom_upload.addEventListener('change', () => {
     const curFiles = rom_upload.files;
 
@@ -18,11 +22,12 @@ rom_upload.addEventListener('change', () => {
         const reader = new FileReader();
         reader.onload = (evt) => {
             const array = new Uint8ClampedArray(evt.target.result);
-            const gameboy = wasm.GameBoyState.new_web();
+            gameboy = wasm.GameBoyState.new_web();
             console.log(array);
             gameboy.load_rom(array);
             rom_upload_wrapper.style.display = "none";
-            run_gameboy(gameboy);
+
+            window.requestAnimationFrame(step);
 
             add_keyboard_listeners(gameboy);
         };
@@ -67,28 +72,29 @@ function add_keyboard_listeners(gameboy) {
     }
 }
 
-async function run_gameboy(gameboy) {
-    while (true) {
-        let start = performance.now();
-        await update_frame(gameboy);  
-        let end = performance.now();
-        
-        let elapsed = end - start;
-        if (elapsed > 16) {
-            console.warn("frame took %d ms", elapsed);
-        } else {
-            await new Promise(r => setTimeout(r, 0));
+function step(timestamp) {
+    if (nextTimestamp === undefined) {
+        nextTimestamp = timestamp + 1000 / 60;
+    }
+
+    if (timestamp >= nextTimestamp) {
+        // render current gameboy frame
+        render_frame(gameboy);
+        // tick gameboy for 1 frame
+        gameboy.tick_for_frame();
+
+        nextTimestamp += 1000 / 60;
+
+        if (nextTimestamp <= timestamp) {
+            console.error("frame took too long");
+            nextTimestamp = timestamp + 1000 / 60;
         }
     }
+
+    window.requestAnimationFrame(step);
 }
 
-async function update_frame(gameboy) {
-    let start = performance.now();
-    const cycles = gameboy.tick_for_frame();
-    let end = performance.now();
-    let elapsed = end - start;
-    console.log("gameboy frame tick took %d ms", elapsed);
-    
+function render_frame(gameboy) {
     const screen_data = gameboy.get_web_screen();
 
     // allocate space for 4 color values (rgba) per screen pixel
