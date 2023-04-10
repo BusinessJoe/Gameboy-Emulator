@@ -236,8 +236,12 @@ impl Renderer {
         let tile_sub_x = bg_x % 8;
         let tile_sub_y = bg_y % 8;
 
-        let mut tile_index =
-            ppu_state.background_map[tile_x as usize + 32 * tile_y as usize] as usize;
+        let tile_map_area = if !ppu_state.lcd.lcd_control.bg_tile_map_area {
+            &ppu_state.background_map
+        } else {
+            &ppu_state.window_map
+        };
+        let mut tile_index = tile_map_area[tile_x as usize + 32 * tile_y as usize] as usize;
         let method = if ppu_state.lcd.lcd_control.bg_window_tile_data_area {
             TileDataAddressingMethod::Method8000
         } else {
@@ -256,7 +260,12 @@ impl Renderer {
         let tile_sub_x = win_x % 8;
         let tile_sub_y = win_y % 8;
 
-        let mut tile_index = ppu_state.window_map[tile_x as usize + 32 * tile_y as usize] as usize;
+        let tile_map_area = if !ppu_state.lcd.lcd_control.window_tile_map_area {
+            &ppu_state.background_map
+        } else {
+            &ppu_state.window_map
+        };
+        let mut tile_index = tile_map_area[tile_x as usize + 32 * tile_y as usize] as usize;
         let method = if ppu_state.lcd.lcd_control.bg_window_tile_data_area {
             TileDataAddressingMethod::Method8000
         } else {
@@ -303,7 +312,7 @@ impl Renderer {
         objects
     }
 
-    fn get_obj_pixel(&self, ppu_state: &PpuState, x: u8, y: u8) -> SpriteTileColor {
+    fn get_obj_pixel(&self, ppu_state: &PpuState, x: u8, y: u8) -> (SpriteTileColor, Option<OamData>) {
         for object in self.current_scanline_objects.iter() {
             let x_pos = i16::from(object.x_pos()) - 8;
             // skip over objects that don't contain this x value
@@ -354,16 +363,16 @@ impl Renderer {
                     1 => &ppu_state.object_palette_1,
                     _ => panic!(),
                 };
-                return palette.map_sprite_index(index);
+                return (palette.map_sprite_index(index), Some(object.clone()));
             }
         }
 
-        SpriteTileColor::Transparent
+        (SpriteTileColor::Transparent, None)
     }
 }
 
 pub struct BasePpu {
-    pub(super) state: PpuState,
+    pub(crate) state: PpuState,
     renderer: Renderer,
 }
 
@@ -388,15 +397,42 @@ impl BasePpu {
         self.state.lcd.frame_count
     }
 
+    fn get_bg_or_window_pixel(&self, x: u8, y: u8) -> TileColor {
+        if self.renderer.window_contains(&self.state, x, y)
+            && self.state.lcd.lcd_control.window_enable
+        {
+            let win_x = x + 7 - self.state.wx;
+            let win_y = y - self.state.wy;
+
+            self.renderer.get_win_pixel(&self.state, win_x, win_y)
+        } else {
+            let bg_x = self.state.scx.wrapping_add(x);
+            let bg_y = self.state.scy.wrapping_add(y);
+
+            self.renderer.get_bg_pixel(&self.state, bg_x, bg_y)
+        }
+    }
+
     fn place_pixel(&mut self, x: u8, y: u8) -> Result<()> {
         if x == 0 {
             self.renderer.update_scanline_cache(&self.state, y);
         }
 
-        if let SpriteTileColor::TileColor(tile_color) =
+        if let (SpriteTileColor::TileColor(tile_color), Some(oam_data)) =
             self.renderer.get_obj_pixel(&self.state, x, y)
         {
-            self.renderer.screen_pixels[160 * y as usize + x as usize] = tile_color;
+            // We are working with a on transparent sprite pixel
+
+            // Check if the bg/window pixel should be rendered over the OBJ
+            let bg_window_pixel = self.get_bg_or_window_pixel(x, y);
+            let pixel: TileColor;
+            if oam_data.bg_window_over_obj() && bg_window_pixel != TileColor::from_u8(0) {
+                pixel = bg_window_pixel;
+            } else {
+                pixel = tile_color;
+            }
+
+            self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
             return Ok(());
         }
 
@@ -405,21 +441,8 @@ impl BasePpu {
             return Ok(());
         }
 
-        if self.renderer.window_contains(&self.state, x, y)
-            && self.state.lcd.lcd_control.window_enable
-        {
-            let win_x = x + 7 - self.state.wx;
-            let win_y = y - self.state.wy;
-
-            let pixel = self.renderer.get_win_pixel(&self.state, win_x, win_y);
-            self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
-        } else {
-            let bg_x = self.state.scx.wrapping_add(x);
-            let bg_y = self.state.scy.wrapping_add(y);
-
-            let pixel = self.renderer.get_bg_pixel(&self.state, bg_x, bg_y);
-            self.renderer.screen_pixels[160 * y as usize + x as usize] = pixel;
-        }
+        let bg_window_pixel = self.get_bg_or_window_pixel(x, y);
+        self.renderer.screen_pixels[160 * y as usize + x as usize] = bg_window_pixel;
         Ok(())
     }
 }

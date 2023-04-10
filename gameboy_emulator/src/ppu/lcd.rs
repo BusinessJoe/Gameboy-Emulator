@@ -103,7 +103,11 @@ impl Lcd {
 impl Lcd {
     fn increment_ly(&mut self) -> Option<Interrupt> {
         self.ly += 1;
-        if self.ly == self.lyc && self.stat.get_bit(6).unwrap() {
+        self.check_ly_equals_lyc()
+    }
+
+    pub fn check_ly_equals_lyc(&mut self) -> Option<Interrupt> {
+        if self.ly == self.lyc && self.stat.get_bit(6) {
             self.update_stat_interrupt_line(3, true)
         } else {
             self.update_stat_interrupt_line(3, false)
@@ -115,15 +119,15 @@ impl Lcd {
 
         self.update_stat_interrupt_line(
             0,
-            self.stat.get_bit(3).unwrap() && new_state == PpuState::HBlank,
+            self.stat.get_bit(3) && new_state == PpuState::HBlank,
         )
-        .and(self.update_stat_interrupt_line(
+        .or(self.update_stat_interrupt_line(
             1,
-            self.stat.get_bit(4).unwrap() && new_state == PpuState::VBlank,
+            self.stat.get_bit(4) && new_state == PpuState::VBlank,
         ))
-        .and(self.update_stat_interrupt_line(
+        .or(self.update_stat_interrupt_line(
             2,
-            self.stat.get_bit(5).unwrap() && new_state == PpuState::OamSearch,
+            self.stat.get_bit(5) && new_state == PpuState::OamSearch,
         ))
     }
 
@@ -132,25 +136,22 @@ impl Lcd {
             return None;
         }
 
-        if value {
+        if !value {
             self.stat_interrupt_line[index] = value;
             return None;
         } else {
             // Or all the stat interrupt line values together
-            let old_line_value = self
-                .stat_interrupt_line
-                .iter()
-                .fold(false, |acc, e| acc | e);
+            let old_line_value = self.stat_interrupt_line[0] 
+                | self.stat_interrupt_line[1] 
+                | self.stat_interrupt_line[2] 
+                | self.stat_interrupt_line[3];
             self.stat_interrupt_line[index] = value;
-            let new_line_value = self
-                .stat_interrupt_line
-                .iter()
-                .fold(false, |acc, e| acc | e);
 
             // Since the `value` parameter went from low to high here,
-            // if the old line value is different from the new line value
-            // then it also went from low to high and we should send an interrupt
-            if old_line_value != new_line_value {
+            // if the old line value is false, then this change causes the stat line to go high
+            // and we should send an interrupt
+            if !old_line_value {
+                println!("stat interrupt index {}", index);
                 Some(Interrupt::Stat)
             } else {
                 None

@@ -5,7 +5,7 @@ pub struct PaletteRegister {
     pub register_value: u8, // ff47, ff48, or ff49
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum TileColor {
     White,
     LightGrey,

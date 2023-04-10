@@ -55,9 +55,7 @@ fn main() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     canvas.set_blend_mode(BlendMode::Blend);
 
-    let (event_sender, event_receiver) = mpsc::channel();
-
-    let mut gameboy_state = GameBoyState::new(event_sender);
+    let mut gameboy_state = GameBoyState::new();
     gameboy_state
         .load_cartridge(cartridge)
         .map_err(|e| e.to_string())?;
@@ -118,10 +116,12 @@ fn main() -> Result<(), String> {
         render_screen(gameboy_state.get_screen(), &mut canvas);
 
         let duration = start.elapsed();
-        if duration > Duration::from_millis(1000 / 60) {
+        //const frame_length: Duration = Duration::from_micros(1_000_000 / 60_000);
+        const frame_length: Duration = Duration::from_millis(1000);
+        if duration > frame_length {
             warn!("Time elapsed this frame is: {:?} > 16ms", duration);
         } else {
-            std::thread::sleep(Duration::from_millis(1000 / 60) - duration);
+            std::thread::sleep(frame_length - duration);
         }
         start = Instant::now();
     }

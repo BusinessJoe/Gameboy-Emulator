@@ -94,8 +94,19 @@ impl MemoryBus {
             0xff00 => self.joypad.borrow_mut().write_u8(address, value)?,
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
+            // lyc write, we need to check if that triggers a stat interrupt
+            0xff40 => {
+                let result = {
+                    let mut ppu = self.ppu.borrow_mut();
+                    ppu.write_u8(address, value)?;
+                    ppu.state.lcd.check_ly_equals_lyc()
+                };
+                if let Some(interrupt) = result {
+                    self.interrupt(interrupt)?;
+                }
+            }
             // PPU mappings
-            0xff40..=0xff45 => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xff41..=0xff45 => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff47..=0xff4b => self.ppu.borrow_mut().write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
