@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://github.com/EricKirschenmann/MBC3-Tester-gb/releases/tag/v1.0
+HostUrl=https://objects.githubusercontent.com/github-production-release-asset-2e65be/211599028/272c4b80-e231-11e9-8dff-d49c43313d8a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20230411%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20230411T034732Z&X-Amz-Expires=300&X-Amz-Signature=a746c8f8182db866e8a03776522dab2d9aa1c0d6f3955f02492af067e49ac400&X-Amz-SignedHeaders=host&actor_id=46636326&key_id=0&repo_id=211599028&response-content-disposition=attachment%3B%20filename%3Dmbctest.gb&response-content-type=application%2Foctet-stream

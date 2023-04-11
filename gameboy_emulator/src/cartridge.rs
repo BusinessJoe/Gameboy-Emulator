@@ -1,5 +1,13 @@
-use crate::bit_field::BitField;
+pub mod mbc1;
+pub mod mbc3;
+use std::fmt::Display;
+
 use log::*;
+
+use self::{
+    mbc1::{Mbc1, Mbc1Mode},
+    mbc3::Mbc3,
+};
 
 pub type Address = usize;
 
@@ -40,6 +48,12 @@ impl std::fmt::Debug for Cartridge {
     }
 }
 
+impl Display for Cartridge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "ram size: {}", self.ram.len())
+    }
+}
+
 trait MemoryBankController {
     fn read(&self, address: Address, rom: &[u8], ram: &[u8]) -> Result<u8, AddressingError>;
     fn write(
@@ -55,6 +69,7 @@ trait MemoryBankController {
 /// Examines cartridge data (the header) to get the size of the rom located
 /// on the cartridge.
 fn get_rom_size(data: &[u8]) -> usize {
+    dbg!(data[0x148]);
     match data[0x148] {
         0..=8 => 32 * 1024 * (1 << data[0x148]),
         _ => unimplemented!(
@@ -67,6 +82,7 @@ fn get_rom_size(data: &[u8]) -> usize {
 /// Examines cartridge data (the header) to get the size of the ram located
 /// on the cartridge.
 fn get_ram_size(data: &[u8]) -> usize {
+    dbg!(data[0x149]);
     match data[0x149] {
         0 => 0,
         2 => 8 * 1024,
@@ -113,155 +129,6 @@ impl MemoryBankController for NoMbc {
     }
 }
 
-pub enum Mbc1Mode {
-    Default,
-    Alternative,
-}
-
-struct Mbc1 {
-    ram_enable: u8,
-    bank_register_1: BitField<u8>,
-    bank_register_2: BitField<u8>,
-    banking_mode_register: BitField<u8>,
-    ram_bank_register: u8,
-    mode: Mbc1Mode
-}
-
-impl Mbc1 {
-    pub fn new(mode: Mbc1Mode) -> Self {
-        Self {
-            ram_enable: 0,
-            bank_register_1: BitField::from(1),
-            bank_register_2: BitField::from(0),
-            banking_mode_register: BitField::from(0),
-            ram_bank_register: 0,
-            mode
-        }
-    }
-
-    fn bank_number(&self, address: Address) -> usize {
-        match address {
-            0..=0x3fff if self.banking_mode_register.as_value() == 0 => 0,
-            0..=0x3fff if self.banking_mode_register.as_value() != 0 => {
-                (self.bank_register_2.as_value() << 5).into()
-            }
-            0x4000..=0x7fff => {
-                (self.bank_register_2.as_value() << 5 | self.bank_register_1.as_value()).into()
-            }
-            _ => panic!(),
-        }
-    }
-
-    fn read_banked_rom(&self, address: Address, rom: &[u8]) -> Result<u8, AddressingError> {
-        let bank_number = self.bank_number(address);
-        let rom_address = bank_number << 14 | address & 0x3fff;
-
-        if let Some(value) = rom.get(rom_address) {
-            Ok(*value)
-        } else {
-            Err(AddressingError(address))
-        }
-    }
-
-    fn read_banked_ram(&self, mut address: Address, ram: &[u8]) -> Result<u8, AddressingError> {
-        if !self.is_ram_enabled() {
-            return Ok(0xff);
-        }
-        if self.banking_mode_register.as_value() == 0 {
-            address = address & 0x1fff
-        } else {
-            address = ((self.ram_bank_register as usize) << 13) | address & 0x1fff;
-            assert!(address <= 0x7fff);
-        }
-        Ok(ram[address])
-    }
-
-    fn is_ram_enabled(&self) -> bool {
-        self.ram_enable & 0xf == 0xa
-    }
-}
-
-impl MemoryBankController for Mbc1 {
-    fn read(&self, address: Address, rom: &[u8], ram: &[u8]) -> Result<u8, AddressingError> {
-        match address {
-            0x0000 ..= 0x3fff => match self.mode {
-                Mbc1Mode::Default => {
-                    Ok(rom[address])
-                }
-                Mbc1Mode::Alternative => todo!("alternative mode not implemented")
-            }
-            0x0000..=0x7fff => match self.mode {
-                Mbc1Mode::Default => self.read_banked_rom(address, rom),
-                Mbc1Mode::Alternative => todo!("alternative mode not implemented")
-            }
-            0xa000..=0xbfff => match self.mode {
-                Mbc1Mode::Default => self.read_banked_ram(address, ram),
-                Mbc1Mode::Alternative => todo!("alternative mode not implemented")
-            }
-            _ => Err(AddressingError(address)),
-        }
-    }
-
-    fn write(
-        &mut self,
-        address: Address,
-        mut value: u8,
-        _rom: &mut [u8],
-        ram: &mut [u8],
-    ) -> Result<(), AddressingError> {
-        match address {
-            0..=0x1fff => {
-                self.ram_enable = value;
-                Ok(())
-            }
-            0x2000..=0x3fff => {
-                // Write lower 5 bits to bank register 1, first replacing values of 0 with 1 as
-                // specified by technical documentation
-                value &= 0x1F;
-                if value == 0 {
-                    value = 1;
-                }
-                self.bank_register_1.set_range_value(0..=4, value);
-                info!("Switched to bank {}", self.bank_number(0x4000));
-                Ok(())
-            }
-            0x4000..=0x5fff => {
-                match self.mode {
-                    Mbc1Mode::Default => {
-                        // use only lower 2 bits
-                        value &= 0x3;
-                        self.ram_bank_register = value;
-                        Ok(())
-                    }
-                    Mbc1Mode::Alternative => todo!("alternative mode not implemented")
-                }
-            }
-            // banking mode select
-            0x6000..=0x7fff => {
-                // Write lowest bit to mode register
-                value &= 0x1;
-                self.banking_mode_register.set_range_value(0..=0, value);
-                Ok(())
-                
-            }
-            0xa000 ..= 0xbfff => {
-                use web_sys::console;
-                console::log_1(&"write to ram".into());
-                if value != 0 {
-                    console::log_1(&format!("addr:{} value:{}", address, value).into());
-                }
-                ram[address - 0xa000] = value;
-                Ok(())
-            }
-            _ => panic!("Address {:#x} is out of bounds for rom", address),
-        }
-    }
-
-    fn get_type(&self) -> MbcType {
-        MbcType::Mbc1
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CartridgeType {
     mbc_controller_type: MbcType,
@@ -279,6 +146,8 @@ impl CartridgeType {
         debug!("cartridge type byte: {:#x}", data[0x0147]);
         let rom_size = get_rom_size(data);
         let ram_size = get_ram_size(data);
+        println!("rom size: {:#x} bytes", rom_size);
+        println!("ram size: {:#x} bytes", ram_size);
         let title = get_title(data);
         let cartridge_type = match data[0x0147] {
             0x00 => CartridgeType {
@@ -321,6 +190,56 @@ impl CartridgeType {
                 ram_size,
                 title,
             },
+            0x0f => CartridgeType {
+                mbc_controller_type: MbcType::Mbc3,
+                has_ram: false,
+                has_battery: true,
+                has_timer: true,
+                has_rumble: false,
+                rom_size,
+                ram_size,
+                title,
+            },
+            0x10 => CartridgeType {
+                mbc_controller_type: MbcType::Mbc3,
+                has_ram: true,
+                has_battery: true,
+                has_timer: true,
+                has_rumble: false,
+                rom_size,
+                ram_size,
+                title,
+            },
+            0x11 => CartridgeType {
+                mbc_controller_type: MbcType::Mbc3,
+                has_ram: false,
+                has_battery: false,
+                has_timer: false,
+                has_rumble: false,
+                rom_size,
+                ram_size,
+                title,
+            },
+            0x12 => CartridgeType {
+                mbc_controller_type: MbcType::Mbc3,
+                has_ram: true,
+                has_battery: false,
+                has_timer: false,
+                has_rumble: false,
+                rom_size,
+                ram_size,
+                title,
+            },
+            0x13 => CartridgeType {
+                mbc_controller_type: MbcType::Mbc3,
+                has_ram: true,
+                has_battery: true,
+                has_timer: false,
+                has_rumble: false,
+                rom_size,
+                ram_size,
+                title,
+            },
             _ => {
                 eprintln!("catridge indicated by {:#x} is not supported", data[0x0147]);
                 return None;
@@ -332,16 +251,23 @@ impl CartridgeType {
     fn build(&self, rom_data: &[u8]) -> Cartridge {
         let mbc_controller: Box<dyn MemoryBankController + Send> = match self.mbc_controller_type {
             MbcType::RomOnly => Box::new(NoMbc::default()),
-            MbcType::Mbc1 => if self.rom_size <= 512 * 1024 && self.ram_size <= 32 * 1024 {
-                Box::new(Mbc1::new(Mbc1Mode::Default))
-            } else if self.rom_size > 512 * 1024 && self.rom_size < 8 * 1024 * 1024 && self.ram_size <= 8 * 1024 {
-                Box::new(Mbc1::new(Mbc1Mode::Alternative))
-            } else {
-                panic!("invalid rom/ram sizes")
+            MbcType::Mbc1 => {
+                if self.rom_size <= 512 * 1024 && self.ram_size <= 32 * 1024 {
+                    Box::new(Mbc1::new(Mbc1Mode::Default))
+                } else if self.rom_size > 512 * 1024
+                    && self.rom_size < 8 * 1024 * 1024
+                    && self.ram_size <= 8 * 1024
+                {
+                    Box::new(Mbc1::new(Mbc1Mode::Alternative))
+                } else {
+                    panic!("invalid rom/ram sizes")
+                }
             }
+            MbcType::Mbc3 => Box::new(Mbc3::new()),
         };
         let mut rom = vec![0; self.rom_size];
         // Copy provided data into rom. Panics if the provided data exceeds the rom's size.
+        println!("loading {:#x} bytes into rom", rom_data.len());
         rom[0..rom_data.len()].copy_from_slice(rom_data);
         let ram = vec![0; self.ram_size];
 
@@ -370,6 +296,7 @@ impl CartridgeType {
 pub enum MbcType {
     RomOnly,
     Mbc1,
+    Mbc3,
 }
 
 fn cartridge_from_data(data: &[u8]) -> Option<Cartridge> {

@@ -53,7 +53,7 @@ impl MemoryBus {
             }
             0x8000..=0x9fff => self.ppu.borrow_mut().read_u8(address),
             // Cartridge RAM
-            0xa000 ..= 0xbfff => {
+            0xa000..=0xbfff => {
                 let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
                 let value = cartridge.read(address).expect("Error reading cartridge");
                 Ok(value)
@@ -96,7 +96,7 @@ impl MemoryBus {
             }
             0x8000..=0x9fff => self.ppu.borrow_mut().write_u8(address, value)?,
             // Cartridge RAM
-            0xa000 ..= 0xbfff => {
+            0xa000..=0xbfff => {
                 let cartridge = self.cartridge.as_mut().expect("No cartridge inserted");
                 cartridge
                     .write(address, value)

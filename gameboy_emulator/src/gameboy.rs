@@ -9,15 +9,13 @@ use crate::ppu::palette::TileColor;
 use crate::ppu::BasePpu;
 use crate::timer::Timer;
 use core::fmt;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use js_sys::{Array, Uint8Array};
+use js_sys::Uint8Array;
 use log::trace;
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use std::sync::mpsc::Sender;
 use wasm_bindgen::prelude::*;
 
 pub type Observer = Box<dyn FnMut(u8)>;
@@ -43,7 +41,6 @@ pub struct GameBoyState {
     pub(crate) joypad: Rc<RefCell<Joypad>>,
     pub(crate) timer: Rc<RefCell<Timer>>,
     pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
-    pub(crate) event_queue: VecDeque<EmulationEvent>,
 }
 
 impl GameBoyState {
@@ -62,7 +59,6 @@ impl GameBoyState {
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
-            event_queue: VecDeque::new(),
         }
     }
 
@@ -111,7 +107,7 @@ impl GameBoyState {
         4 * elapsed_cycles
     }
 
-    pub fn emulation_event(&mut self, event: EmulationEvent) {
+    pub fn emulation_event(&mut self, _event: EmulationEvent) {
         // store most recent n events
         /*
         if self.event_queue.len() > 1_000_000 {
@@ -225,7 +221,6 @@ impl GameBoyState {
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
-            event_queue: VecDeque::new(),
         }
     }
 
@@ -238,7 +233,7 @@ impl GameBoyState {
     pub fn get_web_screen(&self) -> Uint8Array {
         let colors = self.get_screen();
         let colors: Vec<u8> = colors.iter().map(|c| c.to_u8()).collect();
-        let mut array = Uint8Array::new_with_length(colors.len() as u32);
+        let array = Uint8Array::new_with_length(colors.len() as u32);
         array.copy_from(&colors);
         array
     }
@@ -247,6 +242,7 @@ impl GameBoyState {
         let mut elapsed_cycles = 0;
         let old_frame_count = self.ppu.borrow().get_frame_count();
         loop {
+            //println!("{:?}", self.debug_info());
             elapsed_cycles += self.tick();
 
             if self.ppu.borrow().get_frame_count() > old_frame_count {
@@ -257,17 +253,17 @@ impl GameBoyState {
     }
 
     /**
-    * Maps the provided u8 to joypad inputs as shown:
-    *   0 => A
-    *   1 => B
-    *   2 => Start
-    *   3 => Select
-    *   4 => Left
-    *   5 => Right
-    *   6 => Up
-    *   7 => Down
-    * Panics on other values.
-    */ 
+     * Maps the provided u8 to joypad inputs as shown:
+     *   0 => A
+     *   1 => B
+     *   2 => Start
+     *   3 => Select
+     *   4 => Left
+     *   5 => Right
+     *   6 => Up
+     *   7 => Down
+     * Panics on other values.
+     */
     fn map_u8_to_joypad_input(key: u8) -> JoypadInput {
         match key {
             0 => JoypadInput::A,
@@ -302,17 +298,17 @@ impl GameBoyState {
     pub fn game_name(&self) -> Option<String> {
         if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
             if let Some(cartridge_type) = &cartridge.cartridge_type {
-                return Some(cartridge_type.title.clone())
+                return Some(cartridge_type.title.clone());
             }
-        } 
-        
+        }
+
         None
     }
 
     pub fn saves_available(&self) -> bool {
         if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
             if let Some(cartridge_type) = &cartridge.cartridge_type {
-                return cartridge_type.has_battery
+                return cartridge_type.has_battery;
             }
         }
 

@@ -1,10 +1,7 @@
 use crate::error::Result;
-use crate::gameboy::GameBoyState;
 use crate::gameboy::Interrupt;
 use crate::utils::BitField;
 use crate::MemoryBus;
-
-use super::base_ppu::PpuState;
 
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
@@ -22,14 +19,14 @@ pub struct LcdControl {
 impl LcdControl {
     pub fn new() -> Self {
         Self {
-            bg_window_enable: false,
+            bg_window_enable: true,
             obj_enable: false,
             obj_size: false,
             bg_tile_map_area: false,
-            bg_window_tile_data_area: false,
+            bg_window_tile_data_area: true,
             window_enable: false,
             window_tile_map_area: false,
-            lcd_ppu_enable: false,
+            lcd_ppu_enable: true,
         }
     }
 

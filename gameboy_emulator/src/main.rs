@@ -38,6 +38,7 @@ fn main() -> Result<(), String> {
 
     let bytes = fs::read(args.rom_path).expect("could not read file");
     let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
+    print!("{}", &cartridge);
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
