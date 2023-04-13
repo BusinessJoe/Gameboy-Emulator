@@ -6,7 +6,7 @@ import RomUpload from './RomUpload';
 import Joypad from './Joypad';
 
 function App() {
-  const gameboyRef = React.useRef<GameBoyState | undefined>(undefined);
+  const gameboyRef = React.useRef<GameBoyState | null>(null);
   const [screen, setScreen] = useState<Uint8Array | undefined>(undefined);
   const [hasRom, setHasRom] = useState<boolean>(false);
 
@@ -45,7 +45,7 @@ function App() {
   useEffect(() => {
     init().then(() => {
       gameboyRef.current = GameBoyState.new();
-      setScreen(gameboyRef.current?.get_web_screen());
+      setScreen(gameboyRef.current.get_web_screen());
     })
   }, []);
 

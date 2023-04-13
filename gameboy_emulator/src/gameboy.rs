@@ -55,7 +55,25 @@ impl GameBoyState {
     }
 
     pub fn load_cartridge(&mut self, cartridge: Cartridge) -> Result<()> {
+        // just reset the entire gameboy by rebuilding it
         println!("Loaded cartridge: {:?}", cartridge);
+
+        let cpu = Rc::new(RefCell::new(CPU::new()));
+        let ppu = Rc::new(RefCell::new(BasePpu::new()));
+        let joypad = Rc::new(RefCell::new(Joypad::new()));
+        let timer = Rc::new(RefCell::new(Timer::new()));
+        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
+            ppu.clone(),
+            joypad.clone(),
+            timer.clone(),
+        )));
+
+        self.cpu = cpu;
+        self.ppu = ppu.clone();
+        self.joypad = joypad;
+        self.timer = timer;
+        self.memory_bus = memory_bus.clone();
+
         let mut memory_bus = self.memory_bus.borrow_mut();
         memory_bus.insert_cartridge(cartridge);
         trace!("{:#x}", memory_bus.read_u8(0x100)?);
@@ -206,19 +224,13 @@ impl GameBoyState {
         }
     }
 
-    pub fn load_rom(&mut self, array: Uint8Array) {
-        let bytes: Vec<u8> = array.to_vec();
-        let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
-        self.load_cartridge(cartridge).unwrap();
-    }
-
-    pub fn load_rom_web(mut self, array: Uint8Array) -> std::result::Result<GameBoyState, JsValue> {
+    pub fn load_rom_web(&mut self, array: Uint8Array) -> std::result::Result<(), JsValue> {
         let bytes: Vec<u8> = array.to_vec();
         let cartridge = Cartridge::cartridge_from_data(&bytes)
             .ok_or_else(|| JsValue::from_str("failed to build cartridge"))?;
         self.load_cartridge(cartridge)
             .map_err(|err| format!("failed to load cartridge: {}", err))?;
-        Ok(self)
+        Ok(())
     }
 
     pub fn get_web_screen(&self) -> Uint8Array {
