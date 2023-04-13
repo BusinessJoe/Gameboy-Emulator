@@ -4,6 +4,7 @@ import init, { GameBoyState } from 'gameboy_emulator';
 import Screen from './Screen';
 import RomUpload from './RomUpload';
 import Joypad from './Joypad';
+import JoypadRemap from './JoypadRemap';
 
 function App() {
   const gameboyRef = React.useRef<GameBoyState | null>(null);
@@ -25,19 +26,19 @@ function App() {
     }
 
     if (time >= nextTimeRef.current) {
-        setScreen(gameboyRef.current?.get_web_screen());
-        gameboyRef.current?.tick_for_frame();
-        
-        frameCountRef.current += 1;
-        // if (frameCountRef.current % (5 * 60) === 0) {
-        //     save(gameboy);
-        // }
-        nextTimeRef.current += 1000 / 60;
+      setScreen(gameboyRef.current?.get_web_screen());
+      gameboyRef.current?.tick_for_frame();
 
-        if (nextTimeRef.current <= time) {
-          console.warn("frame took too long");
-          nextTimeRef.current = time + 1000 / 60;
-        }
+      frameCountRef.current += 1;
+      // if (frameCountRef.current % (5 * 60) === 0) {
+      //     save(gameboy);
+      // }
+      nextTimeRef.current += 1000 / 60;
+
+      if (nextTimeRef.current <= time) {
+        console.warn("frame took too long");
+        nextTimeRef.current = time + 1000 / 60;
+      }
     }
     requestRef.current = requestAnimationFrame(renderFrame);
   }
@@ -59,39 +60,26 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        {screenRef.current && 
+        <Screen screen={screen} focusRef={screenRef} />
+        <RomUpload onUpload={(array) => {
+          gameboyRef.current?.load_rom_web(array);
+          setHasRom(true);
+        }} />
+      </header>
+
+      <div>
+        <h1>Keybinds</h1>
+        {screenRef.current &&
           <Joypad focusRef={screenRef} onJoypadInput={(key, down) => {
             if (down) {
               gameboyRef.current?.press_key(key);
             } else {
               gameboyRef.current?.release_key(key);
             }
-          }} />
+          }}>
+            <JoypadRemap />
+          </Joypad>
         }
-        <Screen screen={screen} focusRef={screenRef} />
-        <RomUpload onUpload={(array) => {
-          gameboyRef.current?.load_rom_web(array);
-          setHasRom(true);
-        }}/>
-      </header>
-      <div>
-        <h1>Keybinds</h1>
-        <table>
-          <tr>
-            <td>A</td>
-            <td>B</td>
-            <td>Start</td>
-            <td>Select</td>
-            <td>Directions</td>
-          </tr>
-          <tr>
-            <td>1</td>
-            <td>2</td>
-            <td>3</td>
-            <td>4</td>
-            <td>Arrow Keys</td>
-          </tr>
-        </table>
       </div>
     </div>
   );
