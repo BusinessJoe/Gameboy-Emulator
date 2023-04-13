@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { MutableRefObject, useEffect, useState } from 'react';
 import './App.css';
 import init, { GameBoyState } from 'gameboy_emulator';
 import Screen from './Screen';
 import RomUpload from './RomUpload';
+import Joypad from './Joypad';
 
 function App() {
   const gameboyRef = React.useRef<GameBoyState | undefined>(undefined);
   const [screen, setScreen] = useState<Uint8Array | undefined>(undefined);
   const [hasRom, setHasRom] = useState<boolean>(false);
+
+  const screenRef = React.useRef<HTMLDivElement>(null);
 
   // https://css-tricks.com/using-requestanimationframe-with-react-hooks/
   // Use useRef for mutable variables that we want to persist
@@ -48,6 +51,7 @@ function App() {
 
   useEffect(() => {
     if (hasRom) {
+      screenRef.current?.focus();
       requestRef.current = requestAnimationFrame(renderFrame);
     }
   }, [hasRom])
@@ -55,18 +59,40 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <Screen screen={screen}/>
-        <p>
-          {gameboyRef.current &&
-            "Gameboy"
-          }
-          {JSON.stringify(gameboyRef.current)}
-        </p>
+        {screenRef.current && 
+          <Joypad focusRef={screenRef} onJoypadInput={(key, down) => {
+            if (down) {
+              gameboyRef.current?.press_key(key);
+            } else {
+              gameboyRef.current?.release_key(key);
+            }
+          }} />
+        }
+        <Screen screen={screen} focusRef={screenRef} />
         <RomUpload onUpload={(array) => {
           gameboyRef.current?.load_rom_web(array);
           setHasRom(true);
         }}/>
       </header>
+      <div>
+        <h1>Keybinds</h1>
+        <table>
+          <tr>
+            <td>A</td>
+            <td>B</td>
+            <td>Start</td>
+            <td>Select</td>
+            <td>Directions</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>2</td>
+            <td>3</td>
+            <td>4</td>
+            <td>Arrow Keys</td>
+          </tr>
+        </table>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import { useRef } from "react";
+import { RefObject, useRef } from "react";
 import './Screen.css';
 
 const Screen = (props: {
     screen: Uint8Array | undefined
+    focusRef: RefObject<HTMLDivElement>
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const canvas = canvasRef.current;
@@ -52,7 +53,7 @@ const Screen = (props: {
     }
 
     return (
-        <div id="screen-wrapper">
+        <div id="screen-wrapper" ref={props.focusRef} tabIndex={0}>
             {child}
         </div>
     )
