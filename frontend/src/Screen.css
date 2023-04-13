@@ -1,0 +1,6 @@
+#screen {
+    width: calc(160px*5);
+    height: calc(144px*5);
+    image-rendering: pixelated;
+    border: 5px solid rgb(2, 32, 78);
+}

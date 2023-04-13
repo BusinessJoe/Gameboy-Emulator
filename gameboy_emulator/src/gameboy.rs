@@ -44,24 +44,6 @@ pub struct GameBoyState {
 }
 
 impl GameBoyState {
-    pub fn new() -> Self {
-        let ppu = Rc::new(RefCell::new(BasePpu::new()));
-        let joypad = Rc::new(RefCell::new(Joypad::new()));
-        let timer = Rc::new(RefCell::new(Timer::new()));
-        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
-            ppu.clone(),
-            joypad.clone(),
-            timer.clone(),
-        )));
-        Self {
-            cpu: Rc::new(RefCell::new(CPU::new())),
-            ppu: ppu.clone(),
-            joypad,
-            timer,
-            memory_bus: memory_bus.clone(),
-        }
-    }
-
     pub fn get_pc(&self) -> u16 {
         self.cpu.borrow().pc
     }
@@ -204,7 +186,7 @@ pub enum Interrupt {
 
 #[wasm_bindgen]
 impl GameBoyState {
-    pub fn new_web() -> Self {
+    pub fn new() -> Self {
         console_error_panic_hook::set_once();
 
         let ppu = Rc::new(RefCell::new(BasePpu::new()));
@@ -228,6 +210,15 @@ impl GameBoyState {
         let bytes: Vec<u8> = array.to_vec();
         let cartridge = Cartridge::cartridge_from_data(&bytes).expect("failed to build cartridge");
         self.load_cartridge(cartridge).unwrap();
+    }
+
+    pub fn load_rom_web(mut self, array: Uint8Array) -> std::result::Result<GameBoyState, JsValue> {
+        let bytes: Vec<u8> = array.to_vec();
+        let cartridge = Cartridge::cartridge_from_data(&bytes)
+            .ok_or_else(|| JsValue::from_str("failed to build cartridge"))?;
+        self.load_cartridge(cartridge)
+            .map_err(|err| format!("failed to load cartridge: {}", err))?;
+        Ok(self)
     }
 
     pub fn get_web_screen(&self) -> Uint8Array {
