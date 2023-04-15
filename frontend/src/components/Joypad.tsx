@@ -18,7 +18,7 @@ const mapKey = (map: Map<string, number>, key: string): number | undefined => {
 const Joypad = (props: {
     focusRef: React.RefObject<HTMLElement>,
     onJoypadInput: (key: number, down: boolean) => void,
-    children: React.ReactElement
+    children?: React.ReactElement
 }) => {
     const [joypadMap, setJoypadMap] = useState(Map({
         1: 0,

@@ -42,5 +42,10 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/react-test-renderer": "^18.0.0",
+    "fake-indexeddb": "^4.0.1",
+    "react-test-renderer": "^18.2.0"
   }
 }

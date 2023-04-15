@@ -332,8 +332,12 @@ impl GameBoyState {
         let ram: Vec<u8> = ram.to_vec();
 
         if let Some(cartridge) = &mut self.memory_bus.borrow_mut().cartridge {
-            cartridge.ram = ram;
-            return true;
+            if cartridge.ram.len() == ram.len() {
+                cartridge.ram = ram;
+                return true;
+            } else {
+                return false;
+            }
         }
 
         false
