@@ -25,7 +25,7 @@ jobs:
     - name: Build
       run: |
         ls
-        cd gameboy_emulator/www
+        cd frontend
         npm install 
         npm run build:wasm
         npm run build
