@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export function useKeyDown() {
+const useKeyDown = () => {
   const [key, setKey] = useState('');
   useEffect(() => {
     function handleDown(e: KeyboardEvent) {
@@ -12,4 +12,6 @@ export function useKeyDown() {
     };
   }, []);
   return { key };
-}
+};
+
+export { useKeyDown }

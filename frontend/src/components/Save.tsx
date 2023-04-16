@@ -53,7 +53,7 @@ const Save = () => {
 
     return (
         <div>
-            <button onClick={handleClick}>Save</button> {recentlySaved && <p>Saved!</p>}
+            <button onClick={handleClick}>Save Progress</button> {recentlySaved && <p>Saved!</p>}
         </div>
     );
 }

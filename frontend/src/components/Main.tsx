@@ -1,14 +1,19 @@
-import React, { MutableRefObject, useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import Screen from './Screen';
 import RomUpload from './RomUpload';
 import Joypad from './Joypad';
 import JoypadRemap from './JoypadRemap';
-import { save_ram, load_ram } from '../utils/database';
+import { load_ram } from '../utils/database';
 import GameboyContext from './GameboyContext';
 import Save from './Save';
+import { useAppSelector } from '../hooks/redux';
+import JoypadDisplay from './JoypadDisplay';
+import './Main.css';
 
 const Main = () => {
-    const { gameboy } = useContext(GameboyContext);
+  const { gameboy } = useContext(GameboyContext);
+  const pressed = useAppSelector(state => state.joypad.pressed);
+  const released = useAppSelector(state => state.joypad.released);
   const [screen, setScreen] = useState<Uint8Array | undefined>(undefined);
   const [hasRom, setHasRom] = useState<boolean>(false);
 
@@ -55,6 +60,18 @@ const Main = () => {
     }
   }, [hasRom])
 
+  useEffect(() => {
+    if (pressed !== undefined) {
+      gameboy.press_key(pressed);
+    }
+  }, [pressed])
+  
+  useEffect(() => {
+    if (released !== undefined) {
+      gameboy.release_key(released);
+    }
+  }, [released])
+
   const handleRomUpload = (array: Uint8Array) => {
     gameboy.load_rom_web(array);
     const identifier = gameboy.game_name();
@@ -81,22 +98,20 @@ const Main = () => {
   }
 
   return (
-      <div>
-        <Screen screen={screen} focusRef={screenRef} />
-        <RomUpload onUpload={handleRomUpload} />
-        <Save />
-        <h1>Keybinds</h1>
-        {screenRef.current &&
-          <Joypad focusRef={screenRef} onJoypadInput={(key, down) => {
-            if (down) {
-              gameboy.press_key(key);
-            } else {
-              gameboy.release_key(key);
-            }
-          }}>
-            <JoypadRemap />
-          </Joypad>
-        }
+      <div className='main'>
+        <div>
+          <Screen screen={screen} focusRef={screenRef} />
+          <RomUpload onUpload={handleRomUpload} />
+          <Save />
+        </div>
+        <div className='sidebar'>
+          <JoypadDisplay />
+          {screenRef.current &&
+            <Joypad focusRef={screenRef}>
+              <JoypadRemap />
+            </Joypad>
+          }
+        </div>
       </div>
   );
 }

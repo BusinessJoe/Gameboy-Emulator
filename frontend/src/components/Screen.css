@@ -1,6 +1,15 @@
 #screen {
-    height: 70vh;
     aspect-ratio: 160 / 144;
     image-rendering: pixelated;
     border: 5px solid rgb(2, 32, 78);
+}
+
+#screen {
+    width: 90vw;
+}
+
+@media (min-width:1281px) {
+    #screen {
+        width: 40vw;
+    }
 }

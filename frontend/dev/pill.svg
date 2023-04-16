@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="65.775551mm"
+   height="22.16423mm"
+   viewBox="0 0 65.775551 22.16423"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
+   sodipodi:docname="buttons.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="true"
+     showguides="true"
+     inkscape:zoom="1.0544998"
+     inkscape:cx="303.46142"
+     inkscape:cy="19.914656"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2">
+    <inkscape:path-effect
+       effect="fillet_chamfer"
+       id="path-effect6472"
+       is_visible="true"
+       lpeversion="1"
+       nodesatellites_param="F,0,0,1,0,8.4666667,0,1 @ F,0,0,1,0,8.4666667,0,1 @ F,0,0,1,0,8.4666667,0,1 @ F,0,0,1,0,8.4666667,0,1"
+       unit="px"
+       method="auto"
+       mode="F"
+       radius="32"
+       chamfer_steps="1"
+       flexible="false"
+       use_knot_distance="true"
+       apply_no_radius="true"
+       apply_with_radius="true"
+       only_selected="false"
+       hide_knots="false" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-109.21734,-19.895896)">
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:4.56894;stroke-opacity:0"
+       d="m 119.97022,22.180367 44.27152,0 a 8.4666667,8.4666667 45 0 1 8.46667,8.466667 v 0.661954 a 8.4666667,8.4666667 135 0 1 -8.46667,8.466667 h -44.27488 a 8.4650501,8.4650501 45.005471 0 1 -8.46505,-8.466667 l 1.2e-4,-0.661954 a 8.4682837,8.4682837 135.00547 0 1 8.46829,-8.466667 z"
+       id="path6470"
+       inkscape:path-effect="#path-effect6472"
+       inkscape:original-d="m 111.50355,22.180367 h 61.20486 v 17.595288 h -61.20822 z" />
+  </g>
+</svg>

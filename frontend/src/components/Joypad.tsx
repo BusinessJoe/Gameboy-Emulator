@@ -1,5 +1,9 @@
 import React, { useEffect, createContext, useState, Dispatch, SetStateAction } from 'react';
 import { Map } from 'immutable';
+import JoypadDisplay from './JoypadDisplay';
+import { useAppDispatch, useAppSelector } from '../hooks/redux';
+import { JoypadInput, inputPressed, inputReleased } from '../reducers/joypadReducer';
+
 
 const JoypadContext = createContext<{
     joypadMap: Map<string, number>, 
@@ -11,49 +15,52 @@ const JoypadContext = createContext<{
     },
 });
 
-const mapKey = (map: Map<string, number>, key: string): number | undefined => {
+const mapKey = (map: Map<string, JoypadInput>, key: string): JoypadInput | undefined => {
     return map.get(key);
 }
 
 const Joypad = (props: {
     focusRef: React.RefObject<HTMLElement>,
-    onJoypadInput: (key: number, down: boolean) => void,
     children?: React.ReactElement
 }) => {
+    const dispatch = useAppDispatch();
     const [joypadMap, setJoypadMap] = useState(Map({
-        1: 0,
-        2: 1,
-        3: 2,
-        4: 3,
-        ArrowLeft: 4,
-        ArrowRight: 5,
-        ArrowUp: 6,
-        ArrowDown: 7,
+        1: JoypadInput.A,
+        2: JoypadInput.B,
+        3: JoypadInput.Start,
+        4: JoypadInput.Select,
+        ArrowLeft: JoypadInput.Left,
+        ArrowRight: JoypadInput.Right,
+        ArrowUp: JoypadInput.Up,
+        ArrowDown: JoypadInput.Down,
     }));
 
     if (props.focusRef.current) {
         // set up keyboard listeners
         props.focusRef.current.onkeydown = (e: KeyboardEvent) => {
-            e.preventDefault();
-            const key = mapKey(joypadMap, e.key);
+            const input = mapKey(joypadMap, e.key);
 
-            if (key !== undefined) {
-                props.onJoypadInput(key, true);
+            if (input !== undefined) {
+                e.preventDefault();
+                console.log('pressing', input);
+                dispatch(inputPressed(input));
             }
         }
         props.focusRef.current.onkeyup = (e: KeyboardEvent) => {
-            e.preventDefault();
-            const key = mapKey(joypadMap, e.key);
+            const input = mapKey(joypadMap, e.key);
 
-            if (key !== undefined) {
-                props.onJoypadInput(key, false);
+            if (input !== undefined) {
+                e.preventDefault();
+                dispatch(inputReleased(input));
             }
         }
     }
 
     return (
         <JoypadContext.Provider value={{joypadMap, setJoypadMap}}>
-            {props.children}
+            <div>
+                {props.children}
+            </div>
         </JoypadContext.Provider>
     );
 }
