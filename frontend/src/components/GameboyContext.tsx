@@ -1,5 +1,5 @@
 import init, { GameBoyState } from "gameboy_emulator";
-import { ReactElement, createContext, useEffect, useRef, useState } from "react"
+import { ReactElement, createContext, useEffect, useState } from "react"
 
 type GameboyContextValue = {
     gameboy: GameBoyState

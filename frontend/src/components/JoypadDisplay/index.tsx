@@ -8,7 +8,6 @@ import { JoypadInput, inputPressed, inputReleased } from '../../reducers/joypadR
 
 const JoypadDisplay = () => {
     const pressed = useAppSelector((state) => state.joypad.pressed);
-    const released = useAppSelector((state) => state.joypad.released);
     const current = useAppSelector((state) => state.joypad.current);
     const dispatch = useAppDispatch();
 
