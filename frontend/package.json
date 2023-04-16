@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "homepage": "https://businessjoe.github.io/Gameboy-Emulator",
   "private": true,
   "dependencies": {
     "@reduxjs/toolkit": "^1.9.3",
@@ -26,7 +27,9 @@
     "build": "react-scripts build",
     "build:wasm": "cd ../gameboy_emulator && wasm-pack build --target web --out-dir pkg",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "predeploy": "npm run build:wasm && npm run build",
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [
@@ -49,6 +52,7 @@
   "devDependencies": {
     "@types/react-test-renderer": "^18.0.0",
     "fake-indexeddb": "^4.0.1",
+    "gh-pages": "^5.0.0",
     "react-test-renderer": "^18.2.0"
   }
 }

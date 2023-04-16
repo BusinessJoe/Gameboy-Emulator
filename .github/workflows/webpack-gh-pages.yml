@@ -20,21 +20,17 @@ jobs:
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v3
       with:
-        node-version: 16
-
-    - name: Compile wasm
-      run: |
-        cd gameboy_emulator
-        wasm-pack build
+        node-version: 18
 
     - name: Build
       run: |
         ls
         cd gameboy_emulator/www
-        npm install --legacy-peer-deps
+        npm install 
+        npm run build:wasm
         npm run build
         
     - name: Deploy to GitHub Pages
       uses: JamesIves/github-pages-deploy-action@v4.4.1
       with:
-        folder: gameboy_emulator/www/dist
+        folder: frontend/build
