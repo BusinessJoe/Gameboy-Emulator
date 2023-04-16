@@ -2,8 +2,6 @@ import { useContext, useEffect, useState } from "react"
 import { JoypadContext } from "./Joypad"
 import { useKeyDown } from "../hooks/useKeyboardInput";
 
-type JoypadInput = 'A' | 'B' | 'Start' | 'Select' | 'Left' | 'Right' | 'Up' | 'Down';
-
 const JoypadRemap = () => {
     const { joypadMap, setJoypadMap } = useContext(JoypadContext);
     const [ pendingRemap, setPendingRemap ] = useState<string | undefined>(undefined);

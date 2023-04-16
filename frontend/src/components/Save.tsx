@@ -3,7 +3,7 @@ import GameboyContext from "./GameboyContext";
 import { save_ram } from "../utils/database";
 
 const Save = () => {
-    const [prevTime, setPrevTime] = useState<number>();
+    const [_prevTime, setPrevTime] = useState<number>();
     const [recentlySaved, setRecentlySaved] = useState(false);
     const { gameboy } = useContext(GameboyContext);
 

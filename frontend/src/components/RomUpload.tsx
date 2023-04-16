@@ -4,7 +4,7 @@ const RomUpload = (props: {
     onUpload: (array: Uint8Array) => void
 }) => {
     const [files, setFiles] = useState<FileList | null>(null);
-    const [success, setSuccess] = useState<boolean | undefined>();
+    //const [success, setSuccess] = useState<boolean | undefined>();
 
     useEffect(() => {
         if (files === null) {

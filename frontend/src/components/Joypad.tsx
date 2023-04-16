@@ -1,7 +1,6 @@
-import React, { useEffect, createContext, useState, Dispatch, SetStateAction } from 'react';
+import React, { createContext, useState, Dispatch, SetStateAction } from 'react';
 import { Map } from 'immutable';
-import JoypadDisplay from './JoypadDisplay';
-import { useAppDispatch, useAppSelector } from '../hooks/redux';
+import { useAppDispatch } from '../hooks/redux';
 import { JoypadInput, inputPressed, inputReleased } from '../reducers/joypadReducer';
 
 
