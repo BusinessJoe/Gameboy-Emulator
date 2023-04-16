@@ -1,0 +1,16 @@
+{
+  "files": {
+    "main.css": "/static/css/main.ba71e73b.css",
+    "main.js": "/static/js/main.eda0a313.js",
+    "static/js/787.cda612ba.chunk.js": "/static/js/787.cda612ba.chunk.js",
+    "static/media/gameboy_emulator_bg.wasm": "/static/media/gameboy_emulator_bg.fc5cc2979c6f8a376fc7.wasm",
+    "index.html": "/index.html",
+    "main.ba71e73b.css.map": "/static/css/main.ba71e73b.css.map",
+    "main.eda0a313.js.map": "/static/js/main.eda0a313.js.map",
+    "787.cda612ba.chunk.js.map": "/static/js/787.cda612ba.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.ba71e73b.css",
+    "static/js/main.eda0a313.js"
+  ]
+}
