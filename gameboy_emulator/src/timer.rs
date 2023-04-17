@@ -37,6 +37,10 @@ impl Timer {
         }
     }
 
+    pub fn get_div(&self) -> u8 {
+        self.div
+    }
+
     fn is_enabled(&self) -> bool {
         self.tac & 0b100 != 0
     }
@@ -120,6 +124,8 @@ impl Steppable for Timer {
         self.div_clocksum += 1;
         if self.div_clocksum == 256 {
             self.div_clocksum = 0;
+
+            let old_div = self.div;
             self.div = self.div.wrapping_add(1);
         }
 

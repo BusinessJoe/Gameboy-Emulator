@@ -133,11 +133,6 @@ impl MemoryBankController for Mbc1 {
                 Ok(())
             }
             0xa000..=0xbfff => {
-                use web_sys::console;
-                console::log_1(&"write to ram".into());
-                if value != 0 {
-                    console::log_1(&format!("addr:{} value:{}", address, value).into());
-                }
                 ram[address - 0xa000] = value;
                 Ok(())
             }

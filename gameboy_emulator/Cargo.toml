@@ -19,6 +19,7 @@ web-sys = { version="0.3.61", features = ["console"] }
 console_error_panic_hook = "0.1.7"
 
 sdl2 = { version = "0.35.2", features = ["bundled", "unsafe_textures"], optional = true }
+ringbuf = "0.3.3"
 
 [dev-dependencies]
 pprof = { version = "0.3", features = ["flamegraph"] }

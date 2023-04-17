@@ -2,9 +2,9 @@ use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::joypad::JoypadInput;
 use gameboy_emulator::ppu::TileColor;
 use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
-use js_sys::Intl::Collator;
 use log::*;
-use sdl2;
+use sdl2::{self, audio};
+use sdl2::audio::AudioQueue;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -13,7 +13,6 @@ use sdl2::video::Window;
 use strum::IntoEnumIterator;
 
 use std::fs;
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use clap::Parser;
@@ -41,20 +40,9 @@ fn main() -> Result<(), String> {
     print!("{}", &cartridge);
 
     let sdl_context = sdl2::init()?;
-    let video_subsystem = sdl_context.video()?;
-
-    let window = video_subsystem
-        .window("Gameboy Emulator", 1800, 800)
-        .position_centered()
-        .opengl()
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-    canvas
-        .set_logical_size((20) * 8, (18) * 8)
-        .map_err(|e| e.to_string())?;
-    canvas.set_blend_mode(BlendMode::Blend);
+    
+    let mut canvas = init_sdl2_video(&sdl_context)?;
+    let audio_queue = init_sdl2_audio(&sdl_context)?;
 
     let mut gameboy_state = GameBoyState::new();
     gameboy_state
@@ -63,11 +51,9 @@ fn main() -> Result<(), String> {
 
     let joypad = gameboy_state.get_joypad();
     let memory_bus = gameboy_state.get_memory_bus();
-    let ppu = gameboy_state.get_ppu();
+    
+    audio_queue.resume();
 
-    let mut total_cycles = 0;
-    let mut frame_cycles = 0;
-    let mut start = Instant::now();
     'mainloop: loop {
         for event in sdl_context.event_pump().unwrap().poll_iter() {
             match event {
@@ -111,23 +97,69 @@ fn main() -> Result<(), String> {
         }
 
         // Tick gameboy for a frame
-        let elapsed_cycles = gameboy_state.tick_for_frame();
-        total_cycles += elapsed_cycles;
-        frame_cycles += elapsed_cycles;
+        // if buffer has less than four frames of audio, perform multiple ticks
+        while audio_queue.size() < 735 * 4 * 4 {
+            gameboy_state.tick_for_frame();
+            let data = gameboy_state.get_queued_audio();
+            audio_queue.queue_audio(&data)?;
+        }
+
+        // if buffer has too much data, skip a frame
+        if audio_queue.size() < 735 * 4 * 16 {
+            gameboy_state.tick_for_frame();
+            let data = gameboy_state.get_queued_audio();
+            audio_queue.queue_audio(&data)?;
+        }
+
+        //while audio_queue.size() > 4096 * 4 {}
 
         render_screen(gameboy_state.get_screen(), &mut canvas);
 
-        let duration = start.elapsed();
-        const frame_length: Duration = Duration::from_micros(1_000_000 / 60_000);
-        //const frame_length: Duration = Duration::from_millis(1000);
-        if duration > frame_length {
-            warn!("Time elapsed this frame is: {:?} > 16ms", duration);
-        } else {
-            std::thread::sleep(frame_length - duration);
-        }
-        start = Instant::now();
+        // let duration = start.elapsed();
+        // const FRAME_LENGTH: Duration = Duration::from_micros(1_000_000 / 60_000);
+        // //const frame_length: Duration = Duration::from_millis(1000);
+        // if duration > FRAME_LENGTH {
+        //     warn!("Time elapsed this frame is: {:?} > 16ms", duration);
+        // } else {
+        //     //std::thread::sleep(FRAME_LENGTH - duration);
+        // }
+        // start = Instant::now();
     }
     Ok(())
+}
+
+fn init_sdl2_video(sdl_context: &sdl2::Sdl) -> Result<Canvas<Window>, String> {
+    let video_subsystem = sdl_context.video()?;
+
+    let window = video_subsystem
+        .window("Gameboy Emulator", 1800, 800)
+        .position_centered()
+        .opengl()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+    canvas
+        .set_logical_size((20) * 8, (18) * 8)
+        .map_err(|e| e.to_string())?;
+    canvas.set_blend_mode(BlendMode::Blend);
+
+    Ok(canvas)
+}
+
+fn init_sdl2_audio(sdl_context: &sdl2::Sdl) -> Result<AudioQueue<f32>, String> {
+    let audio_subsystem = sdl_context.audio()?;
+
+    let audio_spec = sdl2::audio::AudioSpecDesired {
+        freq: Some(44100),
+        channels: Some(1),
+        samples: None, //Some(44100),
+    };
+
+    let queue: AudioQueue<f32> = audio_subsystem.open_queue(None, &audio_spec)?;
+
+    println!("{:?}", queue.spec());
+    Ok(queue)
 }
 
 // Maps keyboard keys to corresponding joypad inputs.

@@ -1,13 +1,7 @@
 use gameboy_emulator::gameboy::GameBoyState;
-use gameboy_emulator::joypad::JoypadInput;
-use gameboy_emulator::ppu::TileColor;
-use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
-use js_sys::Intl::Collator;
-use log::*;
-use strum::IntoEnumIterator;
+use gameboy_emulator::cartridge::Cartridge;
 
 use std::fs;
-use std::time::{Duration, Instant};
 
 use clap::Parser;
 
@@ -37,19 +31,9 @@ fn main() -> Result<(), String> {
         .load_cartridge(cartridge)
         .map_err(|e| e.to_string())?;
 
-    let joypad = gameboy_state.get_joypad();
-    let memory_bus = gameboy_state.get_memory_bus();
-    let ppu = gameboy_state.get_ppu();
-
-    let mut total_cycles = 0;
-    let mut frame_cycles = 0;
-    let mut start = Instant::now();
-    'mainloop: loop {
+    loop {
         // Tick gameboy for a frame
-        let elapsed_cycles = gameboy_state.tick_for_frame();
-        total_cycles += elapsed_cycles;
-        frame_cycles += elapsed_cycles;
-
+        gameboy_state.tick_for_frame();
         // render_screen(gameboy_state.get_screen(), &mut canvas);
 
         // let duration = start.elapsed();
@@ -60,5 +44,4 @@ fn main() -> Result<(), String> {
         // }
         // start = Instant::now();
     }
-    Ok(())
 }
