@@ -39,7 +39,7 @@ impl Apu {
 
     pub fn tick(&mut self, new_div: u8) {
         if self.old_div & (1 << 5) != 0 && new_div & (1 << 5) == 0 {
-            //self.increment_frame_sequencer();
+            self.increment_frame_sequencer();
         }
         self.old_div = new_div;
 
@@ -70,9 +70,11 @@ impl Apu {
         }
         if self.div_apu == 7 {
             // volume envelope
+            self.channel1.tick_volume_envelope();
         }
         if self.div_apu == 2 || self.div_apu == 6 {
             // sweep
+            self.channel1.tick_frequency_sweep();
         }
     }
 
