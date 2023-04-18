@@ -2,7 +2,7 @@ use ringbuf::{HeapRb, Rb};
 
 use crate::component::Addressable;
 
-use super::{square::SquareChannel, wave::WaveChannel};
+use super::{square::SquareChannel, wave::WaveChannel, noise::NoiseChannel};
 
 /// Audio processing unit
 pub struct Apu {
@@ -12,6 +12,7 @@ pub struct Apu {
     channel1: SquareChannel,
     channel2: SquareChannel,
     channel3: WaveChannel,
+    channel4: NoiseChannel,
 
     left_audio_buffer: HeapRb<f32>,
     right_audio_buffer: HeapRb<f32>,
@@ -30,6 +31,7 @@ impl Apu {
             channel1: SquareChannel::new(true, 0xff10),
             channel2: SquareChannel::new(true, 0xff15),
             channel3: WaveChannel::new(),
+            channel4: NoiseChannel::new(),
             
             // TODO: lower this later
             /// allocate enough capacity for 10 frames of audio
@@ -51,6 +53,7 @@ impl Apu {
         self.channel1.tick();
         self.channel2.tick();
         self.channel3.tick();
+        self.channel4.tick();
 
         self.sample_counter -= 1;
         if self.sample_counter == 0 {
@@ -79,11 +82,13 @@ impl Apu {
             self.channel1.tick_length_counter();
             self.channel2.tick_length_counter();
             self.channel3.tick_length_counter();
+            self.channel4.tick_length_counter();
         }
         if self.div_apu == 7 {
             // volume envelope
             self.channel1.tick_volume_envelope();
             self.channel2.tick_volume_envelope();
+            self.channel4.tick_volume_envelope();
         }
         if self.div_apu == 2 || self.div_apu == 6 {
             // sweep
@@ -95,7 +100,8 @@ impl Apu {
         let ch1 = self.channel1.sample_dac();
         let ch2 = self.channel2.sample_dac();
         let ch3 = self.channel3.sample_dac();
-        let sample = (ch1 + ch2 + ch3) / 3. * 0.7;
+        let ch4 = self.channel4.sample_dac();
+        let sample = (ch1 + ch2 + ch3 + ch4) / 4.;
         self.left_audio_buffer.push_overwrite(sample);
     }
 
@@ -105,7 +111,9 @@ impl Apu {
             0xff15 => Ok(0xff),
             0xff16 ..= 0xff19 => self.channel2.read(address),
             0xff1a ..= 0xff1e => self.channel3.read(address),
-            0xff1f ..= 0xff26 => Ok(0xff),
+            0xff1f => Ok(0xff),
+            0xff20 ..= 0xff23 => self.channel4.read(address),
+            0xff24 ..= 0xff2f => Ok(0xff),
             0xff30 ..= 0xff3f => self.channel3.read(address),
             _ => Err(crate::Error::from_address_with_source(address, "APU".to_string()))
         }
@@ -114,10 +122,12 @@ impl Apu {
     fn _write(&mut self, address: crate::component::Address, value: u8) -> crate::Result<()> {
         match address {
             0xff10 ..= 0xff14 => self.channel1.write(address, value)?,
-            0xff15 => {}
+            0xff15 => {},
             0xff16 ..= 0xff19 => self.channel2.write(address, value)?,
             0xff1a ..= 0xff1e => self.channel3.write(address, value)?,
-            0xff1f ..= 0xff26 => {},
+            0xff1f => {},
+            0xff20 ..= 0xff23 => self.channel4.write(address, value)?,
+            0xff24 ..= 0xff2f => {},
             0xff30 ..= 0xff3f => self.channel3.write(address, value)?,
             _ => return Err(crate::Error::from_address_with_source(address, "APU".to_string()))
         }
