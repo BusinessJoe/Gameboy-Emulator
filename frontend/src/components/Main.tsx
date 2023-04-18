@@ -9,6 +9,7 @@ import Save from './Save';
 import { useAppSelector } from '../hooks/redux';
 import JoypadDisplay from './JoypadDisplay';
 import './Main.css';
+import EmulatorAudio from './EmulatorAudio';
 
 const Main = () => {
   const { gameboy } = useContext(GameboyContext);
@@ -16,6 +17,7 @@ const Main = () => {
   const released = useAppSelector(state => state.joypad.released);
   const [screen, setScreen] = useState<Uint8Array | undefined>(undefined);
   const [hasRom, setHasRom] = useState<boolean>(false);
+  const [playAudio, setPlayAudio] = useState(false);
 
   const screenRef = React.useRef<HTMLDivElement>(null);
 
@@ -86,6 +88,7 @@ const Main = () => {
             console.log('failed to load save');
           }
           setHasRom(true);
+          setPlayAudio(true);
         })
         .catch(() => {
           // no save found
@@ -99,6 +102,7 @@ const Main = () => {
 
   return (
       <div className='main'>
+        <EmulatorAudio play={playAudio} />
         <div>
           <Screen screen={screen} focusRef={screenRef} />
           <RomUpload onUpload={handleRomUpload} />
