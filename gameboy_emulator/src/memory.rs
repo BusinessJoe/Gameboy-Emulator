@@ -70,6 +70,7 @@ impl MemoryBus {
             // IF register always has top 3 bits high
             0xff0f => Ok(self.data[address] | 0xe0),
             0xff10 ..= 0xff26 => self.apu.borrow_mut().read_u8(address),
+            0xff30 ..= 0xff3f => self.apu.borrow_mut().read_u8(address),
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
             0xff47..=0xff4b => self.ppu.borrow_mut().read_u8(address),
@@ -113,6 +114,7 @@ impl MemoryBus {
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
             0xff10 ..= 0xff26 => self.apu.borrow_mut().write_u8(address, value)?,
+            0xff30 ..= 0xff3f => self.apu.borrow_mut().write_u8(address, value)?,
             // PPU mappings
             0xff40..=0xff44 => self.ppu.borrow_mut().write_u8(address, value)?,
             // lyc write, we need to check if that triggers a stat interrupt

@@ -1,23 +1,23 @@
 use crate::{component::Address, Result, Error};
 
-use super::{utils::digital_to_analog, volume_envelope::VolumeEnvelope, sweep::FrequencySweep};
+use super::{utils::digital_to_analog, volume_envelope::VolumeEnvelope, sweep::FrequencySweep, dac::Dac};
 
-pub struct Channel1 {
-    // 0xff10 - channel 1 sweep
-    frequency_sweep: FrequencySweep,
+pub struct SquareChannel {
+    // sweep
+    frequency_sweep: Option<FrequencySweep>,
 
-    // 0xff11 - channel 1 lengh timer & duty cycle
+    // lengh timer & duty cycle
     pub duty_cycle: u8,
     pub length_timer: u8,
 
-    // 0xff12 - channel 1 volume & envelope
-    pub nr12: u8,
+    // volume & envelope
+    pub nrx2: u8,
 
-    // 0xff13 - channel 1 wavelength low [write-only]
-    pub nr13: u8,
+    // wavelength low [write-only]
+    pub nrx3: u8,
 
-    // 0xff14 - channel 1 wavelength high & control
-    pub nr14: u8,
+    // wavelength high & control
+    pub nrx4: u8,
     
     // stores number of T-cycles until next waveform step
     freq_timer: u16,
@@ -29,31 +29,31 @@ pub struct Channel1 {
 
     baseline_address: Address,
     volume_envelope: VolumeEnvelope,
-
+    dac: Dac,
 }
 
 
-impl Channel1 {
-    pub fn new() -> Self {
-        let mut ch1 = Self {
-            frequency_sweep: FrequencySweep::new(0),
+impl SquareChannel {
+    pub fn new(sweep: bool, baseline_address: Address) -> Self {
+        let mut channel = Self {
+            frequency_sweep: if sweep { Some(FrequencySweep::new(0)) } else { None },
             duty_cycle: 0,
             length_timer: 0,
-            nr12: 0,
-            nr13: 0,
-            nr14: 0,
+            nrx2: 0,
+            nrx3: 0,
+            nrx4: 0,
             
             freq_timer: 0,
             waveform_step: 0,
 
             on: false,
 
-            baseline_address: 0xff10,
+            baseline_address,
             volume_envelope: VolumeEnvelope::new(0),
-
+            dac: Dac::new(),
         };
-        ch1.reset_frequency();
-        ch1
+        channel.reset_frequency();
+        channel
     }
 
     fn sample(&self) -> u8 {
@@ -80,12 +80,12 @@ impl Channel1 {
         }
     }
 
-    pub fn sample_dac(&self) -> f32 {
+    pub fn sample_dac(&mut self) -> f32 {
         if !self.on {
             return 0.
         }
         
-        digital_to_analog(self.sample())
+        self.dac.to_analog(self.sample())
     }
 
     // called every clock cycle - a rate of 4 MHz
@@ -98,7 +98,7 @@ impl Channel1 {
     }
 
     pub fn tick_length_counter(&mut self) {
-        if (self.nr14 >> 6) & 1 == 0 {
+        if (self.nrx4 >> 6) & 1 == 0 {
             return;
         }
 
@@ -116,14 +116,22 @@ impl Channel1 {
     }
 
     pub fn tick_frequency_sweep(&mut self) {
-        if let Some(new_frequency) = self.frequency_sweep.tick() {
-            self.nr13 = (new_frequency & 0b11111111) as u8;
-            self.nr14 = (self.nr14 & 0b11111000) | (new_frequency >> 8) as u8;
+        match &mut self.frequency_sweep {
+            Some(ref mut frequency_sweep) => {
+                if let Some(new_frequency) = frequency_sweep.tick() {
+                    self.nrx3 = (new_frequency & 0b11111111) as u8;
+                    self.nrx4 = (self.nrx4 & 0b11111000) | (new_frequency >> 8) as u8;
+                }
+            }
+            None => {
+                panic!()
+            }
         }
+        
     }
 
     fn wavelength(&self) -> u16 {
-        ((self.nr14 as u16 & 0b111) << 8) | self.nr13 as u16
+        ((self.nrx4 as u16 & 0b111) << 8) | self.nrx3 as u16
     }
 
     // The rate at which the channel steps through the 8 steps in its waveform is
@@ -138,9 +146,9 @@ impl Channel1 {
     fn waveform_amplitude(&self) -> u8 {
         [
             [0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1, 1, 1],
-            [0, 1, 1, 1, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1],
+            [0, 0, 0, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 0, 0],
         ][self.duty_cycle as usize][self.waveform_step as usize]
     }
     
@@ -150,34 +158,37 @@ impl Channel1 {
             self.length_timer = 64;
         }
         self.reset_frequency();
-        self.waveform_step = 0;
 
-        self.volume_envelope = VolumeEnvelope::new(self.nr12);
-        self.frequency_sweep.trigger(self.wavelength())
+        self.volume_envelope = VolumeEnvelope::new(self.nrx2);
+        let wavelength = self.wavelength();
+        if let Some(frequency_sweep) = self.frequency_sweep.as_mut() {
+            frequency_sweep.trigger(wavelength)
+        }
+       
     }
 
     pub fn read(&self, address: Address) -> Result<u8> {
         match address - self.baseline_address {
-            0 => Ok(self.frequency_sweep.get()),
+            0 => Ok(self.frequency_sweep.as_ref().map_or(0xff, |fs| fs.get())),
             1 => Ok(self.duty_cycle << 6 | 0b00111111),
-            2 => Ok(self.nr12),
-            3 => Ok(self.nr13),
-            4 => Ok(self.nr14),
-            _ => Err(Error::from_address_with_source(address, "channel1".to_string()))
+            2 => Ok(self.nrx2),
+            3 => Ok(self.nrx3),
+            4 => Ok(self.nrx4),
+            _ => Err(Error::from_address_with_source(address, "square".to_string()))
         }
     }
 
     pub fn write(&mut self, address: Address, value: u8) -> Result<()> {
         match address - self.baseline_address {
-            0 => self.frequency_sweep.set(value),
+            0 => if let Some(fs) = &mut self.frequency_sweep { fs.set(value) },
             1 => {
                 self.duty_cycle = (value & 0b11000000) >> 6;
                 self.length_timer = 64 - (value & 0b00111111);
             }
-            2 => self.nr12 = value,
-            3 => self.nr13 = value,
+            2 => self.nrx2 = value,
+            3 => self.nrx3 = value,
             4 => {
-                self.nr14 = value;
+                self.nrx4 = value;
                 if value & (1 << 7) != 0 {
                     self.trigger();
                 }

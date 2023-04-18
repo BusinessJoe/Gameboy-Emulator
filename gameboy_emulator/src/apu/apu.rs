@@ -1,15 +1,17 @@
 use ringbuf::{HeapRb, Rb};
 
-use crate::{component::{Steppable, Addressable}, cartridge::AddressingError};
+use crate::component::Addressable;
 
-use super::{channel2::Channel2, utils::digital_to_analog, channel1::Channel1};
+use super::{square::SquareChannel, wave::WaveChannel};
 
 /// Audio processing unit
 pub struct Apu {
     div_apu: u8,
     old_div: u8,
 
-    channel1: Channel1,
+    channel1: SquareChannel,
+    channel2: SquareChannel,
+    channel3: WaveChannel,
 
     left_audio_buffer: HeapRb<f32>,
     right_audio_buffer: HeapRb<f32>,
@@ -25,15 +27,17 @@ impl Apu {
             div_apu: 0,
             old_div: 0,
 
-            channel1: Channel1::new(),
-
+            channel1: SquareChannel::new(true, 0xff10),
+            channel2: SquareChannel::new(true, 0xff15),
+            channel3: WaveChannel::new(),
+            
             // TODO: lower this later
             /// allocate enough capacity for 10 frames of audio
-            left_audio_buffer: HeapRb::new(735 * 10),
-            right_audio_buffer: HeapRb::new(735 * 10),
+            left_audio_buffer: HeapRb::new(8192),
+            right_audio_buffer: HeapRb::new(8192),
 
-            sample_counter: 95 // = 4194304 / 44100 (rounded)
-
+            sample_counter: 95, // = 4194304 / 44100 (rounded)
+            //sample_counter: 19, // = 4194304 / (5* 44100) (rounded)
         }
     }
 
@@ -45,12 +49,18 @@ impl Apu {
 
         // tick channels
         self.channel1.tick();
-        //self.channel2.tick();
+        self.channel2.tick();
+        self.channel3.tick();
 
         self.sample_counter -= 1;
         if self.sample_counter == 0 {
             self.sample_counter = 95;
             self.gather_sample();
+            // self.sub_sample_counter -= 1;
+            // if self.sub_sample_counter == 0 {
+            //     self.sub_sample_counter = 10;
+            //     self.sample_counter += 1;
+            // }
         }
     }
 
@@ -67,10 +77,13 @@ impl Apu {
         if self.div_apu % 2 == 0 {
             // length counter
             self.channel1.tick_length_counter();
+            self.channel2.tick_length_counter();
+            self.channel3.tick_length_counter();
         }
         if self.div_apu == 7 {
             // volume envelope
             self.channel1.tick_volume_envelope();
+            self.channel2.tick_volume_envelope();
         }
         if self.div_apu == 2 || self.div_apu == 6 {
             // sweep
@@ -80,19 +93,20 @@ impl Apu {
 
     fn gather_sample(&mut self) {
         let ch1 = self.channel1.sample_dac();
-        self.left_audio_buffer.push_overwrite(ch1);
+        let ch2 = self.channel2.sample_dac();
+        let ch3 = self.channel3.sample_dac();
+        let sample = (ch1 + ch2 + ch3) / 3. * 0.7;
+        self.left_audio_buffer.push_overwrite(sample);
     }
 
     fn _read(&self, address: crate::component::Address) -> crate::Result<u8> {
         match address {
             0xff10 ..= 0xff14 => self.channel1.read(address),
             0xff15 => Ok(0xff),
-            // 0xff16 => Ok(self.channel2.nr21),
-            // 0xff17 => Ok(self.channel2.nr22),
-            // 0xff18 => Ok(self.channel2.nr23),
-            // 0xff19 => Ok(self.channel2.nr24),
-            0xff16 ..= 0xff19 => Ok(0xff),
-            0xff1a ..= 0xff26 => Ok(0xff),
+            0xff16 ..= 0xff19 => self.channel2.read(address),
+            0xff1a ..= 0xff1e => self.channel3.read(address),
+            0xff1f ..= 0xff26 => Ok(0xff),
+            0xff30 ..= 0xff3f => self.channel3.read(address),
             _ => Err(crate::Error::from_address_with_source(address, "APU".to_string()))
         }
     }
@@ -101,12 +115,10 @@ impl Apu {
         match address {
             0xff10 ..= 0xff14 => self.channel1.write(address, value)?,
             0xff15 => {}
-            // 0xff16 => self.channel2.nr21 = value,
-            // 0xff17 => self.channel2.nr22 = value,
-            // 0xff18 => self.channel2.nr23 = value,
-            // 0xff19 => self.channel2.nr24 = value,
-            0xff16 ..= 0xff19 => {},
-            0xff1a ..= 0xff26 => {},
+            0xff16 ..= 0xff19 => self.channel2.write(address, value)?,
+            0xff1a ..= 0xff1e => self.channel3.write(address, value)?,
+            0xff1f ..= 0xff26 => {},
+            0xff30 ..= 0xff3f => self.channel3.write(address, value)?,
             _ => return Err(crate::Error::from_address_with_source(address, "APU".to_string()))
         }
         Ok(())

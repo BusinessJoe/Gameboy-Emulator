@@ -1,9 +1,10 @@
 mod apu;
 mod global_control_regs;
-mod channel1;
-mod channel2;
 mod utils;
 mod volume_envelope;
 mod sweep;
+mod dac;
+mod square;
+mod wave;
 
 pub use apu::Apu;

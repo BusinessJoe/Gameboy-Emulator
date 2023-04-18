@@ -3,6 +3,7 @@ use gameboy_emulator::joypad::JoypadInput;
 use gameboy_emulator::ppu::TileColor;
 use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
 use log::*;
+use ringbuf::Rb;
 use sdl2::{self, audio};
 use sdl2::audio::AudioQueue;
 use sdl2::event::Event;
@@ -12,7 +13,8 @@ use sdl2::render::{BlendMode, Canvas};
 use sdl2::video::Window;
 use strum::IntoEnumIterator;
 
-use std::fs;
+use std::fs::{self, File};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use clap::Parser;
@@ -51,6 +53,8 @@ fn main() -> Result<(), String> {
 
     let joypad = gameboy_state.get_joypad();
     let memory_bus = gameboy_state.get_memory_bus();
+
+    let mut audio_data_history = ringbuf::HeapRb::<f32>::new(44100 * 30);
     
     audio_queue.resume();
 
@@ -63,6 +67,19 @@ fn main() -> Result<(), String> {
                 }
                 | Event::Quit { .. } => {
                     dbg!(gameboy_state.get_screen_hash());
+                    println!("Saving audio");
+                    File::create(Path::new("output.wav")).and_then(|mut wav| {
+                        let data: Vec<f32> = audio_data_history.iter().copied().collect();
+                        let wav_header = wav::Header::new(
+                            wav::WAV_FORMAT_IEEE_FLOAT,
+                            1,
+                            44100,
+                            32
+                        );
+                        wav::write(wav_header, &wav::BitDepth::ThirtyTwoFloat(data), &mut wav)
+                    }).unwrap();
+                    println!("Audio saved");
+                    
                     break 'mainloop;
                 }
                 Event::KeyDown {
@@ -98,16 +115,18 @@ fn main() -> Result<(), String> {
 
         // Tick gameboy for a frame
         // if buffer has less than four frames of audio, perform multiple ticks
-        while audio_queue.size() < 735 * 4 * 4 {
+        while audio_queue.size() < 1024 * 4 {
             gameboy_state.tick_for_frame();
             let data = gameboy_state.get_queued_audio();
+            audio_data_history.push_iter_overwrite(data.iter().copied());
             audio_queue.queue_audio(&data)?;
         }
 
         // if buffer has too much data, skip a frame
-        if audio_queue.size() < 735 * 4 * 16 {
+        if audio_queue.size() < 1024 * 16 {
             gameboy_state.tick_for_frame();
             let data = gameboy_state.get_queued_audio();
+            audio_data_history.push_iter_overwrite(data.iter().copied());
             audio_queue.queue_audio(&data)?;
         }
 

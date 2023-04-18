@@ -1,6 +1,6 @@
 /// Linearly convert an integer value in the range 0x0 - 0xf to a float from -1 to +1.
 pub fn digital_to_analog(value: u8) -> f32 {
-    (f32::from(value) / 7.5) - 1.0
+    (f32::from(value) / 7.5) - 1.
 }
 
 #[cfg(test)]
