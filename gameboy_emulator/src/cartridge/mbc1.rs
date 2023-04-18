@@ -133,7 +133,9 @@ impl MemoryBankController for Mbc1 {
                 Ok(())
             }
             0xa000..=0xbfff => {
-                ram[address - 0xa000] = value;
+                if let Some(entry) = ram.get_mut(address - 0xa000) {
+                    *entry = value;
+                }
                 Ok(())
             }
             _ => panic!("Address {:#x} is out of bounds for rom", address),
