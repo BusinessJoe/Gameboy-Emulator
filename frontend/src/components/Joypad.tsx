@@ -1,6 +1,6 @@
-import React, { createContext, useState, Dispatch, SetStateAction, useEffect } from 'react';
+import React, { createContext, useState, Dispatch, SetStateAction, useEffect, useCallback } from 'react';
 import { Map } from 'immutable';
-import { useAppDispatch, useAppSelector } from '../hooks/redux';
+import { useAppDispatch } from '../hooks/redux';
 import { JoypadInput, inputPressed, inputReleased } from '../reducers/joypadReducer';
 
 
@@ -33,21 +33,21 @@ const Joypad = (props: {
         ArrowDown: JoypadInput.Down,
     }));
 
-    const handleKeydown = (e: KeyboardEvent) => {
+    const handleKeydown = useCallback((e: KeyboardEvent) => {
         const input = mapKey(joypadMap, e.key);
         if (input !== undefined) {
             e.preventDefault();
             dispatch(inputPressed(input));
         }
-    };
+    }, [dispatch, joypadMap]);
 
-    const handleKeyup = (e: KeyboardEvent) => {
+    const handleKeyup = useCallback((e: KeyboardEvent) => {
         const input = mapKey(joypadMap, e.key);
         if (input !== undefined) {
             e.preventDefault();
             dispatch(inputReleased(input));
         }
-    };
+    }, [dispatch, joypadMap]);
 
     useEffect(() => {
         // set up keyboard listeners
@@ -57,7 +57,7 @@ const Joypad = (props: {
             window.removeEventListener("keydown", handleKeydown);
             window.removeEventListener("keyup", handleKeyup);
         }
-    }, [])
+    }, [handleKeydown, handleKeyup])
 
     return (
         <JoypadContext.Provider value={{joypadMap, setJoypadMap}}>

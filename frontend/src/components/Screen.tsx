@@ -1,6 +1,5 @@
-import { RefObject, useRef } from "react";
+import { useRef } from "react";
 import './Screen.css';
-import { JsxElement } from "typescript";
 
 const Screen = (props: {
     screen: Uint8Array | undefined
