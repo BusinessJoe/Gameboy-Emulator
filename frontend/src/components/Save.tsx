@@ -1,42 +1,11 @@
-import { useContext, useEffect, useState } from "react";
-import GameboyContext from "./GameboyContext";
-import { save_ram } from "../utils/database";
+import { useCallback, useEffect, useState } from "react";
 
-const Save = () => {
+const Save = (props: {
+    onSave: () => Promise<void>
+}) => {
     // const [prevTime, setPrevTime] = useState<number>();
     const [recentlySaved, setRecentlySaved] = useState(false);
-    const { gameboy } = useContext(GameboyContext);
-
-    /// set up 1 second interval to update time
-    // useEffect(() => {
-    //     const interval = setInterval(() => {
-    //         setPrevTime( prevTime => {
-    //             if (prevTime === undefined) {
-    //                 return 0;
-    //             } else {
-    //                 return prevTime + 1;
-    //             }
-    //         })
-    //     }, 1000);
-
-    //     return () => clearInterval(interval);
-    // }, [])
-
-    const save = () => {
-        const identifier = gameboy.game_name();
-        const ram = gameboy.get_save();
-        if (identifier !== undefined && ram !== undefined) {
-            save_ram(identifier, ram)
-                .then(() => {
-                    // setPrevTime(0);
-                })
-                .catch((e) => {
-                    console.error("Failed to save", e);
-                })
-        }
-
-        setRecentlySaved(true);
-    }
+    const { onSave } = props;
 
     // reset recently saved to false after a duration
     useEffect(() => {
@@ -47,9 +16,17 @@ const Save = () => {
         return () => clearTimeout(timeout);
     }, [recentlySaved])
 
-    const handleClick = () => {
-        save()
-    }
+    const handleClick = useCallback(() => {
+        onSave()
+            .then(() => {
+                // setPrevTime(0);
+                setRecentlySaved(true);
+                console.log('Saved');
+            })
+            .catch((e) => {
+                console.error('Failed to save:', e);
+            })
+    }, [onSave])
 
     return (
         <div>
