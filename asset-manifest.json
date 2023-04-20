@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/Gameboy-Emulator/static/css/main.ba71e73b.css",
-    "main.js": "/Gameboy-Emulator/static/js/main.45b0641d.js",
+    "main.js": "/Gameboy-Emulator/static/js/main.6c087b91.js",
     "static/js/787.cda612ba.chunk.js": "/Gameboy-Emulator/static/js/787.cda612ba.chunk.js",
     "static/media/gameboy_emulator_bg.wasm": "/Gameboy-Emulator/static/media/gameboy_emulator_bg.f7e57cace388eded6dbb.wasm",
     "index.html": "/Gameboy-Emulator/index.html",
     "main.ba71e73b.css.map": "/Gameboy-Emulator/static/css/main.ba71e73b.css.map",
-    "main.45b0641d.js.map": "/Gameboy-Emulator/static/js/main.45b0641d.js.map",
+    "main.6c087b91.js.map": "/Gameboy-Emulator/static/js/main.6c087b91.js.map",
     "787.cda612ba.chunk.js.map": "/Gameboy-Emulator/static/js/787.cda612ba.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.ba71e73b.css",
-    "static/js/main.45b0641d.js"
+    "static/js/main.6c087b91.js"
   ]
 }

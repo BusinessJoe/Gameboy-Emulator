@@ -2,6 +2,7 @@ class AudioQueueProcessor extends AudioWorkletProcessor {
     current_buffer;
     current_buffer_idx;
     audio_queue;
+    requested_frames;
     freq;
 
     constructor(...args) {
@@ -9,11 +10,17 @@ class AudioQueueProcessor extends AudioWorkletProcessor {
         this.current_buffer = null;
         this.current_buffer_idx = 0;
         this.audio_queue = [];
+        this.requested_frames = 0;
         this.freq = 0;
 
         this.port.onmessage = (e) => {
-            if (this.audio_queue.length < 60) {
-                this.audio_queue.push(e.data.payload);
+            if (e.data.type === 'queue') {
+                if (this.requested_frames > 0) {
+                    this.requested_frames -= 1;
+                }
+                if (this.audio_queue.length < 60) {
+                    this.audio_queue.push(e.data.payload);
+                }
             }
         };
     }
@@ -39,6 +46,11 @@ class AudioQueueProcessor extends AudioWorkletProcessor {
                     this.current_buffer_idx = 0;
                 }
             }
+        }
+
+        if (this.audio_queue.length < 3 && this.requested_frames === 0) {
+            this.port.postMessage({ type: 'get-audio' });
+            this.requested_frames += 1;
         }
             
         return true;
