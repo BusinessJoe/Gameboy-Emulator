@@ -10,12 +10,10 @@ function DPadButton(props: {
   const [hovered, setHovered] = useState(false);
 
   const handleDown: MouseEventHandler<SVGElement> = (e) => {
-    console.log(e);
     props.onPress();
   }
 
   const handleUp: MouseEventHandler<SVGElement> = (e) => {
-    console.log(e);
     props.onRelease();
   }
 

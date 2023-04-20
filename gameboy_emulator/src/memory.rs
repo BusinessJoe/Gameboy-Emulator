@@ -4,8 +4,8 @@
  */
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::mpsc::Sender;
 
+use crate::apu::Apu;
 use crate::cartridge::Cartridge;
 use crate::component::{Address, Addressable};
 use crate::emulator::events::EmulationEvent;
@@ -20,6 +20,7 @@ use log::debug;
 pub struct MemoryBus {
     pub(crate) cartridge: Option<Cartridge>,
     ppu: Rc<RefCell<BasePpu>>,
+    apu: Rc<RefCell<Apu>>,
     joypad: Rc<RefCell<Joypad>>,
     timer: Rc<RefCell<Timer>>,
     pub data: [u8; 0x10000],
@@ -29,12 +30,14 @@ pub struct MemoryBus {
 impl MemoryBus {
     pub fn new(
         ppu: Rc<RefCell<BasePpu>>,
+        apu: Rc<RefCell<Apu>>,
         joypad: Rc<RefCell<Joypad>>,
         timer: Rc<RefCell<Timer>>,
     ) -> Self {
         let memory_bus = Self {
             cartridge: None,
             ppu,
+            apu,
             joypad,
             timer,
             data: [0; 0x10000],
@@ -66,6 +69,7 @@ impl MemoryBus {
             0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
             // IF register always has top 3 bits high
             0xff0f => Ok(self.data[address] | 0xe0),
+            0xff10 ..= 0xff3f => self.apu.borrow_mut().read_u8(address),
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
             0xff47..=0xff4b => self.ppu.borrow_mut().read_u8(address),
@@ -108,6 +112,7 @@ impl MemoryBus {
             0xff00 => self.joypad.borrow_mut().write_u8(address, value)?,
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
+            0xff10 ..= 0xff3f => self.apu.borrow_mut().write_u8(address, value)?,
             // PPU mappings
             0xff40..=0xff44 => self.ppu.borrow_mut().write_u8(address, value)?,
             // lyc write, we need to check if that triggers a stat interrupt

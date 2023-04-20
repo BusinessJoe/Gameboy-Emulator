@@ -1,0 +1,200 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'gameboy_emulator'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "gameboy_emulator",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'emulator'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=emulator",
+                    "--features=sdl2-emu",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "emulator",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--rom",
+                "roms/Kirby's Dream Land (USA, Europe).gb"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'emulator'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=emulator",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "emulator",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'nogui'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=nogui",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "nogui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'nogui'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=nogui",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "nogui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test_blargg'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test_blargg",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "test_blargg",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test_dmg_acid'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test_dmg_acid",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "test_dmg_acid",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test_mooneye'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test_mooneye",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "test_mooneye",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'emu_benches'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=emu_benches",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "emu_benches",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'perf'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=perf",
+                    "--package=gameboy_emulator"
+                ],
+                "filter": {
+                    "name": "perf",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

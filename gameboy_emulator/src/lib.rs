@@ -11,21 +11,8 @@ mod memory;
 pub mod ppu;
 mod timer;
 mod utils;
+mod apu;
 
 pub use error::{Error, Result};
 pub use memory::MemoryBus;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, {{project-name}}!");
-}

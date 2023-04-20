@@ -1,3 +1,4 @@
+use crate::apu::Apu;
 use crate::cartridge::{self, Cartridge};
 use crate::component::{Addressable, Steppable};
 use crate::cpu::CPU;
@@ -38,6 +39,7 @@ pub struct GameboyDebugInfo {
 pub struct GameBoyState {
     pub(crate) cpu: Rc<RefCell<CPU>>,
     pub(crate) ppu: Rc<RefCell<BasePpu>>,
+    pub(crate) apu: Rc<RefCell<Apu>>,
     pub(crate) joypad: Rc<RefCell<Joypad>>,
     pub(crate) timer: Rc<RefCell<Timer>>,
     pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
@@ -60,16 +62,19 @@ impl GameBoyState {
 
         let cpu = Rc::new(RefCell::new(CPU::new()));
         let ppu = Rc::new(RefCell::new(BasePpu::new()));
+        let apu = Rc::new(RefCell::new(Apu::new()));
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
             ppu.clone(),
+            apu.clone(),
             joypad.clone(),
             timer.clone(),
         )));
 
         self.cpu = cpu;
         self.ppu = ppu.clone();
+        self.apu = apu.clone();
         self.joypad = joypad;
         self.timer = timer;
         self.memory_bus = memory_bus.clone();
@@ -93,11 +98,14 @@ impl GameBoyState {
         {
             let mut ppu = self.ppu.borrow_mut();
             let mut timer = self.timer.borrow_mut();
+            let mut apu = self.apu.borrow_mut();
             for _ in 0..elapsed_cycles {
                 // Timer and ppu step each T-cycle
                 for _ in 0..4 {
-                    ppu.step(&self).expect("error while stepping ppu");
                     timer.step(&self).expect("error while stepping timer");
+                    ppu.step(&self).expect("error while stepping ppu");
+
+                    apu.tick(timer.get_div());
                 }
             }
             trace!("stepped ppu and timer for {} M-cycles", elapsed_cycles);
@@ -208,16 +216,19 @@ impl GameBoyState {
         console_error_panic_hook::set_once();
 
         let ppu = Rc::new(RefCell::new(BasePpu::new()));
+        let apu = Rc::new(RefCell::new(Apu::new()));
         let joypad = Rc::new(RefCell::new(Joypad::new()));
         let timer = Rc::new(RefCell::new(Timer::new()));
         let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
             ppu.clone(),
+            apu.clone(),
             joypad.clone(),
             timer.clone(),
         )));
         Self {
             cpu: Rc::new(RefCell::new(CPU::new())),
-            ppu: ppu.clone(),
+            ppu,
+            apu,
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
@@ -341,5 +352,9 @@ impl GameBoyState {
         }
 
         false
+    }
+
+    pub fn get_queued_audio(&mut self) -> Vec<f32> {
+        self.apu.borrow_mut().get_queued_audio()
     }
 }

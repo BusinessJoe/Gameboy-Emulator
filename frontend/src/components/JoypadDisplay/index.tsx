@@ -11,10 +11,6 @@ const JoypadDisplay = () => {
     const current = useAppSelector((state) => state.joypad.current);
     const dispatch = useAppDispatch();
 
-    useEffect(() => {
-        console.log(pressed);
-    }, [pressed])
-
     const handlePress = (input: JoypadInput) => {
         dispatch(inputPressed(input));
     }

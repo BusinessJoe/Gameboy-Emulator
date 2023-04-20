@@ -42,8 +42,9 @@ const joypadReducer = (state = initialState, action: AnyAction) => {
                 current: state.current.delete(action.payload),
             }
         }
-        default:
-            return state;
+        default: {
+            return state
+        }
     }
 }
 

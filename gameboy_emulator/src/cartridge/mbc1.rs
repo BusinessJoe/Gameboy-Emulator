@@ -133,12 +133,9 @@ impl MemoryBankController for Mbc1 {
                 Ok(())
             }
             0xa000..=0xbfff => {
-                use web_sys::console;
-                console::log_1(&"write to ram".into());
-                if value != 0 {
-                    console::log_1(&format!("addr:{} value:{}", address, value).into());
+                if let Some(entry) = ram.get_mut(address - 0xa000) {
+                    *entry = value;
                 }
-                ram[address - 0xa000] = value;
                 Ok(())
             }
             _ => panic!("Address {:#x} is out of bounds for rom", address),
