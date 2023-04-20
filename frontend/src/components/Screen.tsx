@@ -1,8 +1,9 @@
-import { useRef } from "react";
+import React, { useRef } from "react";
 import './Screen.css';
 
 const Screen = (props: {
-    screen: Uint8Array | undefined
+    screen: Uint8Array | undefined,
+    onRomUpload: (romData: Uint8Array | undefined) => void,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const canvas = canvasRef.current;
@@ -41,13 +42,71 @@ const Screen = (props: {
         const img_data = new ImageData(arr, 160, 144);
         context.putImageData(img_data, 0, 0);
     }
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+    }
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        // const file = e.dataTransfer.files.item(0);
+        // if (file !== null) {
+        //     console.log(file);
+        //     upload(file);
+        // }
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+
+        if (files === null) {
+            return;
+        }
+
+        if (files.length === 0) {
+
+        } else {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const result = evt.target?.result
+                if (result instanceof ArrayBuffer) {
+                    const array = new Uint8Array(result);
+                    props.onRomUpload(array);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    }
+
+
+    const upload = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const result = evt.target?.result
+            if (result instanceof ArrayBuffer) {
+                const array = new Uint8Array(result);
+                props.onRomUpload(array);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
     
     return (
         <div id="screen-wrapper">
+            <input id="file-upload" type="file" hidden onChange={handleChange}></input>
+            <label htmlFor="file-upload" id="file-upload-label">
             {props.screen !== undefined 
-                ? <canvas id="screen" width={160} height={144} ref={canvasRef}>Screen</canvas>
-                : <div>No Screen</div>
+                ? 
+                <canvas id="screen" width={160} height={144} ref={canvasRef}>
+                    Screen
+                </canvas>
+                : 
+                <div id="screen-upload" onDrop={handleDrop} onDragOver={handleDragOver}>
+                    Click to upload ROM
+                </div>
             }
+            </label>
         </div>
     )
 };

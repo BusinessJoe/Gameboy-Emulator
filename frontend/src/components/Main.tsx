@@ -30,8 +30,7 @@ const Main = () => {
   return (
       <div className='main'>
         <div>
-          <Screen screen={screen} />
-          <RomUpload onUpload={setRomData} />
+          <Screen screen={screen} onRomUpload={setRomData} />
           <Save onSave={saveRam} />
         </div>
         <div className='sidebar'>

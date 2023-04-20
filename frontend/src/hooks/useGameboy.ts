@@ -60,7 +60,8 @@ const useGameboy = (romData: Uint8Array | undefined) => {
     /// Initialization
     useEffect(() => {
         if (romData) {
-            Promise.all([initWasm(), initAudio()])
+            console.log('Initializing wasm');
+            initWasm()
                 .then(async () => {
                     const gameboy = GameBoyState.new();
                     gameboy.load_rom_web(romData);
@@ -70,10 +71,18 @@ const useGameboy = (romData: Uint8Array | undefined) => {
                     if (identifier !== undefined) {
                         loadSave(gameboy, identifier);
                     }
+                    console.log('Initialized wasm');
                 })
-                .catch((e) => {
-                    console.error('Failed to initialize wasm or audio:', e);
+                .catch((e: Error) => {
+                    console.error('Failed to initialize wasm:', e);
                 })
+                .then(async () => {
+                    await initAudio();
+                    console.log('Initialized audio');
+                })
+                .catch((e: Error) => {
+                    console.error('Failed to initialize audio:', e);
+                });
 
             return () => {
                 // clean up audio
@@ -84,6 +93,7 @@ const useGameboy = (romData: Uint8Array | undefined) => {
 
     useEffect(() => {
         if (gameboy !== undefined) {
+            console.log('Resuming audio playback');
             resumeAudioPlayback().catch(e => console.error('Failed to resume audio playback:', e));
         }
     }, [gameboy, resumeAudioPlayback])

@@ -2,14 +2,32 @@
     aspect-ratio: 160 / 144;
     image-rendering: pixelated;
     border: 5px solid rgb(2, 32, 78);
+    width: 90vw;
 }
 
-#screen {
+#screen-upload {
+    aspect-ratio: 160 / 144;
+    border: 5px solid rgb(2, 32, 78);
     width: 90vw;
+    background-color: rgb(2, 32, 78);
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    font-size: larger;
+}
+
+#file-upload-label {
+    cursor: pointer;
 }
 
 @media (min-width:1281px) {
     #screen {
+        width: 40vw;
+    }
+    #screen-upload {
         width: 40vw;
     }
 }
