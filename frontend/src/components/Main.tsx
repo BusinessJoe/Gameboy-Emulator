@@ -6,10 +6,10 @@ import JoypadRemap from './JoypadRemap';
 import { load_ram } from '../utils/database';
 import GameboyContext from './GameboyContext';
 import Save from './Save';
-import { useAppSelector } from '../hooks/redux';
+import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import JoypadDisplay from './JoypadDisplay';
 import './Main.css';
-import EmulatorAudio from './EmulatorAudio';
+import useAudio from '../hooks/useAudio';
 
 const Main = () => {
   const { gameboy } = useContext(GameboyContext);
@@ -17,16 +17,15 @@ const Main = () => {
   const released = useAppSelector(state => state.joypad.released);
   const [screen, setScreen] = useState<Uint8Array | undefined>(undefined);
   const [hasRom, setHasRom] = useState<boolean>(false);
-  const [playAudio, setPlayAudio] = useState(false);
-
-  const screenRef = React.useRef<HTMLDivElement>(null);
 
   // https://css-tricks.com/using-requestanimationframe-with-react-hooks/
   // Use useRef for mutable variables that we want to persist
   // without triggering a re-render on their change
   const requestRef = React.useRef<number>();
   const nextTimeRef = React.useRef<number>(0);
-  const frameCountRef = React.useRef<number>(0);
+
+  const audioHook = useAudio();
+
 
   const renderFrame = (time: number) => {
     if (nextTimeRef.current === 0) {
@@ -36,8 +35,13 @@ const Main = () => {
     if (time >= nextTimeRef.current) {
       setScreen(gameboy.get_web_screen());
       gameboy.tick_for_frame();
+      audioHook.queueAudio(gameboy.get_queued_audio());
+      // let array = [];
+      // for (let i = 0; i < 735; i++) {
+      //   array.push(0.1 * (Math.random()*2-1));
+      // }
+      // audioHook.queueAudio(Float32Array.from(array));
 
-      frameCountRef.current += 1;
       // if (frameCountRef.current % (5 * 60) === 0) {
       //     save(gameboy);
       // }
@@ -48,16 +52,17 @@ const Main = () => {
         nextTimeRef.current = time + 1000 / 60;
       }
     }
+
     requestRef.current = requestAnimationFrame(renderFrame);
   }
 
   useEffect(() => {
     setScreen(gameboy.get_web_screen());
+    audioHook.init();
   }, []);
 
   useEffect(() => {
     if (hasRom) {
-      screenRef.current?.focus();
       requestRef.current = requestAnimationFrame(renderFrame);
     }
   }, [hasRom])
@@ -88,7 +93,6 @@ const Main = () => {
             console.log('failed to load save');
           }
           setHasRom(true);
-          setPlayAudio(true);
         })
         .catch(() => {
           // no save found
@@ -98,23 +102,21 @@ const Main = () => {
     } else {
       setHasRom(true);
     }
+    audioHook.resume();
   }
 
   return (
       <div className='main'>
-        <EmulatorAudio play={playAudio} />
         <div>
-          <Screen screen={screen} focusRef={screenRef} />
+          <Screen screen={screen} />
           <RomUpload onUpload={handleRomUpload} />
           <Save />
         </div>
         <div className='sidebar'>
           <JoypadDisplay />
-          {screenRef.current &&
-            <Joypad focusRef={screenRef}>
-              <JoypadRemap />
-            </Joypad>
-          }
+          <Joypad>
+            <JoypadRemap />
+          </Joypad>
         </div>
       </div>
   );

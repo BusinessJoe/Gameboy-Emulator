@@ -1,6 +1,6 @@
-import React, { createContext, useState, Dispatch, SetStateAction } from 'react';
+import React, { createContext, useState, Dispatch, SetStateAction, useEffect } from 'react';
 import { Map } from 'immutable';
-import { useAppDispatch } from '../hooks/redux';
+import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { JoypadInput, inputPressed, inputReleased } from '../reducers/joypadReducer';
 
 
@@ -19,7 +19,6 @@ const mapKey = (map: Map<string, JoypadInput>, key: string): JoypadInput | undef
 }
 
 const Joypad = (props: {
-    focusRef: React.RefObject<HTMLElement>,
     children?: React.ReactElement
 }) => {
     const dispatch = useAppDispatch();
@@ -34,26 +33,31 @@ const Joypad = (props: {
         ArrowDown: JoypadInput.Down,
     }));
 
-    if (props.focusRef.current) {
+    const handleKeydown = (e: KeyboardEvent) => {
+        const input = mapKey(joypadMap, e.key);
+        if (input !== undefined) {
+            e.preventDefault();
+            dispatch(inputPressed(input));
+        }
+    };
+
+    const handleKeyup = (e: KeyboardEvent) => {
+        const input = mapKey(joypadMap, e.key);
+        if (input !== undefined) {
+            e.preventDefault();
+            dispatch(inputReleased(input));
+        }
+    };
+
+    useEffect(() => {
         // set up keyboard listeners
-        props.focusRef.current.onkeydown = (e: KeyboardEvent) => {
-            const input = mapKey(joypadMap, e.key);
-
-            if (input !== undefined) {
-                e.preventDefault();
-                console.log('pressing', input);
-                dispatch(inputPressed(input));
-            }
+        window.addEventListener("keydown", handleKeydown);
+        window.addEventListener("keyup", handleKeyup);
+        return () => {
+            window.removeEventListener("keydown", handleKeydown);
+            window.removeEventListener("keyup", handleKeyup);
         }
-        props.focusRef.current.onkeyup = (e: KeyboardEvent) => {
-            const input = mapKey(joypadMap, e.key);
-
-            if (input !== undefined) {
-                e.preventDefault();
-                dispatch(inputReleased(input));
-            }
-        }
-    }
+    }, [])
 
     return (
         <JoypadContext.Provider value={{joypadMap, setJoypadMap}}>

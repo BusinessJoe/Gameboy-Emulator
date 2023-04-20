@@ -1,9 +1,9 @@
 import { RefObject, useRef } from "react";
 import './Screen.css';
+import { JsxElement } from "typescript";
 
 const Screen = (props: {
     screen: Uint8Array | undefined
-    focusRef: RefObject<HTMLDivElement>
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const canvas = canvasRef.current;
@@ -42,19 +42,13 @@ const Screen = (props: {
         const img_data = new ImageData(arr, 160, 144);
         context.putImageData(img_data, 0, 0);
     }
-
-    let child;
-    if (props.screen !== undefined) {
-        child = (
-            <canvas id="screen" width={160} height={144} ref={canvasRef}>Screen</canvas>
-        );
-    } else {
-        child = <div>No Screen</div>;
-    }
-
+    
     return (
-        <div id="screen-wrapper" ref={props.focusRef} tabIndex={0}>
-            {child}
+        <div id="screen-wrapper">
+            {props.screen !== undefined 
+                ? <canvas id="screen" width={160} height={144} ref={canvasRef}>Screen</canvas>
+                : <div>No Screen</div>
+            }
         </div>
     )
 };

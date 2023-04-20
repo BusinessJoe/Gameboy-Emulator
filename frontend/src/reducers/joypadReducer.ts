@@ -43,7 +43,6 @@ const joypadReducer = (state = initialState, action: AnyAction) => {
             }
         }
         default: {
-            console.error("invalid action: ", action);
             return state
         }
     }
