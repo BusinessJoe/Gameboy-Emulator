@@ -79,7 +79,7 @@ const Main = () => {
     }
   }, [released, gameboy])
 
-  const handleRomUpload = (array: Uint8Array) => {
+  const handleRomUpload = useCallback((array: Uint8Array) => {
     gameboy.load_rom_web(array);
     const identifier = gameboy.game_name();
 
@@ -103,7 +103,7 @@ const Main = () => {
       setHasRom(true);
     }
     resume();
-  }
+  }, [gameboy, resume]);
 
   return (
       <div className='main'>

@@ -19,7 +19,7 @@ const JoypadRemap = () => {
                 setJoypadMap( joypadMap.delete(pendingRemap).set(key, value) );
             }
         }
-    }, [key]);
+    }, [joypadMap, setJoypadMap, pendingRemap, key]);
 
     return (
         <div>

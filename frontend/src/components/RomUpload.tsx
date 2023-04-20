@@ -5,6 +5,7 @@ const RomUpload = (props: {
 }) => {
     const [files, setFiles] = useState<FileList | null>(null);
     //const [success, setSuccess] = useState<boolean | undefined>();
+    const { onUpload } = props;
 
     useEffect(() => {
         if (files === null) {
@@ -20,12 +21,12 @@ const RomUpload = (props: {
                 const result = evt.target?.result
                 if (result instanceof ArrayBuffer) {
                     const array = new Uint8Array(result);
-                    props.onUpload(array);
+                    onUpload(array);
                 }
             };
             reader.readAsArrayBuffer(file);
         }
-    }, [files]);
+    }, [files, onUpload]);
 
     return (
         <input 

@@ -3,24 +3,24 @@ import GameboyContext from "./GameboyContext";
 import { save_ram } from "../utils/database";
 
 const Save = () => {
-    const [_prevTime, setPrevTime] = useState<number>();
+    // const [prevTime, setPrevTime] = useState<number>();
     const [recentlySaved, setRecentlySaved] = useState(false);
     const { gameboy } = useContext(GameboyContext);
 
     /// set up 1 second interval to update time
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setPrevTime( prevTime => {
-                if (prevTime === undefined) {
-                    return 0;
-                } else {
-                    return prevTime + 1;
-                }
-            })
-        }, 1000);
+    // useEffect(() => {
+    //     const interval = setInterval(() => {
+    //         setPrevTime( prevTime => {
+    //             if (prevTime === undefined) {
+    //                 return 0;
+    //             } else {
+    //                 return prevTime + 1;
+    //             }
+    //         })
+    //     }, 1000);
 
-        return () => clearInterval(interval);
-    }, [])
+    //     return () => clearInterval(interval);
+    // }, [])
 
     const save = () => {
         const identifier = gameboy.game_name();
@@ -28,7 +28,7 @@ const Save = () => {
         if (identifier !== undefined && ram !== undefined) {
             save_ram(identifier, ram)
                 .then(() => {
-                    setPrevTime(0);
+                    // setPrevTime(0);
                 })
                 .catch((e) => {
                     console.error("Failed to save", e);
