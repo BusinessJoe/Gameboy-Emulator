@@ -2,12 +2,10 @@ import DPadButton from './DPadButton';
 import CircleButton from './CircleButton';
 import PillButton from './PillButton';
 import './JoypadDisplay.css';
-import { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { JoypadInput, inputPressed, inputReleased } from '../../reducers/joypadReducer';
 
 const JoypadDisplay = () => {
-    const pressed = useAppSelector((state) => state.joypad.pressed);
     const current = useAppSelector((state) => state.joypad.current);
     const dispatch = useAppDispatch();
 

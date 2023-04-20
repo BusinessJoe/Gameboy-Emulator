@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import Screen from './Screen';
 import RomUpload from './RomUpload';
 import Joypad from './Joypad';
@@ -6,7 +6,7 @@ import JoypadRemap from './JoypadRemap';
 import { load_ram } from '../utils/database';
 import GameboyContext from './GameboyContext';
 import Save from './Save';
-import { useAppDispatch, useAppSelector } from '../hooks/redux';
+import { useAppSelector } from '../hooks/redux';
 import JoypadDisplay from './JoypadDisplay';
 import './Main.css';
 import useAudio from '../hooks/useAudio';
@@ -24,10 +24,10 @@ const Main = () => {
   const requestRef = React.useRef<number>();
   const nextTimeRef = React.useRef<number>(0);
 
-  const audioHook = useAudio();
+  const { init, resume, queueAudio } = useAudio();
 
 
-  const renderFrame = (time: number) => {
+  const renderFrame = useCallback((time: number) => {
     if (nextTimeRef.current === 0) {
       nextTimeRef.current = time + 1000 / 60;
     }
@@ -35,7 +35,7 @@ const Main = () => {
     if (time >= nextTimeRef.current) {
       setScreen(gameboy.get_web_screen());
       gameboy.tick_for_frame();
-      audioHook.queueAudio(gameboy.get_queued_audio());
+      queueAudio(gameboy.get_queued_audio());
       // let array = [];
       // for (let i = 0; i < 735; i++) {
       //   array.push(0.1 * (Math.random()*2-1));
@@ -54,30 +54,30 @@ const Main = () => {
     }
 
     requestRef.current = requestAnimationFrame(renderFrame);
-  }
+  }, [gameboy, queueAudio]);
 
   useEffect(() => {
     setScreen(gameboy.get_web_screen());
-    audioHook.init();
-  }, []);
+    init();
+  }, [gameboy, init]);
 
   useEffect(() => {
     if (hasRom) {
       requestRef.current = requestAnimationFrame(renderFrame);
     }
-  }, [hasRom])
+  }, [hasRom, renderFrame])
 
   useEffect(() => {
     if (pressed !== undefined) {
       gameboy.press_key(pressed);
     }
-  }, [pressed])
+  }, [pressed, gameboy])
   
   useEffect(() => {
     if (released !== undefined) {
       gameboy.release_key(released);
     }
-  }, [released])
+  }, [released, gameboy])
 
   const handleRomUpload = (array: Uint8Array) => {
     gameboy.load_rom_web(array);
@@ -102,7 +102,7 @@ const Main = () => {
     } else {
       setHasRom(true);
     }
-    audioHook.resume();
+    resume();
   }
 
   return (
