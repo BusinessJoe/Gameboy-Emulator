@@ -98,19 +98,39 @@ impl Timer {
 }
 
 impl Addressable for Timer {
-    fn read(&mut self, address: Address, data: &mut [u8]) -> crate::error::Result<()> {
-        for (offset, byte) in data.iter_mut().enumerate() {
-            *byte = self._read(address + offset)?;
-        }
-
-        Ok(())
+    fn read_u8(&mut self, address: Address) -> crate::error::Result<u8> {
+        let value = match address {
+            DIV => self.div,
+            TIMA => self.tima,
+            TMA => self.tma,
+            TAC => self.tac,
+            _ => {
+                return Err(Error::from_address_with_source(
+                    address,
+                    "timer read".to_string(),
+                ))
+            }
+        };
+        Ok(value)
     }
 
-    fn write(&mut self, address: Address, data: &[u8]) -> crate::error::Result<()> {
-        for (offset, byte) in data.iter().enumerate() {
-            self._write(address + offset, *byte)?;
+    fn write_u8(&mut self, address: Address, value: u8) -> crate::error::Result<()> {
+        match address {
+            // writing any value to DIV resets it to 0
+            DIV => {
+                self.div = 0;
+                self.div_clocksum = 0;
+            }
+            TIMA => self.tima = value,
+            TMA => self.tma = value,
+            TAC => self.tac = 0b11111000 | 0b111 & value,
+            _ => {
+                return Err(Error::from_address_with_source(
+                    address,
+                    "timer write".to_string(),
+                ))
+            }
         }
-
         Ok(())
     }
 }

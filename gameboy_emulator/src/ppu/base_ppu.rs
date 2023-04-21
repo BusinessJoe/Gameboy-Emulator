@@ -473,26 +473,19 @@ impl Steppable for BasePpu {
 }
 
 impl Addressable for BasePpu {
-    fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
-        for (offset, byte) in data.iter_mut().enumerate() {
-            *byte = self.state.read(address + offset)?;
-        }
-
-        Ok(())
+    fn read_u8(&mut self, address: Address) -> Result<u8> {
+        self.state.read(address)
     }
 
-    fn write(&mut self, address: Address, data: &[u8]) -> Result<()> {
-        for (offset, byte) in data.iter().enumerate() {
-            self.state.write(address + offset, *byte)?;
-            match address {
-                0x8000..=0x97ff => {
-                    self.renderer
-                        .update_tile_cache(&self.state.tile_data, address);
-                }
-                _ => {}
+    fn write_u8(&mut self, address: Address, data: u8) -> Result<()> {
+        self.state.write(address, data)?;
+        match address {
+            0x8000..=0x97ff => {
+                self.renderer
+                    .update_tile_cache(&self.state.tile_data, address);
             }
+            _ => {}
         }
-
         Ok(())
     }
 }

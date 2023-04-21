@@ -1,5 +1,10 @@
 /target
-**/flamegraph.svg
+roms/*
+
+# audio output log
+output.wav
+
+# profiling data
 **/perf.data
 **/perf.data.old
-roms/*
+**/flamegraph.svg

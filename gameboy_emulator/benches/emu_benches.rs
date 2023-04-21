@@ -69,6 +69,7 @@ fn bench_blargg_cpu_instrs_frame(c: &mut Criterion) {
     c.bench_function("gameboy tick for frame", |b| {
         b.iter(|| {
             black_box(gameboy_state.tick_for_frame());
+            black_box(gameboy_state.get_queued_audio());
             // gameboy.cpu.borrow_mut().pc = 0x100;
         });
     });

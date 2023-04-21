@@ -104,8 +104,10 @@ impl Apu {
         let sample = (ch1 + ch2 + ch3 + ch4) / 4.;
         self.left_audio_buffer.push_overwrite(sample);
     }
+}
 
-    fn _read(&self, address: crate::component::Address) -> crate::Result<u8> {
+impl Addressable for Apu {
+    fn read_u8(&mut self, address: crate::component::Address) -> crate::Result<u8> {
         match address {
             0xff10 ..= 0xff14 => self.channel1.read(address),
             0xff15 => Ok(0xff),
@@ -119,36 +121,18 @@ impl Apu {
         }
     }
 
-    fn _write(&mut self, address: crate::component::Address, value: u8) -> crate::Result<()> {
+    fn write_u8(&mut self, address: crate::component::Address, data: u8) -> crate::Result<()> {
         match address {
-            0xff10 ..= 0xff14 => self.channel1.write(address, value)?,
+            0xff10 ..= 0xff14 => self.channel1.write(address, data)?,
             0xff15 => {},
-            0xff16 ..= 0xff19 => self.channel2.write(address, value)?,
-            0xff1a ..= 0xff1e => self.channel3.write(address, value)?,
+            0xff16 ..= 0xff19 => self.channel2.write(address, data)?,
+            0xff1a ..= 0xff1e => self.channel3.write(address, data)?,
             0xff1f => {},
-            0xff20 ..= 0xff23 => self.channel4.write(address, value)?,
+            0xff20 ..= 0xff23 => self.channel4.write(address, data)?,
             0xff24 ..= 0xff2f => {},
-            0xff30 ..= 0xff3f => self.channel3.write(address, value)?,
+            0xff30 ..= 0xff3f => self.channel3.write(address, data)?,
             _ => return Err(crate::Error::from_address_with_source(address, "APU".to_string()))
         }
-        Ok(())
-    }
-}
-
-impl Addressable for Apu {
-    fn read(&mut self, address: crate::component::Address, data: &mut [u8]) -> crate::Result<()> {
-        for (offset, byte) in data.iter_mut().enumerate() {
-            *byte = self._read(address + offset)?;
-        }
-
-        Ok(())
-    }
-
-    fn write(&mut self, address: crate::component::Address, data: &[u8]) -> crate::Result<()> {
-        for (offset, byte) in data.iter().enumerate() {
-            self._write(address + offset, *byte)?;
-        }
-
         Ok(())
     }
 }

@@ -1,5 +1,3 @@
-use crate::component::{Address, Addressable};
-use crate::error::{Error, Result};
 use strum_macros::EnumIter;
 
 #[derive(Debug, Clone, Copy, EnumIter)]
@@ -86,7 +84,7 @@ impl Joypad {
     }
 
     /// Use keyboard input to get the byte at 0xff00.
-    fn get_state(&mut self) -> u8 {
+    fn get_state(&self) -> u8 {
         let mut input_nibble = 0u8;
 
         if self.select_action() {
@@ -107,28 +105,12 @@ impl Joypad {
     fn select_direction(&self) -> bool {
         self.state_byte & (1 << 4) == 0
     }
-}
 
-impl Addressable for Joypad {
-    fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
-        if data.len() != 1 || address != 0xff00 {
-            return Err(Error::from_address_with_source(
-                address,
-                "joypad read".to_string(),
-            ));
-        }
-        data[0] = self.get_state();
-        Ok(())
+    pub fn read(&self) -> u8 {
+        self.get_state()
     }
 
-    fn write(&mut self, address: Address, data: &[u8]) -> Result<()> {
-        if data.len() != 1 || address != 0xff00 {
-            return Err(Error::from_address_with_source(
-                address,
-                "joypad write".to_string(),
-            ));
-        }
-        self.state_byte = data[0];
-        Ok(())
+    pub fn write(&mut self, data: u8) {
+        self.state_byte = data;
     }
 }

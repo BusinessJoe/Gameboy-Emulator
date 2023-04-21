@@ -1,2 +1,6 @@
 /roms
 /target
+
+# profiling data
+annotation.txt
+callgrind.out.*

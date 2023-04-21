@@ -5,19 +5,9 @@ pub type Address = usize;
 pub type ElapsedTime = u64;
 
 pub trait Addressable {
-    fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()>;
-    fn write(&mut self, address: Address, data: &[u8]) -> Result<()>;
+    fn read_u8(&mut self, address: Address) -> Result<u8>;
 
-    fn read_u8(&mut self, address: Address) -> Result<u8> {
-        let mut data = [0];
-        self.read(address, &mut data)?;
-        Ok(data[0])
-    }
-
-    fn write_u8(&mut self, address: Address, data: u8) -> Result<()> {
-        let data = [data];
-        self.write(address, &data)
-    }
+    fn write_u8(&mut self, address: Address, data: u8) -> Result<()>;
 }
 
 pub trait Steppable {

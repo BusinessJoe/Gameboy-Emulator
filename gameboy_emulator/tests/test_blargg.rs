@@ -1,25 +1,21 @@
 mod common;
 
-mod test_blargg {
-    use crate::common;
+#[test]
+fn test_blargg_cpu_all() {
+    common::test_rom_serial_data(
+        "tests/blargg/gb-test-roms-master/cpu_instrs/cpu_instrs.gb",
+        "Passed".as_bytes(),
+        60 * 60,
+    );
+}
 
-    #[test]
-    fn test_blargg_cpu_all() {
-        common::test_rom_serial_data(
-            "tests/blargg/gb-test-roms-master/cpu_instrs/cpu_instrs.gb",
-            "Passed".as_bytes(),
-            60 * 60,
-        );
-    }
-
-    #[test]
-    fn blargg_halt_bug() {
-        common::test_rom_screen_hash(
-            "tests/blargg/gb-test-roms-master/halt_bug.gb",
-            11824211486473176196,
-            5 * 60,
-        );
-    }
+#[test]
+fn blargg_halt_bug() {
+    common::test_rom_screen_hash(
+        "tests/blargg/gb-test-roms-master/halt_bug.gb",
+        11824211486473176196,
+        5 * 60,
+    );
 }
 
 // #[test]

@@ -34,6 +34,8 @@ fn main() -> Result<(), String> {
     loop {
         // Tick gameboy for a frame
         gameboy_state.tick_for_frame();
+        gameboy_state.get_screen();
+        gameboy_state.get_queued_audio();
         // render_screen(gameboy_state.get_screen(), &mut canvas);
 
         // let duration = start.elapsed();
