@@ -4,6 +4,7 @@ class AudioQueueProcessor extends AudioWorkletProcessor {
     audio_queue;
     requested_frames;
     freq;
+    last_sample;
 
     constructor(...args) {
         super(...args);
@@ -12,6 +13,7 @@ class AudioQueueProcessor extends AudioWorkletProcessor {
         this.audio_queue = [];
         this.requested_frames = 0;
         this.freq = 0;
+        this.last_sample = 0;
 
         this.port.onmessage = (e) => {
             if (e.data.type === 'queue') {
@@ -34,11 +36,11 @@ class AudioQueueProcessor extends AudioWorkletProcessor {
             }
 
             if (!this.current_buffer) {
-                channel[i] = 0;
+                channel[i] = this.last_sample;
             } else {
                 //this.port.postMessage({'aaaa': this.audio_queue[0], 'b': this.idx, 'c': this.audio_queue[0][this.idx]});
-                const sample = this.current_buffer[this.current_buffer_idx];
-                channel[i] = sample;
+                this.last_sample = this.current_buffer[this.current_buffer_idx];
+                channel[i] = this.last_sample;
                 this.current_buffer_idx += 1;
                 
                 if (this.current_buffer_idx >= this.current_buffer.length) {
