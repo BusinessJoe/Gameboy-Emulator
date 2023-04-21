@@ -78,19 +78,6 @@ const Screen = (props: {
             reader.readAsArrayBuffer(file);
         }
     }
-
-
-    const upload = (file: File) => {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const result = evt.target?.result
-            if (result instanceof ArrayBuffer) {
-                const array = new Uint8Array(result);
-                props.onRomUpload(array);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
     
     return (
         <div id="screen-wrapper">

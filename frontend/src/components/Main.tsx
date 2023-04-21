@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import Screen from './Screen';
-import RomUpload from './RomUpload';
 import Joypad from './Joypad';
 import JoypadRemap from './JoypadRemap';
 import Save from './Save';
