@@ -20,10 +20,10 @@ pub struct NoiseChannel {
     lfsr: u16,
 
     // stores number of T-cycles until next waveform step
-    freq_timer: u16,
+    freq_timer: u32,
 
     waveform_step: u8,
-    on: bool,
+    pub on: bool,
     dac: Dac,
 }
 
@@ -50,7 +50,6 @@ impl NoiseChannel {
     }
 
     fn sample(&self) -> u8 {
-
         let current_waveform = self.waveform_amplitude();
         
         current_waveform * self.volume_envelope.volume()
@@ -105,12 +104,14 @@ impl NoiseChannel {
     }
 
     fn tick_lfsr(&mut self) {
-        let xor = (self.lfsr & 1) ^ ((self.lfsr >> 1) & 1);
-        self.lfsr >>= 1;
-        self.lfsr |= xor << 14;
+        let wrap = !((self.lfsr & 1) & ((self.lfsr >> 1) & 1));
+        // set bit 15 to wrap
+        self.lfsr = (self.lfsr & !(1 << 15)) | (wrap << 15);
         if (self.nr43 >> 3) & 1 == 1 {
-            self.lfsr |= xor << 6;
+            // set bit 7 to wrap
+            self.lfsr = (self.lfsr & !(1 << 7)) | (wrap << 7);
         }
+        self.lfsr >>= 1;
     }
 
     // The rate at which the channel clocks LFSR is 262144 / (r * 2^s) Hz = (1/4) / (r * 2^s) MHz, 
@@ -120,17 +121,17 @@ impl NoiseChannel {
     // at a rate of 4 / initial_value MHz, so the initial value must be (r * 2^s) * 16.
     // A value of 0 for r is treated as 0.5.
     fn reset_frequency(&mut self) {
-        let r = self.nr43 >> 4;
-        let s = self.nr43 & 0b111;
+        let s = self.nr43 >> 4;
+        let r = self.nr43 & 0b111;
         if r == 0 {
             self.freq_timer = (1 << s) * 8;
         } else {
-            self.freq_timer = r as u16 * (1 << s) * 16;
+            self.freq_timer = r as u32 * (1 << s) * 16;
         }
     }
 
     fn waveform_amplitude(&self) -> u8 {
-        1 - (self.lfsr & 1) as u8
+        (self.lfsr & 1) as u8
     }
     
     fn trigger(&mut self) {
@@ -141,7 +142,7 @@ impl NoiseChannel {
         self.reset_frequency();
         
         self.volume_envelope = VolumeEnvelope::new(self.nr42);
-        self.lfsr = 0x7fff;
+        self.lfsr = 0;
     }
 
     pub fn read(&self, address: Address) -> Result<u8> {
@@ -149,7 +150,7 @@ impl NoiseChannel {
             0xff20 => Ok(0xff),
             0xff21 => Ok(self.nr42),
             0xff22 => Ok(self.nr43),
-            0xff23 => Ok(self.nr44 | 0b00111111),
+            0xff23 => Ok(self.nr44 | 0b10111111),
             _ => Err(Error::from_address_with_source(address, "square".to_string()))
         }
     }
@@ -157,7 +158,15 @@ impl NoiseChannel {
     pub fn write(&mut self, address: Address, value: u8) -> Result<()> {
         match address {
             0xff20 => self.length_timer = 64 - (value & 0b111111),
-            0xff21 => self.nr42 = value,
+            0xff21 => {
+                self.nr42 = value;
+                if value & 0xf8 != 0 {
+                    self.dac.enabled = true;
+                } else {
+                    self.dac.enabled = false;
+                    self.disable();
+                }
+            }
             0xff22 => self.nr43 = value,
             0xff23 => {
                 self.nr44 = value;

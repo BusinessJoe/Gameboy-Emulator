@@ -1,9 +1,4 @@
 pub struct GlobalControlRegisters {
-    // 0xff26 - sound on/off
-    // bit 7 is all sound on/off
-    // bits 3-0 are for channels 4-1 respectively
-    pub nr52: u8,
-
     // 0xff25 - sound panning
     /*  Bit 7 - Mix channel 4 into left output
         Bit 6 - Mix channel 3 into left output
@@ -25,7 +20,7 @@ pub struct GlobalControlRegisters {
 }
 
 impl GlobalControlRegisters {
-    pub fn sound_on(&self) -> bool {
-        (self.nr52 >> 7) & 1 == 1
+    pub fn new() -> Self {
+        Self { nr51: 0, nr50: 0 }
     }
 }

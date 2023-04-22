@@ -25,7 +25,7 @@ pub struct SquareChannel {
     // current position in waveform
     waveform_step: u8,
 
-    on: bool,
+    pub on: bool,
 
     baseline_address: Address,
     volume_envelope: VolumeEnvelope,
@@ -169,12 +169,19 @@ impl SquareChannel {
 
     pub fn read(&self, address: Address) -> Result<u8> {
         match address - self.baseline_address {
-            0 => Ok(self.frequency_sweep.as_ref().map_or(0xff, |fs| fs.get())),
+            0 => match &self.frequency_sweep {
+                Some(fs) => {
+                    Ok(fs.get() | 0b10000000)
+                }
+                None => {
+                    Ok(0xff)
+                }
+            }
             1 => Ok(self.duty_cycle << 6 | 0b00111111),
             2 => Ok(self.nrx2),
-            3 => Ok(self.nrx3),
-            4 => Ok(self.nrx4),
-            _ => Err(Error::from_address_with_source(address, "square".to_string()))
+            3 => Ok(0xff),
+            4 => Ok(self.nrx4 | 0b10111111),
+            _ => unreachable!(),
         }
     }
 
@@ -185,7 +192,15 @@ impl SquareChannel {
                 self.duty_cycle = (value & 0b11000000) >> 6;
                 self.length_timer = 64 - (value & 0b00111111);
             }
-            2 => self.nrx2 = value,
+            2 => {
+                self.nrx2 = value;
+                if value & 0xf8 != 0 {
+                    self.dac.enabled = true;
+                } else {
+                    self.dac.enabled = false;
+                    self.disable();
+                }
+            }
             3 => self.nrx3 = value,
             4 => {
                 self.nrx4 = value;
@@ -193,7 +208,7 @@ impl SquareChannel {
                     self.trigger();
                 }
             }
-            _ => return Err(Error::from_address_with_source(address, "channel1".to_string()))
+            _ => unreachable!(),
         }
         Ok(())
     }

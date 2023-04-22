@@ -25,7 +25,7 @@ pub struct WaveChannel {
     freq_timer: u16,
 
     waveform_step: u8,
-    on: bool,
+    pub on: bool,
     dac: Dac,
 }
 
@@ -148,13 +148,21 @@ impl WaveChannel {
             0xff1d => Ok(0xff),
             0xff1e => Ok(self.nr34 | 0b10111111),
             0xff30 ..= 0xff3f => Ok(self.wave_pattern[address - 0xff30]),
-            _ => Err(Error::from_address_with_source(address, "square".to_string()))
+            _ => unreachable!(),
         }
     }
 
     pub fn write(&mut self, address: Address, value: u8) -> Result<()> {
         match address {
-            0xff1a => self.nr30 = value,
+            0xff1a => {
+                self.nr30 = value;
+                if value & 0x80 != 0 {
+                    self.dac.enabled = true;
+                } else {
+                    self.dac.enabled = false;
+                    self.disable();
+                }
+            }
             0xff1b => self.length_timer = 256 - value as u16,
             0xff1c => self.output_level = value,
             0xff1d => self.nr33 = value,
@@ -165,7 +173,7 @@ impl WaveChannel {
                 }
             },
             0xff30 ..= 0xff3f => self.wave_pattern[address - 0xff30] = value,
-            _ => return Err(Error::from_address_with_source(address, "channel1".to_string()))
+            _ => unreachable!(),
         }
         Ok(())
     }

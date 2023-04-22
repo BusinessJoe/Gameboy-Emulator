@@ -2,12 +2,33 @@ use ringbuf::{HeapRb, Rb};
 
 use crate::component::Addressable;
 
-use super::{square::SquareChannel, wave::WaveChannel, noise::NoiseChannel};
+use super::{square::SquareChannel, wave::WaveChannel, noise::NoiseChannel, global_control_regs::GlobalControlRegisters};
 
 /// Audio processing unit
 pub struct Apu {
     div_apu: u8,
     old_div: u8,
+
+    apu_enable: bool,
+
+    // 0xff25 - sound panning
+    /*  Bit 7 - Mix channel 4 into left output
+        Bit 6 - Mix channel 3 into left output
+        Bit 5 - Mix channel 2 into left output
+        Bit 4 - Mix channel 1 into left output
+        Bit 3 - Mix channel 4 into right output
+        Bit 2 - Mix channel 3 into right output
+        Bit 1 - Mix channel 2 into right output
+        Bit 0 - Mix channel 1 into right output  */
+    nr51: u8,
+
+    // 0xff24 - master volume & VIN panning
+    // For volume bits, a value of 0 is a volume of 1 and a value of 7 is a volume of 8.
+    /*  Bit 7   - Mix VIN into left output  (1=Enable)
+        Bit 6-4 - Left output volume        (0-7)
+        Bit 3   - Mix VIN into right output (1=Enable)
+        Bit 2-0 - Right output volume       (0-7)  */
+    nr50: u8,
 
     channel1: SquareChannel,
     channel2: SquareChannel,
@@ -27,6 +48,10 @@ impl Apu {
         Self {
             div_apu: 0,
             old_div: 0,
+
+            nr50: 0,
+            nr51: 0,
+            apu_enable: false,
 
             channel1: SquareChannel::new(true, 0xff10),
             channel2: SquareChannel::new(true, 0xff15),
@@ -104,6 +129,33 @@ impl Apu {
         let sample = (ch1 + ch2 + ch3 + ch4) / 4.;
         self.left_audio_buffer.push_overwrite(sample);
     }
+
+    // Write that ignores whether the apu is enabled
+    fn write_u8_direct(&mut self, address: crate::component::Address, data: u8) -> crate::Result<()> {
+        match address {
+            0xff10 ..= 0xff14 => self.channel1.write(address, data)?,
+            0xff15 => {},
+            0xff16 ..= 0xff19 => self.channel2.write(address, data)?,
+            0xff1a ..= 0xff1e => self.channel3.write(address, data)?,
+            0xff1f => {},
+            0xff20 ..= 0xff23 => self.channel4.write(address, data)?,
+            0xff24 => self.nr50 = data,
+            0xff25 => self.nr51 = data,
+            0xff26 => {
+                self.apu_enable = (data & 0b10000000) != 0;
+                if !self.apu_enable {
+                    for i in 0xff10 ..= 0xff25 {
+                        self.write_u8_direct(i, 0)?;
+                    }
+                }
+                println!("write NR52: {:#x}", data);
+            }
+            0xff27 ..= 0xff2f => {},
+            0xff30 ..= 0xff3f => self.channel3.write(address, data)?,
+            _ => return Err(crate::Error::from_address_with_source(address, "APU".to_string()))
+        }
+        Ok(())
+    }
 }
 
 impl Addressable for Apu {
@@ -115,24 +167,29 @@ impl Addressable for Apu {
             0xff1a ..= 0xff1e => self.channel3.read(address),
             0xff1f => Ok(0xff),
             0xff20 ..= 0xff23 => self.channel4.read(address),
-            0xff24 ..= 0xff2f => Ok(0xff),
+            0xff24 => Ok(self.nr50),
+            0xff25 => Ok(self.nr51),
+            0xff26 => {
+                let val = (u8::from(self.apu_enable) << 7) | 0b01110000 
+                    | (u8::from(self.channel4.on) << 3)
+                    | (u8::from(self.channel3.on) << 2)
+                    | (u8::from(self.channel2.on) << 1)
+                    | (u8::from(self.channel1.on) << 0);
+                println!("read NR52: {:#x}", val);
+                Ok(val)
+            }
+            0xff27 ..= 0xff2f => Ok(0xff),
             0xff30 ..= 0xff3f => self.channel3.read(address),
             _ => Err(crate::Error::from_address_with_source(address, "APU".to_string()))
         }
     }
 
     fn write_u8(&mut self, address: crate::component::Address, data: u8) -> crate::Result<()> {
-        match address {
-            0xff10 ..= 0xff14 => self.channel1.write(address, data)?,
-            0xff15 => {},
-            0xff16 ..= 0xff19 => self.channel2.write(address, data)?,
-            0xff1a ..= 0xff1e => self.channel3.write(address, data)?,
-            0xff1f => {},
-            0xff20 ..= 0xff23 => self.channel4.write(address, data)?,
-            0xff24 ..= 0xff2f => {},
-            0xff30 ..= 0xff3f => self.channel3.write(address, data)?,
-            _ => return Err(crate::Error::from_address_with_source(address, "APU".to_string()))
+        // writes to registers are disabled (except for NR52) when apu is off
+        if !self.apu_enable && 0xff10 <= address && address <= 0xff25 {
+            return Ok(());
         }
-        Ok(())
+
+        self.write_u8_direct(address, data)
     }
 }
