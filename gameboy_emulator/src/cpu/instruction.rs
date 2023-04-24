@@ -81,11 +81,6 @@ pub enum InstrArgByte {
     Offset(Reg),
 }
 
-pub enum InstrArgWord {
-    ImmediateWord(u16),
-    WordRegister(WReg),
-}
-
 impl InstrArgByte {
     fn get_u8(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<u8> {
         match self {
@@ -120,19 +115,41 @@ impl InstrArgByte {
     }
 }
 
+pub enum InstrArgWord {
+    ImmediateWord(u16),
+    AddressDirect(u16),
+    AddressRegister(WReg),
+    WordRegister(WReg),
+}
+
 impl InstrArgWord {
     fn get_u16(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> u16 {
         match self {
             Self::ImmediateWord(word) => *word,
+            Self::AddressDirect(_) => panic!(),
+            Self::AddressRegister(_) => panic!(),
             Self::WordRegister(wreg) => wreg.get(cpu),
         }
     }
 
-    fn set_u16(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u16) {
+    fn set_u16(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u16) -> Result<()> {
         match self {
             Self::ImmediateWord(_) => panic!(),
+            Self::AddressDirect(address) => {
+                let bytes = value.to_le_bytes();
+                memory_bus.write_u8((*address).into(), bytes[0])?;
+                memory_bus.write_u8((*address + 1).into(), bytes[1])?;
+            }
+            Self::AddressRegister(wreg) => {
+                let addr: usize = wreg.get(cpu).into();
+                
+                let bytes = value.to_le_bytes();
+                memory_bus.write_u8(addr, bytes[0])?;
+                memory_bus.write_u8(addr + 1, bytes[1])?;
+            }
             Self::WordRegister(wreg) => wreg.set(cpu, value)
         }
+        Ok(())
     }
 }
 
@@ -144,10 +161,10 @@ pub enum Instruction {
 
     /* LD nn,n */
     LD(InstrArgByte, InstrArgByte),
-    LD_16(Box<dyn CPUWritable<u16>>, Box<dyn CPUReadable<u16>>),
+    LD_16(InstrArgWord, InstrArgWord),
 
     /* LD SP,HL */
-    LDHL_SP(SignedImmediate),
+    LDHL_SP(i8),
 
     /* LDD */
     LDD_A_FROM_HL,
@@ -1088,8 +1105,8 @@ impl CPU {
                 target.set_u8(self, memory_bus, value)?
             }
             Instruction::LD_16(target, source) => {
-                let value = source.get(self, memory_bus)?;
-                target.set(self, memory_bus, value)?
+                let value = source.get_u16(self, memory_bus);
+                target.set_u16(self, memory_bus, value)?
             }
             Instruction::LDHL_SP(signed_immediate) => {
                 let sum = self
@@ -1582,20 +1599,20 @@ impl CPU {
             ),
 
             0x01 => Instruction::LD_16(
-                Box::new(WordRegister::BC),
-                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
+                InstrArgWord::WordRegister(WReg::BC), 
+                InstrArgWord::ImmediateWord(self.get_word_from_pc(memory_bus)?),
             ),
             0x11 => Instruction::LD_16(
-                Box::new(WordRegister::DE),
-                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
+                InstrArgWord::WordRegister(WReg::DE), 
+                InstrArgWord::ImmediateWord(self.get_word_from_pc(memory_bus)?),
             ),
             0x21 => Instruction::LD_16(
-                Box::new(WordRegister::HL),
-                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
+                InstrArgWord::WordRegister(WReg::HL), 
+                InstrArgWord::ImmediateWord(self.get_word_from_pc(memory_bus)?),
             ),
             0x31 => Instruction::LD_16(
-                Box::new(WordRegister::SP),
-                Box::new(Immediate16(self.get_word_from_pc(memory_bus)?)),
+                InstrArgWord::WordRegister(WReg::SP), 
+                InstrArgWord::ImmediateWord(self.get_word_from_pc(memory_bus)?),
             ),
 
             0x02 => Instruction::LD(
@@ -1647,8 +1664,8 @@ impl CPU {
             0x37 => Instruction::SCF,
 
             0x08 => Instruction::LD_16(
-                Box::new(GoodAddress::from(self.get_word_from_pc(memory_bus)?)),
-                Box::new(WordRegister::SP),
+                InstrArgWord::AddressDirect(self.get_word_from_pc(memory_bus)?),
+                InstrArgWord::WordRegister(WReg::SP), 
             ),
             0x18 => Instruction::JR(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
             0x28 => Instruction::JR_CONDITION(
@@ -1939,13 +1956,13 @@ impl CPU {
             0xD8 => Instruction::RET_CONDITION(Flag::C),
             0xE8 => Instruction::ADD_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
             0xF8 => {
-                Instruction::LDHL_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?))
+                Instruction::LDHL_SP(self.get_signed_byte_from_pc(memory_bus)?)
             }
 
             0xC9 => Instruction::RET,
             0xD9 => Instruction::RETI,
             0xE9 => Instruction::JP_HL,
-            0xF9 => Instruction::LD_16(Box::new(WordRegister::SP), Box::new(WordRegister::HL)),
+            0xF9 => Instruction::LD_16(InstrArgWord::WordRegister(WReg::SP), InstrArgWord::WordRegister(WReg::HL)),
 
             0xCA => Instruction::JP_CONDITION(Flag::Z, Address(self.get_word_from_pc(memory_bus)?)),
             0xDA => Instruction::JP_CONDITION(Flag::C, Address(self.get_word_from_pc(memory_bus)?)),
