@@ -148,7 +148,6 @@ impl Apu {
                         self.write_u8_direct(i, 0)?;
                     }
                 }
-                println!("write NR52: {:#x}", data);
             }
             0xff27 ..= 0xff2f => {},
             0xff30 ..= 0xff3f => self.channel3.write(address, data)?,
@@ -175,7 +174,6 @@ impl Addressable for Apu {
                     | (u8::from(self.channel3.on) << 2)
                     | (u8::from(self.channel2.on) << 1)
                     | (u8::from(self.channel1.on) << 0);
-                println!("read NR52: {:#x}", val);
                 Ok(val)
             }
             0xff27 ..= 0xff2f => Ok(0xff),

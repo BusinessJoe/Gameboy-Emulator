@@ -217,38 +217,16 @@ impl Steppable for CPU {
 
         let mut elapsed_cycles = if !self.halted {
             // Get and execute opcode
-            let pc = self.pc;
             let opcode = self.get_byte_from_pc(&mut memory_bus)?;
             let elapsed_cycles;
             if opcode == 0xCB {
                 let opcode = self.get_byte_from_pc(&mut memory_bus)?;
-                trace!("CB opcode {:#04x} at pc {:#06x}", opcode, pc);
                 elapsed_cycles = self.execute_cb_opcode(&mut memory_bus, opcode)?;
             } else {
-                trace!("opcode {:#04x} at pc {:#06x}", opcode, pc);
                 elapsed_cycles = self.execute_regular_opcode(&mut memory_bus, opcode)?;
-            }
-            trace!(
-                "AF: {:#06x} BC: {:#06x} DE: {:#06x} HL: {:#06x} SP: {:#06x} PC: {:#06x}",
-                self.registers.get_af(),
-                self.registers.get_bc(),
-                self.registers.get_de(),
-                self.registers.get_hl(),
-                self.sp,
-                self.pc
-            );
-            {
-                trace!(
-                    "DIV: {:#06x} TIMA: {:#06x} TMA: {:#06x} TAC: {:#06x}",
-                    memory_bus.read_u8(0xff04).unwrap(),
-                    memory_bus.read_u8(0xff05).unwrap(),
-                    memory_bus.read_u8(0xff06).unwrap(),
-                    memory_bus.read_u8(0xff07).unwrap(),
-                )
             }
             elapsed_cycles
         } else {
-            trace!("Halted");
             // Return 1 cycle
             1
         };
