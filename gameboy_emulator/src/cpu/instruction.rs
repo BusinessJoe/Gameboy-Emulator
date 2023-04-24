@@ -1,7 +1,7 @@
 use crate::component::Addressable;
 use crate::error::Result;
 use crate::{cpu::CPU, memory::MemoryBus};
-use log::{debug, error, info};
+use log::{error, info};
 use strum_macros::AsRefStr;
 
 pub enum Reg {
@@ -826,7 +826,7 @@ impl CPU {
         memory_bus: &mut MemoryBus,
         instruction: Instruction,
     ) -> Result<BranchStatus> {
-        debug!("Executing instruction {}", instruction.as_ref());
+        //debug!("Executing instruction {}", instruction.as_ref());
         let mut branch_status = BranchStatus::NoBranch;
         match instruction {
             Instruction::INTERNAL_JUMP_INTERRUPT(address) => {

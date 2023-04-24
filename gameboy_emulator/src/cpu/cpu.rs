@@ -122,12 +122,12 @@ impl CPU {
     pub fn get_byte_from_pc(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
         let byte = match self.opcode_queue.pop_front() {
             Some(opcode) => {
-                trace!("Read queued byte {:#04x}", opcode);
+                //trace!("Read queued byte {:#04x}", opcode);
                 opcode
             }
             None => {
                 let byte = memory_bus.read_u8(self.pc.into())?;
-                trace!("Read byte {:#04x}", byte);
+                //trace!("Read byte {:#04x}", byte);
                 if self.halt_bug_on_next_opcode {
                     self.opcode_queue.push_back(byte);
                     self.halt_bug_on_next_opcode = false;
