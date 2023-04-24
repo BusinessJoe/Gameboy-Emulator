@@ -171,8 +171,8 @@ fn init_sdl2_audio(sdl_context: &sdl2::Sdl) -> Result<AudioQueue<f32>, String> {
 
     let audio_spec = sdl2::audio::AudioSpecDesired {
         freq: Some(44100),
-        channels: Some(1),
-        samples: None, //Some(44100),
+        channels: Some(2),
+        samples: None,
     };
 
     let queue: AudioQueue<f32> = audio_subsystem.open_queue(None, &audio_spec)?;

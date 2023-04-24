@@ -12,13 +12,23 @@ const useAudio = (getNextFrameAudioCallback: () => Float32Array) => {
     const init = useCallback(async () => {
         try {
             audioContext.current = new AudioContext({
-                sampleRate: 44100
+                sampleRate: 44100,
             });
+            audioContext.current.destination.channelCount = 2;
+            audioContext.current.destination.channelCountMode = "explicit";
+            audioContext.current.destination.channelInterpretation = "discrete";
+
             await audioContext.current.audioWorklet.addModule(process.env.PUBLIC_URL + "/worklets/audio-queue-processor.js");
             node.current = new AudioWorkletNode(
                 audioContext.current,
-                "audio-queue-processor"
+                "audio-queue-processor",
+                {
+                    outputChannelCount: [2]
+                }
             );
+            node.current.channelCount = 1;
+            node.current.channelCountMode = "explicit";
+            node.current.channelInterpretation = "discrete";
             node.current.connect(audioContext.current.destination);
             node.current.port.onmessage = (e) => {
                 if (e.data.type === "get-audio") {

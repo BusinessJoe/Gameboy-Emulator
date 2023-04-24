@@ -37,7 +37,7 @@ impl NoiseChannel {
             nr43: 0,
             nr44: 0,
 
-            lfsr: 0,
+            lfsr: 0xffff,
 
             freq_timer: 0,
 
@@ -104,7 +104,7 @@ impl NoiseChannel {
     }
 
     fn tick_lfsr(&mut self) {
-        let wrap = !((self.lfsr & 1) & ((self.lfsr >> 1) & 1));
+        let wrap = (self.lfsr & 1) ^ ((self.lfsr >> 1) & 1);
         // set bit 15 to wrap
         self.lfsr = (self.lfsr & !(1 << 15)) | (wrap << 15);
         if (self.nr43 >> 3) & 1 == 1 {
@@ -142,7 +142,7 @@ impl NoiseChannel {
         self.reset_frequency();
         
         self.volume_envelope = VolumeEnvelope::new(self.nr42);
-        self.lfsr = 0;
+        self.lfsr = 0xffff;
     }
 
     pub fn read(&self, address: Address) -> Result<u8> {
@@ -177,5 +177,76 @@ impl NoiseChannel {
             _ => return Err(Error::from_address_with_source(address, "channel1".to_string()))
         }
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lfsr_states() {
+        let mut channel = NoiseChannel::new();
+        // activate 7 bit LSFR
+        channel.nr43 |= 1 << 3;
+
+        assert_eq!(channel.lfsr & 0x7f, 0b1111111);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0111111);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0011111);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0001111);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0000111);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0000011);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0000001);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1000000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0100000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0010000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0001000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0000100);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0000010);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1000001);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1100000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0110000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0011000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0001100);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0000110);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1000011);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0100001);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1010000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0101000);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0010100);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b0001010);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1000101);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1100010);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1110001);
+        channel.tick_lfsr();
+        assert_eq!(channel.lfsr & 0x7f, 0b1111000);
     }
 }
