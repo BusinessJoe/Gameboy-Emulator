@@ -36,9 +36,9 @@ impl CPU {
         self.pc = 0x100;
         self.registers.a = 0x01;
         self.registers.f = 0xB0.into();
-        self.set_word_register(WordRegister::BC, 0x0013);
-        self.set_word_register(WordRegister::DE, 0x00D8);
-        self.set_word_register(WordRegister::HL, 0x014D);
+        self.set_word_register(WReg::BC, 0x0013);
+        self.set_word_register(WReg::DE, 0x00D8);
+        self.set_word_register(WReg::HL, 0x014D);
         self.sp = 0xFFFE;
     }
 
@@ -153,49 +153,49 @@ impl CPU {
         Ok(word)
     }
 
-    pub fn set_register(&mut self, reg: Register, value: u8) {
+    pub fn set_register(&mut self, reg: Reg, value: u8) {
         match reg {
-            Register::A => self.registers.a = value,
-            Register::B => self.registers.b = value,
-            Register::C => self.registers.c = value,
-            Register::D => self.registers.d = value,
-            Register::E => self.registers.e = value,
-            Register::H => self.registers.h = value,
-            Register::L => self.registers.l = value,
+            Reg::A => self.registers.a = value,
+            Reg::B => self.registers.b = value,
+            Reg::C => self.registers.c = value,
+            Reg::D => self.registers.d = value,
+            Reg::E => self.registers.e = value,
+            Reg::H => self.registers.h = value,
+            Reg::L => self.registers.l = value,
         }
     }
 
-    pub fn set_word_register(&mut self, word_reg: WordRegister, value: u16) {
+    pub fn set_word_register(&mut self, word_reg: WReg, value: u16) {
         match word_reg {
-            WordRegister::AF => self.registers.set_af(value),
-            WordRegister::BC => self.registers.set_bc(value),
-            WordRegister::DE => self.registers.set_de(value),
-            WordRegister::HL => self.registers.set_hl(value),
-            WordRegister::SP => self.sp = value,
-            WordRegister::PC => self.pc = value,
+            WReg::AF => self.registers.set_af(value),
+            WReg::BC => self.registers.set_bc(value),
+            WReg::DE => self.registers.set_de(value),
+            WReg::HL => self.registers.set_hl(value),
+            WReg::SP => self.sp = value,
+            WReg::PC => self.pc = value,
         }
     }
 
-    pub fn get_register(&self, reg: Register) -> u8 {
+    pub fn get_register(&self, reg: Reg) -> u8 {
         match reg {
-            Register::A => self.registers.a,
-            Register::B => self.registers.b,
-            Register::C => self.registers.c,
-            Register::D => self.registers.d,
-            Register::E => self.registers.e,
-            Register::H => self.registers.h,
-            Register::L => self.registers.l,
+            Reg::A => self.registers.a,
+            Reg::B => self.registers.b,
+            Reg::C => self.registers.c,
+            Reg::D => self.registers.d,
+            Reg::E => self.registers.e,
+            Reg::H => self.registers.h,
+            Reg::L => self.registers.l,
         }
     }
 
-    pub fn get_word_register(&self, word_reg: WordRegister) -> u16 {
+    pub fn get_word_register(&self, word_reg: WReg) -> u16 {
         match word_reg {
-            WordRegister::AF => self.registers.get_af(),
-            WordRegister::BC => self.registers.get_bc(),
-            WordRegister::DE => self.registers.get_de(),
-            WordRegister::HL => self.registers.get_hl(),
-            WordRegister::SP => self.sp,
-            WordRegister::PC => self.pc,
+            WReg::AF => self.registers.get_af(),
+            WReg::BC => self.registers.get_bc(),
+            WReg::DE => self.registers.get_de(),
+            WReg::HL => self.registers.get_hl(),
+            WReg::SP => self.sp,
+            WReg::PC => self.pc,
         }
     }
 

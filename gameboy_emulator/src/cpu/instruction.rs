@@ -123,7 +123,7 @@ pub enum InstrArgWord {
 }
 
 impl InstrArgWord {
-    fn get_u16(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> u16 {
+    fn get_u16(&self, cpu: &CPU) -> u16 {
         match self {
             Self::ImmediateWord(word) => *word,
             Self::AddressDirect(_) => panic!(),
@@ -174,35 +174,35 @@ pub enum Instruction {
     LDI_A_FROM_HL,
     LDI_A_INTO_HL,
 
-    PUSH(WordRegister),
-    POP(WordRegister),
+    PUSH(InstrArgWord),
+    POP(InstrArgWord),
 
     /* ADD */
-    ADD(Box<dyn CPUReadable<u8>>),
-    ADD_HL(WordRegister),
-    ADD_SP(SignedImmediate),
+    ADD(InstrArgByte),
+    ADD_HL(InstrArgWord),
+    ADD_SP(i8),
 
     /* ADC */
-    ADC(ArithmeticTarget),
+    ADC(InstrArgByte),
 
     /* SUB */
-    SUB(ArithmeticTarget),
+    SUB(InstrArgByte),
 
     /* SBC */
-    SBC(ArithmeticTarget),
+    SBC(InstrArgByte),
 
-    AND(ArithmeticTarget),
-    OR(ArithmeticTarget),
-    XOR(ArithmeticTarget),
-    CP(ArithmeticTarget),
+    AND(InstrArgByte),
+    OR(InstrArgByte),
+    XOR(InstrArgByte),
+    CP(InstrArgByte),
 
-    INC(Box<dyn CPUReadWritable<u8>>),
-    INC_WORD(WordRegister),
+    INC(InstrArgByte),
+    INC_WORD(InstrArgWord),
 
-    DEC(Box<dyn CPUReadWritable<u8>>),
-    DEC_WORD(WordRegister),
+    DEC(InstrArgByte),
+    DEC_WORD(InstrArgWord),
 
-    SWAP(Box<dyn CPUReadWritable<u8>>),
+    SWAP(InstrArgByte),
 
     DAA,
 
@@ -219,285 +219,38 @@ pub enum Instruction {
     DI,
     EI,
 
-    RLC(Box<dyn CPUReadWritable<u8>>),
+    RLC(InstrArgByte),
     RLCA,
-    RL(Box<dyn CPUReadWritable<u8>>),
+    RL(InstrArgByte),
     RLA,
-    RRC(Box<dyn CPUReadWritable<u8>>),
+    RRC(InstrArgByte),
     RRCA,
-    RR(Box<dyn CPUReadWritable<u8>>),
+    RR(InstrArgByte),
     RRA,
 
-    SLA(Box<dyn CPUReadWritable<u8>>),
-    SRA(Box<dyn CPUReadWritable<u8>>),
-    SRL(Box<dyn CPUReadWritable<u8>>),
+    SLA(InstrArgByte),
+    SRA(InstrArgByte),
+    SRL(InstrArgByte),
 
-    BIT(Bit, Box<dyn CPUReadable<u8>>),
-    SET(Bit, Box<dyn CPUReadWritable<u8>>),
-    RES(Bit, Box<dyn CPUReadWritable<u8>>),
+    BIT(Bit, InstrArgByte),
+    SET(Bit, InstrArgByte),
+    RES(Bit, InstrArgByte),
 
-    JP(Address),
-    JP_CONDITION(Flag, Address),
+    JP(u16),
+    JP_CONDITION(Flag, u16),
     JP_HL,
 
-    JR(SignedImmediate),
-    JR_CONDITION(Flag, SignedImmediate),
+    JR(i8),
+    JR_CONDITION(Flag, i8),
 
-    CALL(Address),
-    CALL_CONDITION(Flag, Address),
+    CALL(u16),
+    CALL_CONDITION(Flag, u16),
 
-    RST(Immediate),
+    RST(u16),
 
     RET,
     RET_CONDITION(Flag),
     RETI,
-}
-
-pub trait CPUReadable<T> {
-    fn get(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<T>;
-}
-
-pub trait CPUWritable<T> {
-    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: T) -> Result<()>;
-}
-
-pub trait CPUReadWritable<T>: CPUReadable<T> + CPUWritable<T> {}
-impl<T, U: CPUReadable<T> + CPUWritable<T>> CPUReadWritable<T> for U {}
-
-#[derive(Clone, Copy)]
-pub enum Register {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-}
-
-impl CPUReadable<u8> for Register {
-    fn get(&self, cpu: &CPU, _: &mut MemoryBus) -> Result<u8> {
-        let value = match self {
-            Register::A => cpu.registers.a,
-            Register::B => cpu.registers.b,
-            Register::C => cpu.registers.c,
-            Register::D => cpu.registers.d,
-            Register::E => cpu.registers.e,
-            Register::H => cpu.registers.h,
-            Register::L => cpu.registers.l,
-        };
-        Ok(value)
-    }
-}
-
-impl CPUWritable<u8> for Register {
-    fn set(&self, cpu: &mut CPU, _: &mut MemoryBus, value: u8) -> Result<()> {
-        match self {
-            Register::A => cpu.registers.a = value,
-            Register::B => cpu.registers.b = value,
-            Register::C => cpu.registers.c = value,
-            Register::D => cpu.registers.d = value,
-            Register::E => cpu.registers.e = value,
-            Register::H => cpu.registers.h = value,
-            Register::L => cpu.registers.l = value,
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum WordRegister {
-    AF,
-    BC,
-    DE,
-    HL,
-    SP,
-    PC,
-}
-
-impl CPUReadable<u16> for WordRegister {
-    fn get(&self, cpu: &CPU, _: &mut MemoryBus) -> Result<u16> {
-        let value = match self {
-            WordRegister::AF => cpu.registers.get_af(),
-            WordRegister::BC => cpu.registers.get_bc(),
-            WordRegister::DE => cpu.registers.get_de(),
-            WordRegister::HL => cpu.registers.get_hl(),
-            WordRegister::SP => cpu.sp,
-            WordRegister::PC => cpu.pc,
-        };
-        Ok(value)
-    }
-}
-
-impl CPUWritable<u16> for WordRegister {
-    fn set(&self, cpu: &mut CPU, _: &mut MemoryBus, value: u16) -> Result<()> {
-        match self {
-            WordRegister::AF => cpu.registers.set_af(value),
-            WordRegister::BC => cpu.registers.set_bc(value),
-            WordRegister::DE => cpu.registers.set_de(value),
-            WordRegister::HL => cpu.registers.set_hl(value),
-            WordRegister::SP => cpu.sp = value,
-            WordRegister::PC => cpu.pc = value,
-        }
-        Ok(())
-    }
-}
-
-impl WordRegister {
-    fn into_address(self) -> GoodAddress {
-        GoodAddress::WordRegister(self)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Address(u16);
-
-pub enum GoodAddress {
-    Direct(u16),
-    WordRegister(WordRegister),
-}
-
-impl From<u16> for GoodAddress {
-    fn from(value: u16) -> Self {
-        GoodAddress::Direct(value)
-    }
-}
-
-impl From<Address> for usize {
-    fn from(addr: Address) -> usize {
-        addr.0.into()
-    }
-}
-
-impl From<Address> for u16 {
-    fn from(addr: Address) -> u16 {
-        addr.0
-    }
-}
-
-impl CPUReadable<u8> for GoodAddress {
-    fn get(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<u8> {
-        match *self {
-            GoodAddress::Direct(addr) => memory_bus.read_u8(addr.into()),
-            GoodAddress::WordRegister(word_reg) => {
-                let addr: u16 = word_reg.get(cpu, memory_bus)?;
-                memory_bus.read_u8(addr.into())
-            }
-        }
-    }
-}
-
-impl CPUWritable<u8> for GoodAddress {
-    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
-        match *self {
-            GoodAddress::Direct(addr) => memory_bus.write_u8(addr.into(), value),
-            GoodAddress::WordRegister(word_reg) => {
-                let addr: u16 = word_reg.get(cpu, memory_bus)?;
-                memory_bus.write_u8(addr.into(), value)
-            }
-        }
-    }
-}
-
-impl CPUWritable<u16> for GoodAddress {
-    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u16) -> Result<()> {
-        let addr: usize = match *self {
-            GoodAddress::Direct(addr) => addr.into(),
-            GoodAddress::WordRegister(word_reg) => word_reg.get(cpu, memory_bus)?.into(),
-        };
-
-        let bytes = value.to_le_bytes();
-        memory_bus.write_u8(addr, bytes[0])?;
-        memory_bus.write_u8(addr + 1, bytes[1])?;
-
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Immediate(u8);
-
-impl CPUReadable<u8> for Immediate {
-    fn get(&self, _: &CPU, _: &mut MemoryBus) -> Result<u8> {
-        Ok(self.0)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Immediate16(u16);
-
-impl CPUReadable<u16> for Immediate16 {
-    fn get(&self, _: &CPU, _: &mut MemoryBus) -> Result<u16> {
-        Ok(self.0)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct SignedImmediate(i8);
-
-impl From<Immediate> for u8 {
-    fn from(imm: Immediate) -> u8 {
-        imm.0
-    }
-}
-
-impl From<Immediate> for u16 {
-    fn from(imm: Immediate) -> u16 {
-        imm.0.into()
-    }
-}
-
-impl From<Immediate16> for u16 {
-    fn from(imm: Immediate16) -> u16 {
-        imm.0
-    }
-}
-
-impl From<SignedImmediate> for i8 {
-    fn from(imm: SignedImmediate) -> i8 {
-        imm.0
-    }
-}
-
-pub enum ArithmeticTarget {
-    Register(Register),
-    WordRegister(WordRegister),
-    Immediate(Immediate),
-}
-
-impl From<Register> for ArithmeticTarget {
-    fn from(reg: Register) -> Self {
-        ArithmeticTarget::Register(reg)
-    }
-}
-
-impl From<WordRegister> for ArithmeticTarget {
-    fn from(word: WordRegister) -> Self {
-        ArithmeticTarget::WordRegister(word)
-    }
-}
-
-impl From<Immediate> for ArithmeticTarget {
-    fn from(imm: Immediate) -> Self {
-        ArithmeticTarget::Immediate(imm)
-    }
-}
-
-struct Offset(Register);
-
-impl CPUReadable<u8> for Offset {
-    fn get(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<u8> {
-        let addr = 0xff00 + u16::from(self.0.get(cpu, memory_bus)?);
-        memory_bus.read_u8(addr.into())
-    }
-}
-
-impl CPUWritable<u8> for Offset {
-    fn set(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
-        let addr = 0xff00 + u16::from(self.0.get(cpu, memory_bus)?);
-        memory_bus.write_u8(addr.into(), value)
-    }
 }
 
 type Bit = u8;
@@ -1059,21 +812,6 @@ fn get_cb_opcode_delay(opcode: u8) -> u8 {
 }
 
 impl CPU {
-    fn get_arithmetic_value(
-        &self,
-        memory_bus: &mut MemoryBus,
-        arith_target: &ArithmeticTarget,
-    ) -> Result<u8> {
-        match *arith_target {
-            ArithmeticTarget::Register(reg) => Ok(self.get_register(reg)),
-            ArithmeticTarget::WordRegister(word) => {
-                let mem_addr = self.get_word_register(word);
-                memory_bus.read_u8(mem_addr.into())
-            }
-            ArithmeticTarget::Immediate(imm) => Ok(imm.into()),
-        }
-    }
-
     fn test_flag(&self, flag: Flag) -> bool {
         match flag {
             Flag::Z => self.registers.f.zero,
@@ -1105,14 +843,14 @@ impl CPU {
                 target.set_u8(self, memory_bus, value)?
             }
             Instruction::LD_16(target, source) => {
-                let value = source.get_u16(self, memory_bus);
+                let value = source.get_u16(self);
                 target.set_u16(self, memory_bus, value)?
             }
             Instruction::LDHL_SP(signed_immediate) => {
                 let sum = self
                     .sp
                     .wrapping_add_signed(i8::from(signed_immediate) as i16);
-                self.set_word_register(WordRegister::HL, sum);
+                self.set_word_register(WReg::HL, sum);
 
                 self.registers.f.zero = false;
                 self.registers.f.subtract = false;
@@ -1122,31 +860,27 @@ impl CPU {
                     (self.sp ^ i8::from(signed_immediate) as u16 ^ sum) & 0x100 == 0x100;
             }
             Instruction::LDD_A_FROM_HL => {
-                let value = WordRegister::HL.into_address().get(self, memory_bus)?;
-                Register::A.set(self, memory_bus, value)?;
-                self.execute_instruction(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
+                let value = InstrArgByte::AddressRegister(WReg::HL).get_u8(self, memory_bus)?;
+                InstrArgByte::Register(Reg::A).set_u8(self, memory_bus, value)?;
+                self.execute_instruction(memory_bus, Instruction::DEC_WORD(InstrArgWord::WordRegister(WReg::HL)))?;
             }
             Instruction::LDD_A_INTO_HL => {
-                let value = Register::A.get(self, memory_bus)?;
-                WordRegister::HL
-                    .into_address()
-                    .set(self, memory_bus, value)?;
-                self.execute_instruction(memory_bus, Instruction::DEC_WORD(WordRegister::HL))?;
+                let value = InstrArgByte::Register(Reg::A).get_u8(self, memory_bus)?;
+                InstrArgByte::AddressRegister(WReg::HL).set_u8(self, memory_bus, value)?;
+                self.execute_instruction(memory_bus, Instruction::DEC_WORD(InstrArgWord::WordRegister(WReg::HL)))?;
             }
             Instruction::LDI_A_FROM_HL => {
-                let value = WordRegister::HL.into_address().get(self, memory_bus)?;
-                Register::A.set(self, memory_bus, value)?;
-                self.execute_instruction(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
+                let value = InstrArgByte::AddressRegister(WReg::HL).get_u8(self, memory_bus)?;
+                InstrArgByte::Register(Reg::A).set_u8(self, memory_bus, value)?;
+                self.execute_instruction(memory_bus, Instruction::INC_WORD(InstrArgWord::WordRegister(WReg::HL)))?;
             }
             Instruction::LDI_A_INTO_HL => {
-                let value = Register::A.get(self, memory_bus)?;
-                WordRegister::HL
-                    .into_address()
-                    .set(self, memory_bus, value)?;
-                self.execute_instruction(memory_bus, Instruction::INC_WORD(WordRegister::HL))?;
+                let value = InstrArgByte::Register(Reg::A).get_u8(self, memory_bus)?;
+                InstrArgByte::AddressRegister(WReg::HL).set_u8(self, memory_bus, value)?;
+                self.execute_instruction(memory_bus, Instruction::INC_WORD(InstrArgWord::WordRegister(WReg::HL)))?;
             }
             Instruction::PUSH(pair) => {
-                let reg_value = self.get_word_register(pair.into());
+                let reg_value = pair.get_u16(self);
                 let bytes = reg_value.to_le_bytes();
                 self.push(memory_bus, bytes[1])?;
                 self.push(memory_bus, bytes[0])?;
@@ -1154,12 +888,12 @@ impl CPU {
             Instruction::POP(pair) => {
                 let bytes = [self.pop(memory_bus)?, self.pop(memory_bus)?];
                 let value = u16::from_le_bytes(bytes);
-                self.set_word_register(pair.into(), value);
+                pair.set_u16(self, memory_bus, value)?;
             }
 
             /* Arithmetic */
             Instruction::ADD(source) => {
-                let value = source.get(self, memory_bus)?;
+                let value = source.get_u8(self, memory_bus)?;
                 let (sum, overflow) = self.registers.a.overflowing_add(value);
                 // Set F register flags.
                 self.registers.f.zero = sum == 0;
@@ -1171,7 +905,7 @@ impl CPU {
                 self.registers.a = sum;
             }
             Instruction::ADD_HL(word_reg) => {
-                let value = self.get_word_register(word_reg);
+                let value = word_reg.get_u16(self);
                 let hl = self.registers.get_hl();
 
                 let (sum, carry) = value.overflowing_add(hl);
@@ -1183,11 +917,11 @@ impl CPU {
                 self.registers.set_hl(sum);
             }
             Instruction::ADD_SP(imm) => {
-                let sp = self.get_word_register(WordRegister::SP);
+                let sp = self.get_word_register(WReg::SP);
                 let imm: i16 = i8::from(imm).into();
 
                 let sum = sp.wrapping_add_signed(imm);
-                self.set_word_register(WordRegister::SP, sum);
+                self.set_word_register(WReg::SP, sum);
 
                 let unsigned_imm = imm as u16;
 
@@ -1197,7 +931,7 @@ impl CPU {
                 self.registers.f.carry = (sp ^ unsigned_imm ^ (sum & 0xFFFF)) & 0x100 == 0x100;
             }
             Instruction::ADC(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let (partial_sum, overflow1) = self.registers.a.overflowing_add(value);
                 let (sum, overflow2) = partial_sum.overflowing_add(self.registers.f.carry.into());
                 let overflow = overflow1 || overflow2;
@@ -1211,7 +945,7 @@ impl CPU {
                 self.registers.a = sum;
             }
             Instruction::SUB(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let a = self.registers.a;
                 let diff = a.wrapping_sub(value);
 
@@ -1224,7 +958,7 @@ impl CPU {
                 self.registers.a = diff;
             }
             Instruction::SBC(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let a = self.registers.a;
                 let carry: u8 = self.registers.f.carry.into();
 
@@ -1239,7 +973,7 @@ impl CPU {
                 self.registers.a = diff;
             }
             Instruction::AND(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let result = self.registers.a & value;
                 self.registers.a = result;
 
@@ -1249,7 +983,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::OR(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let result = self.registers.a | value;
                 self.registers.a = result;
 
@@ -1259,7 +993,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::XOR(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let result = self.registers.a ^ value;
                 self.registers.a = result;
 
@@ -1269,7 +1003,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::CP(arith_target) => {
-                let value = self.get_arithmetic_value(memory_bus, &arith_target)?;
+                let value = arith_target.get_u8(self, memory_bus)?;
                 let a = self.registers.a;
 
                 self.registers.f.zero = a == value;
@@ -1278,40 +1012,40 @@ impl CPU {
                 self.registers.f.carry = a < value;
             }
             Instruction::INC(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let incremented_value = value.wrapping_add(1);
-                target.set(self, memory_bus, incremented_value)?;
+                target.set_u8(self, memory_bus, incremented_value)?;
 
                 self.registers.f.zero = incremented_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = ((value & 0xf) + 1) & 0x10 == 0x10;
             }
             Instruction::INC_WORD(word_reg) => {
-                let value = self.get_word_register(word_reg);
+                let value = word_reg.get_u16(self);
                 let incremented_value = value.wrapping_add(1);
-                self.set_word_register(word_reg, incremented_value);
+                word_reg.set_u16(self, memory_bus, incremented_value)?;
             }
             Instruction::DEC(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let decremented_value = value.wrapping_sub(1);
-                target.set(self, memory_bus, decremented_value)?;
+                target.set_u8(self, memory_bus, decremented_value)?;
 
                 self.registers.f.zero = decremented_value == 0;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (value & 0xf) < 1;
             }
             Instruction::DEC_WORD(word_reg) => {
-                let value = self.get_word_register(word_reg);
+                let value = word_reg.get_u16(self);
                 let decremented_value = value.wrapping_sub(1);
-                self.set_word_register(word_reg, decremented_value);
+                word_reg.set_u16(self, memory_bus, decremented_value)?;
             }
 
             /* Miscellaneous */
             Instruction::SWAP(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let nibbles = [value & 0xf, value >> 4];
                 let swapped_value = nibbles[0] << 4 | nibbles[1];
-                target.set(self, memory_bus, swapped_value)?;
+                target.set_u8(self, memory_bus, swapped_value)?;
 
                 self.registers.f.zero = swapped_value == 0;
                 self.registers.f.subtract = false;
@@ -1378,7 +1112,7 @@ impl CPU {
 
             /* Rotates & shifts */
             Instruction::RLC(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
 
                 let new_carry_flag = (value >> 7) & 1;
                 let truncated_bit = (value >> 7) & 1;
@@ -1390,19 +1124,19 @@ impl CPU {
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = new_carry_flag == 1;
 
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
             }
             Instruction::RLCA => {
-                self.execute_instruction(memory_bus, Instruction::RLC(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RLC(InstrArgByte::Register(Reg::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RL(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let bit7 = value >> 7;
                 let carry: u8 = self.registers.f.carry.into();
 
                 let result = (value << 1) | carry;
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1410,15 +1144,15 @@ impl CPU {
                 self.registers.f.carry = bit7 == 1;
             }
             Instruction::RLA => {
-                self.execute_instruction(memory_bus, Instruction::RL(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RL(InstrArgByte::Register(Reg::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RRC(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let bit0 = value & 0b1;
 
                 let result = (value >> 1) | (bit0 << 7);
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1426,16 +1160,16 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::RRCA => {
-                self.execute_instruction(memory_bus, Instruction::RRC(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RRC(InstrArgByte::Register(Reg::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::RR(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let bit0 = value & 0b1;
                 let carry: u8 = self.registers.f.carry.into();
 
                 let result = (value >> 1) | (carry << 7);
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1443,15 +1177,15 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::RRA => {
-                self.execute_instruction(memory_bus, Instruction::RR(Box::new(Register::A)))?;
+                self.execute_instruction(memory_bus, Instruction::RR(InstrArgByte::Register(Reg::A)))?;
                 self.registers.f.zero = false;
             }
             Instruction::SLA(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let bit7 = value >> 7;
 
                 let result = value << 1;
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1459,12 +1193,12 @@ impl CPU {
                 self.registers.f.carry = bit7 == 1;
             }
             Instruction::SRA(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let bit0 = value & 0b1;
                 let bit7 = value >> 7;
 
                 let result = (value >> 1) | (bit7 << 7);
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1472,11 +1206,11 @@ impl CPU {
                 self.registers.f.carry = bit0 == 1;
             }
             Instruction::SRL(target) => {
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
                 let bit0 = value & 0b1;
 
                 let result = value >> 1;
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
 
                 self.registers.f.zero = result == 0;
                 self.registers.f.subtract = false;
@@ -1487,7 +1221,7 @@ impl CPU {
             /* Bit opcodes */
             Instruction::BIT(bit, target) => {
                 let bit: u8 = bit.into();
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
 
                 let result = (value >> bit) & 0b1;
 
@@ -1497,22 +1231,21 @@ impl CPU {
             }
             Instruction::SET(bit, target) => {
                 let bit: u8 = bit.into();
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
 
                 let result = value | (1 << bit);
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
             }
             Instruction::RES(bit, target) => {
                 let bit: u8 = bit.into();
-                let value = target.get(self, memory_bus)?;
+                let value = target.get_u8(self, memory_bus)?;
 
                 let result = value & !(1 << bit);
-                target.set(self, memory_bus, result)?;
+                target.set_u8(self, memory_bus, result)?;
             }
 
             /* Jumps */
             Instruction::JP(addr) => {
-                let addr: u16 = addr.into();
                 self.pc = addr;
             }
             Instruction::JP_CONDITION(flag, addr) => {
@@ -1522,7 +1255,7 @@ impl CPU {
                 }
             }
             Instruction::JP_HL => {
-                let addr: u16 = self.get_word_register(WordRegister::HL);
+                let addr: u16 = self.get_word_register(WReg::HL);
                 self.pc = addr;
             }
             Instruction::JR(imm) => {
@@ -1546,7 +1279,6 @@ impl CPU {
                 self.push(memory_bus, bytes[0])?;
 
                 // Load addr into pc
-                let addr: u16 = addr.into();
                 self.pc = addr;
             }
             Instruction::CALL_CONDITION(flag, addr) => {
@@ -1562,7 +1294,7 @@ impl CPU {
                 self.push(memory_bus, bytes[1])?;
                 self.push(memory_bus, bytes[0])?;
 
-                self.pc = imm.into();
+                self.pc = imm;
             }
 
             /* Returns */
@@ -1591,11 +1323,11 @@ impl CPU {
             0x10 => Instruction::STOP,
             0x20 => Instruction::JR_CONDITION(
                 Flag::NZ,
-                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+                self.get_signed_byte_from_pc(memory_bus)?,
             ),
             0x30 => Instruction::JR_CONDITION(
                 Flag::NC,
-                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+                self.get_signed_byte_from_pc(memory_bus)?,
             ),
 
             0x01 => Instruction::LD_16(
@@ -1626,20 +1358,20 @@ impl CPU {
             0x22 => Instruction::LDI_A_INTO_HL,
             0x32 => Instruction::LDD_A_INTO_HL,
 
-            0x03 => Instruction::INC_WORD(WordRegister::BC),
-            0x13 => Instruction::INC_WORD(WordRegister::DE),
-            0x23 => Instruction::INC_WORD(WordRegister::HL),
-            0x33 => Instruction::INC_WORD(WordRegister::SP),
+            0x03 => Instruction::INC_WORD(InstrArgWord::WordRegister(WReg::BC)),
+            0x13 => Instruction::INC_WORD(InstrArgWord::WordRegister(WReg::DE)),
+            0x23 => Instruction::INC_WORD(InstrArgWord::WordRegister(WReg::HL)),
+            0x33 => Instruction::INC_WORD(InstrArgWord::WordRegister(WReg::SP)),
 
-            0x04 => Instruction::INC(Box::new(Register::B)),
-            0x14 => Instruction::INC(Box::new(Register::D)),
-            0x24 => Instruction::INC(Box::new(Register::H)),
-            0x34 => Instruction::INC(Box::new(WordRegister::HL.into_address())),
+            0x04 => Instruction::INC(InstrArgByte::Register(Reg::B)),
+            0x14 => Instruction::INC(InstrArgByte::Register(Reg::D)),
+            0x24 => Instruction::INC(InstrArgByte::Register(Reg::H)),
+            0x34 => Instruction::INC(InstrArgByte::AddressRegister(WReg::HL)),
 
-            0x05 => Instruction::DEC(Box::new(Register::B)),
-            0x15 => Instruction::DEC(Box::new(Register::D)),
-            0x25 => Instruction::DEC(Box::new(Register::H)),
-            0x35 => Instruction::DEC(Box::new(WordRegister::HL.into_address())),
+            0x05 => Instruction::DEC(InstrArgByte::Register(Reg::B)),
+            0x15 => Instruction::DEC(InstrArgByte::Register(Reg::D)),
+            0x25 => Instruction::DEC(InstrArgByte::Register(Reg::H)),
+            0x35 => Instruction::DEC(InstrArgByte::AddressRegister(WReg::HL)),
 
             0x06 => Instruction::LD(
                 InstrArgByte::Register(Reg::B),
@@ -1667,20 +1399,20 @@ impl CPU {
                 InstrArgWord::AddressDirect(self.get_word_from_pc(memory_bus)?),
                 InstrArgWord::WordRegister(WReg::SP), 
             ),
-            0x18 => Instruction::JR(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
+            0x18 => Instruction::JR(self.get_signed_byte_from_pc(memory_bus)?),
             0x28 => Instruction::JR_CONDITION(
                 Flag::Z,
-                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+                self.get_signed_byte_from_pc(memory_bus)?,
             ),
             0x38 => Instruction::JR_CONDITION(
                 Flag::C,
-                SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?),
+                self.get_signed_byte_from_pc(memory_bus)?,
             ),
 
-            0x09 => Instruction::ADD_HL(WordRegister::BC),
-            0x19 => Instruction::ADD_HL(WordRegister::DE),
-            0x29 => Instruction::ADD_HL(WordRegister::HL),
-            0x39 => Instruction::ADD_HL(WordRegister::SP),
+            0x09 => Instruction::ADD_HL(InstrArgWord::WordRegister(WReg::BC)),
+            0x19 => Instruction::ADD_HL(InstrArgWord::WordRegister(WReg::DE)),
+            0x29 => Instruction::ADD_HL(InstrArgWord::WordRegister(WReg::HL)),
+            0x39 => Instruction::ADD_HL(InstrArgWord::WordRegister(WReg::SP)),
 
             0x0A => Instruction::LD(
                 InstrArgByte::Register(Reg::A),
@@ -1693,20 +1425,20 @@ impl CPU {
             0x2A => Instruction::LDI_A_FROM_HL,
             0x3A => Instruction::LDD_A_FROM_HL,
 
-            0x0B => Instruction::DEC_WORD(WordRegister::BC),
-            0x1B => Instruction::DEC_WORD(WordRegister::DE),
-            0x2B => Instruction::DEC_WORD(WordRegister::HL),
-            0x3B => Instruction::DEC_WORD(WordRegister::SP),
+            0x0B => Instruction::DEC_WORD(InstrArgWord::WordRegister(WReg::BC)),
+            0x1B => Instruction::DEC_WORD(InstrArgWord::WordRegister(WReg::DE)),
+            0x2B => Instruction::DEC_WORD(InstrArgWord::WordRegister(WReg::HL)),
+            0x3B => Instruction::DEC_WORD(InstrArgWord::WordRegister(WReg::SP)),
 
-            0x0C => Instruction::INC(Box::new(Register::C)),
-            0x1C => Instruction::INC(Box::new(Register::E)),
-            0x2C => Instruction::INC(Box::new(Register::L)),
-            0x3C => Instruction::INC(Box::new(Register::A)),
+            0x0C => Instruction::INC(InstrArgByte::Register(Reg::C)),
+            0x1C => Instruction::INC(InstrArgByte::Register(Reg::E)),
+            0x2C => Instruction::INC(InstrArgByte::Register(Reg::L)),
+            0x3C => Instruction::INC(InstrArgByte::Register(Reg::A)),
 
-            0x0D => Instruction::DEC(Box::new(Register::C)),
-            0x1D => Instruction::DEC(Box::new(Register::E)),
-            0x2D => Instruction::DEC(Box::new(Register::L)),
-            0x3D => Instruction::DEC(Box::new(Register::A)),
+            0x0D => Instruction::DEC(InstrArgByte::Register(Reg::C)),
+            0x1D => Instruction::DEC(InstrArgByte::Register(Reg::E)),
+            0x2D => Instruction::DEC(InstrArgByte::Register(Reg::L)),
+            0x3D => Instruction::DEC(InstrArgByte::Register(Reg::A)),
 
             0x0E => Instruction::LD(
                 InstrArgByte::Register(Reg::C),
@@ -1820,83 +1552,80 @@ impl CPU {
             0x7B => Instruction::LD(InstrArgByte::Register(Reg::A), InstrArgByte::Register(Reg::E)),
             0x7C => Instruction::LD(InstrArgByte::Register(Reg::A), InstrArgByte::Register(Reg::H)),
             0x7D => Instruction::LD(InstrArgByte::Register(Reg::A), InstrArgByte::Register(Reg::L)),
-            0x7E => Instruction::LD(
-                InstrArgByte::Register(Reg::A),
-                InstrArgByte::AddressRegister(WReg::HL),
-            ),
+            0x7E => Instruction::LD(InstrArgByte::Register(Reg::A), InstrArgByte::AddressRegister(WReg::HL)),
             0x7F => Instruction::LD(InstrArgByte::Register(Reg::A), InstrArgByte::Register(Reg::A)),
 
-            0x80 => Instruction::ADD(Box::new(Register::B)),
-            0x81 => Instruction::ADD(Box::new(Register::C)),
-            0x82 => Instruction::ADD(Box::new(Register::D)),
-            0x83 => Instruction::ADD(Box::new(Register::E)),
-            0x84 => Instruction::ADD(Box::new(Register::H)),
-            0x85 => Instruction::ADD(Box::new(Register::L)),
-            0x86 => Instruction::ADD(Box::new(WordRegister::HL.into_address())),
-            0x87 => Instruction::ADD(Box::new(Register::A)),
+            0x80 => Instruction::ADD(InstrArgByte::Register(Reg::B)),
+            0x81 => Instruction::ADD(InstrArgByte::Register(Reg::C)),
+            0x82 => Instruction::ADD(InstrArgByte::Register(Reg::D)),
+            0x83 => Instruction::ADD(InstrArgByte::Register(Reg::E)),
+            0x84 => Instruction::ADD(InstrArgByte::Register(Reg::H)),
+            0x85 => Instruction::ADD(InstrArgByte::Register(Reg::L)),
+            0x86 => Instruction::ADD(InstrArgByte::AddressRegister(WReg::HL)),
+            0x87 => Instruction::ADD(InstrArgByte::Register(Reg::A)),
 
-            0x88 => Instruction::ADC(Register::B.into()),
-            0x89 => Instruction::ADC(Register::C.into()),
-            0x8A => Instruction::ADC(Register::D.into()),
-            0x8B => Instruction::ADC(Register::E.into()),
-            0x8C => Instruction::ADC(Register::H.into()),
-            0x8D => Instruction::ADC(Register::L.into()),
-            0x8E => Instruction::ADC(WordRegister::HL.into()),
-            0x8F => Instruction::ADC(Register::A.into()),
+            0x88 => Instruction::ADC(InstrArgByte::Register(Reg::B)),
+            0x89 => Instruction::ADC(InstrArgByte::Register(Reg::C)),
+            0x8A => Instruction::ADC(InstrArgByte::Register(Reg::D)),
+            0x8B => Instruction::ADC(InstrArgByte::Register(Reg::E)),
+            0x8C => Instruction::ADC(InstrArgByte::Register(Reg::H)),
+            0x8D => Instruction::ADC(InstrArgByte::Register(Reg::L)),
+            0x8E => Instruction::ADC(InstrArgByte::AddressRegister(WReg::HL)),
+            0x8F => Instruction::ADC(InstrArgByte::Register(Reg::A)),
 
-            0x90 => Instruction::SUB(Register::B.into()),
-            0x91 => Instruction::SUB(Register::C.into()),
-            0x92 => Instruction::SUB(Register::D.into()),
-            0x93 => Instruction::SUB(Register::E.into()),
-            0x94 => Instruction::SUB(Register::H.into()),
-            0x95 => Instruction::SUB(Register::L.into()),
-            0x96 => Instruction::SUB(WordRegister::HL.into()),
-            0x97 => Instruction::SUB(Register::A.into()),
+            0x90 => Instruction::SUB(InstrArgByte::Register(Reg::B)),
+            0x91 => Instruction::SUB(InstrArgByte::Register(Reg::C)),
+            0x92 => Instruction::SUB(InstrArgByte::Register(Reg::D)),
+            0x93 => Instruction::SUB(InstrArgByte::Register(Reg::E)),
+            0x94 => Instruction::SUB(InstrArgByte::Register(Reg::H)),
+            0x95 => Instruction::SUB(InstrArgByte::Register(Reg::L)),
+            0x96 => Instruction::SUB(InstrArgByte::AddressRegister(WReg::HL)),
+            0x97 => Instruction::SUB(InstrArgByte::Register(Reg::A)),
 
-            0x98 => Instruction::SBC(Register::B.into()),
-            0x99 => Instruction::SBC(Register::C.into()),
-            0x9A => Instruction::SBC(Register::D.into()),
-            0x9B => Instruction::SBC(Register::E.into()),
-            0x9C => Instruction::SBC(Register::H.into()),
-            0x9D => Instruction::SBC(Register::L.into()),
-            0x9E => Instruction::SBC(WordRegister::HL.into()),
-            0x9F => Instruction::SBC(Register::A.into()),
+            0x98 => Instruction::SBC(InstrArgByte::Register(Reg::B)),
+            0x99 => Instruction::SBC(InstrArgByte::Register(Reg::C)),
+            0x9A => Instruction::SBC(InstrArgByte::Register(Reg::D)),
+            0x9B => Instruction::SBC(InstrArgByte::Register(Reg::E)),
+            0x9C => Instruction::SBC(InstrArgByte::Register(Reg::H)),
+            0x9D => Instruction::SBC(InstrArgByte::Register(Reg::L)),
+            0x9E => Instruction::SBC(InstrArgByte::AddressRegister(WReg::HL)),
+            0x9F => Instruction::SBC(InstrArgByte::Register(Reg::A)),
 
-            0xA0 => Instruction::AND(Register::B.into()),
-            0xA1 => Instruction::AND(Register::C.into()),
-            0xA2 => Instruction::AND(Register::D.into()),
-            0xA3 => Instruction::AND(Register::E.into()),
-            0xA4 => Instruction::AND(Register::H.into()),
-            0xA5 => Instruction::AND(Register::L.into()),
-            0xA6 => Instruction::AND(WordRegister::HL.into()),
-            0xA7 => Instruction::AND(Register::A.into()),
+            0xA0 => Instruction::AND(InstrArgByte::Register(Reg::B)),
+            0xA1 => Instruction::AND(InstrArgByte::Register(Reg::C)),
+            0xA2 => Instruction::AND(InstrArgByte::Register(Reg::D)),
+            0xA3 => Instruction::AND(InstrArgByte::Register(Reg::E)),
+            0xA4 => Instruction::AND(InstrArgByte::Register(Reg::H)),
+            0xA5 => Instruction::AND(InstrArgByte::Register(Reg::L)),
+            0xA6 => Instruction::AND(InstrArgByte::AddressRegister(WReg::HL)),
+            0xA7 => Instruction::AND(InstrArgByte::Register(Reg::A)),
 
-            0xA8 => Instruction::XOR(Register::B.into()),
-            0xA9 => Instruction::XOR(Register::C.into()),
-            0xAA => Instruction::XOR(Register::D.into()),
-            0xAB => Instruction::XOR(Register::E.into()),
-            0xAC => Instruction::XOR(Register::H.into()),
-            0xAD => Instruction::XOR(Register::L.into()),
-            0xAE => Instruction::XOR(WordRegister::HL.into()),
-            0xAF => Instruction::XOR(Register::A.into()),
+            0xA8 => Instruction::XOR(InstrArgByte::Register(Reg::B)),
+            0xA9 => Instruction::XOR(InstrArgByte::Register(Reg::C)),
+            0xAA => Instruction::XOR(InstrArgByte::Register(Reg::D)),
+            0xAB => Instruction::XOR(InstrArgByte::Register(Reg::E)),
+            0xAC => Instruction::XOR(InstrArgByte::Register(Reg::H)),
+            0xAD => Instruction::XOR(InstrArgByte::Register(Reg::L)),
+            0xAE => Instruction::XOR(InstrArgByte::AddressRegister(WReg::HL)),
+            0xAF => Instruction::XOR(InstrArgByte::Register(Reg::A)),
 
-            0xB0 => Instruction::OR(Register::B.into()),
-            0xB1 => Instruction::OR(Register::C.into()),
-            0xB2 => Instruction::OR(Register::D.into()),
-            0xB3 => Instruction::OR(Register::E.into()),
-            0xB4 => Instruction::OR(Register::H.into()),
-            0xB5 => Instruction::OR(Register::L.into()),
-            0xB6 => Instruction::OR(WordRegister::HL.into()),
-            0xB7 => Instruction::OR(Register::A.into()),
+            0xB0 => Instruction::OR(InstrArgByte::Register(Reg::B)),
+            0xB1 => Instruction::OR(InstrArgByte::Register(Reg::C)),
+            0xB2 => Instruction::OR(InstrArgByte::Register(Reg::D)),
+            0xB3 => Instruction::OR(InstrArgByte::Register(Reg::E)),
+            0xB4 => Instruction::OR(InstrArgByte::Register(Reg::H)),
+            0xB5 => Instruction::OR(InstrArgByte::Register(Reg::L)),
+            0xB6 => Instruction::OR(InstrArgByte::AddressRegister(WReg::HL)),
+            0xB7 => Instruction::OR(InstrArgByte::Register(Reg::A)),
 
-            0xB8 => Instruction::CP(Register::B.into()),
-            0xB9 => Instruction::CP(Register::C.into()),
-            0xBA => Instruction::CP(Register::D.into()),
-            0xBB => Instruction::CP(Register::E.into()),
-            0xBC => Instruction::CP(Register::H.into()),
-            0xBD => Instruction::CP(Register::L.into()),
-            0xBE => Instruction::CP(WordRegister::HL.into()),
-            0xBF => Instruction::CP(Register::A.into()),
+            0xB8 => Instruction::CP(InstrArgByte::Register(Reg::B)),
+            0xB9 => Instruction::CP(InstrArgByte::Register(Reg::C)),
+            0xBA => Instruction::CP(InstrArgByte::Register(Reg::D)),
+            0xBB => Instruction::CP(InstrArgByte::Register(Reg::E)),
+            0xBC => Instruction::CP(InstrArgByte::Register(Reg::H)),
+            0xBD => Instruction::CP(InstrArgByte::Register(Reg::L)),
+            0xBE => Instruction::CP(InstrArgByte::AddressRegister(WReg::HL)),
+            0xBF => Instruction::CP(InstrArgByte::Register(Reg::A)),
 
             0xC0 => Instruction::RET_CONDITION(Flag::NZ),
             0xD0 => Instruction::RET_CONDITION(Flag::NC),
@@ -1909,52 +1638,52 @@ impl CPU {
                 InstrArgByte::AddressDirect(self.get_byte_from_pc(memory_bus)? as u16 + 0xFF00),
             ),
 
-            0xC1 => Instruction::POP(WordRegister::BC),
-            0xD1 => Instruction::POP(WordRegister::DE),
-            0xE1 => Instruction::POP(WordRegister::HL),
-            0xF1 => Instruction::POP(WordRegister::AF),
+            0xC1 => Instruction::POP(InstrArgWord::WordRegister(WReg::BC)),
+            0xD1 => Instruction::POP(InstrArgWord::WordRegister(WReg::DE)),
+            0xE1 => Instruction::POP(InstrArgWord::WordRegister(WReg::HL)),
+            0xF1 => Instruction::POP(InstrArgWord::WordRegister(WReg::AF)),
 
             0xC2 => {
-                Instruction::JP_CONDITION(Flag::NZ, Address(self.get_word_from_pc(memory_bus)?))
+                Instruction::JP_CONDITION(Flag::NZ, self.get_word_from_pc(memory_bus)?)
             }
             0xD2 => {
-                Instruction::JP_CONDITION(Flag::NC, Address(self.get_word_from_pc(memory_bus)?))
+                Instruction::JP_CONDITION(Flag::NC, self.get_word_from_pc(memory_bus)?)
             }
             0xE2 => Instruction::LD(InstrArgByte::Offset(Reg::C), InstrArgByte::Register(Reg::A)),
             0xF2 => Instruction::LD(InstrArgByte::Register(Reg::A), InstrArgByte::Offset(Reg::C)),
 
-            0xC3 => Instruction::JP(Address(self.get_word_from_pc(memory_bus)?)),
+            0xC3 => Instruction::JP(self.get_word_from_pc(memory_bus)?),
             0xD3 => unimplemented!(),
             0xE3 => unimplemented!(),
             0xF3 => Instruction::DI,
 
             0xC4 => {
-                Instruction::CALL_CONDITION(Flag::NZ, Address(self.get_word_from_pc(memory_bus)?))
+                Instruction::CALL_CONDITION(Flag::NZ, self.get_word_from_pc(memory_bus)?)
             }
             0xD4 => {
-                Instruction::CALL_CONDITION(Flag::NC, Address(self.get_word_from_pc(memory_bus)?))
+                Instruction::CALL_CONDITION(Flag::NC, self.get_word_from_pc(memory_bus)?)
             }
             0xE4 => unimplemented!(),
             0xF4 => unimplemented!(),
 
-            0xC5 => Instruction::PUSH(WordRegister::BC),
-            0xD5 => Instruction::PUSH(WordRegister::DE),
-            0xE5 => Instruction::PUSH(WordRegister::HL),
-            0xF5 => Instruction::PUSH(WordRegister::AF),
+            0xC5 => Instruction::PUSH(InstrArgWord::WordRegister(WReg::BC)),
+            0xD5 => Instruction::PUSH(InstrArgWord::WordRegister(WReg::DE)),
+            0xE5 => Instruction::PUSH(InstrArgWord::WordRegister(WReg::HL)),
+            0xF5 => Instruction::PUSH(InstrArgWord::WordRegister(WReg::AF)),
 
-            0xC6 => Instruction::ADD(Box::new(Immediate(self.get_byte_from_pc(memory_bus)?))),
-            0xD6 => Instruction::SUB(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
-            0xE6 => Instruction::AND(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
-            0xF6 => Instruction::OR(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xC6 => Instruction::ADD(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
+            0xD6 => Instruction::SUB(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
+            0xE6 => Instruction::AND(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
+            0xF6 => Instruction::OR(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
 
-            0xC7 => Instruction::RST(Immediate(0x00)),
-            0xD7 => Instruction::RST(Immediate(0x10)),
-            0xE7 => Instruction::RST(Immediate(0x20)),
-            0xF7 => Instruction::RST(Immediate(0x30)),
+            0xC7 => Instruction::RST(0x00),
+            0xD7 => Instruction::RST(0x10),
+            0xE7 => Instruction::RST(0x20),
+            0xF7 => Instruction::RST(0x30),
 
             0xC8 => Instruction::RET_CONDITION(Flag::Z),
             0xD8 => Instruction::RET_CONDITION(Flag::C),
-            0xE8 => Instruction::ADD_SP(SignedImmediate(self.get_signed_byte_from_pc(memory_bus)?)),
+            0xE8 => Instruction::ADD_SP(self.get_signed_byte_from_pc(memory_bus)?),
             0xF8 => {
                 Instruction::LDHL_SP(self.get_signed_byte_from_pc(memory_bus)?)
             }
@@ -1964,8 +1693,8 @@ impl CPU {
             0xE9 => Instruction::JP_HL,
             0xF9 => Instruction::LD_16(InstrArgWord::WordRegister(WReg::SP), InstrArgWord::WordRegister(WReg::HL)),
 
-            0xCA => Instruction::JP_CONDITION(Flag::Z, Address(self.get_word_from_pc(memory_bus)?)),
-            0xDA => Instruction::JP_CONDITION(Flag::C, Address(self.get_word_from_pc(memory_bus)?)),
+            0xCA => Instruction::JP_CONDITION(Flag::Z, self.get_word_from_pc(memory_bus)?),
+            0xDA => Instruction::JP_CONDITION(Flag::C, self.get_word_from_pc(memory_bus)?),
             0xEA => Instruction::LD(
                 InstrArgByte::AddressDirect(self.get_word_from_pc(memory_bus)?),
                 InstrArgByte::Register(Reg::A),
@@ -1980,29 +1709,25 @@ impl CPU {
             0xEB => unimplemented!(),
             0xFB => Instruction::EI,
 
-            0xCC => {
-                Instruction::CALL_CONDITION(Flag::Z, Address(self.get_word_from_pc(memory_bus)?))
-            }
-            0xDC => {
-                Instruction::CALL_CONDITION(Flag::C, Address(self.get_word_from_pc(memory_bus)?))
-            }
+            0xCC => Instruction::CALL_CONDITION(Flag::Z, self.get_word_from_pc(memory_bus)?),
+            0xDC => Instruction::CALL_CONDITION(Flag::C, self.get_word_from_pc(memory_bus)?),
             0xEC => unimplemented!(),
             0xFC => unimplemented!(),
 
-            0xCD => Instruction::CALL(Address(self.get_word_from_pc(memory_bus)?)),
+            0xCD => Instruction::CALL(self.get_word_from_pc(memory_bus)?),
             0xDD => unimplemented!(),
             0xED => unimplemented!(),
             0xFD => unimplemented!(),
 
-            0xCE => Instruction::ADC(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
-            0xDE => Instruction::SBC(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
-            0xEE => Instruction::XOR(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
-            0xFE => Instruction::CP(Immediate(self.get_byte_from_pc(memory_bus)?).into()),
+            0xCE => Instruction::ADC(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?).into()),
+            0xDE => Instruction::SBC(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
+            0xEE => Instruction::XOR(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
+            0xFE => Instruction::CP(InstrArgByte::ImmediateByte(self.get_byte_from_pc(memory_bus)?)),
 
-            0xCF => Instruction::RST(Immediate(0x08)),
-            0xDF => Instruction::RST(Immediate(0x18)),
-            0xEF => Instruction::RST(Immediate(0x28)),
-            0xFF => Instruction::RST(Immediate(0x38)),
+            0xCF => Instruction::RST(0x08),
+            0xDF => Instruction::RST(0x18),
+            0xEF => Instruction::RST(0x28),
+            0xFF => Instruction::RST(0x38),
         };
 
         let branch_status = self.execute_instruction(memory_bus, instruction)?;
@@ -2014,293 +1739,293 @@ impl CPU {
 
     pub fn execute_cb_opcode(&mut self, memory_bus: &mut MemoryBus, opcode: u8) -> Result<u8> {
         let instruction = match opcode {
-            0x00 => Instruction::RLC(Box::new(Register::B)),
-            0x01 => Instruction::RLC(Box::new(Register::C)),
-            0x02 => Instruction::RLC(Box::new(Register::D)),
-            0x03 => Instruction::RLC(Box::new(Register::E)),
-            0x04 => Instruction::RLC(Box::new(Register::H)),
-            0x05 => Instruction::RLC(Box::new(Register::L)),
-            0x06 => Instruction::RLC(Box::new(WordRegister::HL.into_address())),
-            0x07 => Instruction::RLC(Box::new(Register::A)),
+            0x00 => Instruction::RLC(InstrArgByte::Register(Reg::B)),
+            0x01 => Instruction::RLC(InstrArgByte::Register(Reg::C)),
+            0x02 => Instruction::RLC(InstrArgByte::Register(Reg::D)),
+            0x03 => Instruction::RLC(InstrArgByte::Register(Reg::E)),
+            0x04 => Instruction::RLC(InstrArgByte::Register(Reg::H)),
+            0x05 => Instruction::RLC(InstrArgByte::Register(Reg::L)),
+            0x06 => Instruction::RLC(InstrArgByte::AddressRegister(WReg::HL)),
+            0x07 => Instruction::RLC(InstrArgByte::Register(Reg::A)),
 
-            0x08 => Instruction::RRC(Box::new(Register::B)),
-            0x09 => Instruction::RRC(Box::new(Register::C)),
-            0x0A => Instruction::RRC(Box::new(Register::D)),
-            0x0B => Instruction::RRC(Box::new(Register::E)),
-            0x0C => Instruction::RRC(Box::new(Register::H)),
-            0x0D => Instruction::RRC(Box::new(Register::L)),
-            0x0E => Instruction::RRC(Box::new(WordRegister::HL.into_address())),
-            0x0F => Instruction::RRC(Box::new(Register::A)),
+            0x08 => Instruction::RRC(InstrArgByte::Register(Reg::B)),
+            0x09 => Instruction::RRC(InstrArgByte::Register(Reg::C)),
+            0x0A => Instruction::RRC(InstrArgByte::Register(Reg::D)),
+            0x0B => Instruction::RRC(InstrArgByte::Register(Reg::E)),
+            0x0C => Instruction::RRC(InstrArgByte::Register(Reg::H)),
+            0x0D => Instruction::RRC(InstrArgByte::Register(Reg::L)),
+            0x0E => Instruction::RRC(InstrArgByte::AddressRegister(WReg::HL)),
+            0x0F => Instruction::RRC(InstrArgByte::Register(Reg::A)),
 
-            0x10 => Instruction::RL(Box::new(Register::B)),
-            0x11 => Instruction::RL(Box::new(Register::C)),
-            0x12 => Instruction::RL(Box::new(Register::D)),
-            0x13 => Instruction::RL(Box::new(Register::E)),
-            0x14 => Instruction::RL(Box::new(Register::H)),
-            0x15 => Instruction::RL(Box::new(Register::L)),
-            0x16 => Instruction::RL(Box::new(WordRegister::HL.into_address())),
-            0x17 => Instruction::RL(Box::new(Register::A)),
+            0x10 => Instruction::RL(InstrArgByte::Register(Reg::B)),
+            0x11 => Instruction::RL(InstrArgByte::Register(Reg::C)),
+            0x12 => Instruction::RL(InstrArgByte::Register(Reg::D)),
+            0x13 => Instruction::RL(InstrArgByte::Register(Reg::E)),
+            0x14 => Instruction::RL(InstrArgByte::Register(Reg::H)),
+            0x15 => Instruction::RL(InstrArgByte::Register(Reg::L)),
+            0x16 => Instruction::RL(InstrArgByte::AddressRegister(WReg::HL)),
+            0x17 => Instruction::RL(InstrArgByte::Register(Reg::A)),
 
-            0x18 => Instruction::RR(Box::new(Register::B)),
-            0x19 => Instruction::RR(Box::new(Register::C)),
-            0x1A => Instruction::RR(Box::new(Register::D)),
-            0x1B => Instruction::RR(Box::new(Register::E)),
-            0x1C => Instruction::RR(Box::new(Register::H)),
-            0x1D => Instruction::RR(Box::new(Register::L)),
-            0x1E => Instruction::RR(Box::new(WordRegister::HL.into_address())),
-            0x1F => Instruction::RR(Box::new(Register::A)),
+            0x18 => Instruction::RR(InstrArgByte::Register(Reg::B)),
+            0x19 => Instruction::RR(InstrArgByte::Register(Reg::C)),
+            0x1A => Instruction::RR(InstrArgByte::Register(Reg::D)),
+            0x1B => Instruction::RR(InstrArgByte::Register(Reg::E)),
+            0x1C => Instruction::RR(InstrArgByte::Register(Reg::H)),
+            0x1D => Instruction::RR(InstrArgByte::Register(Reg::L)),
+            0x1E => Instruction::RR(InstrArgByte::AddressRegister(WReg::HL)),
+            0x1F => Instruction::RR(InstrArgByte::Register(Reg::A)),
 
-            0x20 => Instruction::SLA(Box::new(Register::B)),
-            0x21 => Instruction::SLA(Box::new(Register::C)),
-            0x22 => Instruction::SLA(Box::new(Register::D)),
-            0x23 => Instruction::SLA(Box::new(Register::E)),
-            0x24 => Instruction::SLA(Box::new(Register::H)),
-            0x25 => Instruction::SLA(Box::new(Register::L)),
-            0x26 => Instruction::SLA(Box::new(WordRegister::HL.into_address())),
-            0x27 => Instruction::SLA(Box::new(Register::A)),
+            0x20 => Instruction::SLA(InstrArgByte::Register(Reg::B)),
+            0x21 => Instruction::SLA(InstrArgByte::Register(Reg::C)),
+            0x22 => Instruction::SLA(InstrArgByte::Register(Reg::D)),
+            0x23 => Instruction::SLA(InstrArgByte::Register(Reg::E)),
+            0x24 => Instruction::SLA(InstrArgByte::Register(Reg::H)),
+            0x25 => Instruction::SLA(InstrArgByte::Register(Reg::L)),
+            0x26 => Instruction::SLA(InstrArgByte::AddressRegister(WReg::HL)),
+            0x27 => Instruction::SLA(InstrArgByte::Register(Reg::A)),
 
-            0x28 => Instruction::SRA(Box::new(Register::B)),
-            0x29 => Instruction::SRA(Box::new(Register::C)),
-            0x2A => Instruction::SRA(Box::new(Register::D)),
-            0x2B => Instruction::SRA(Box::new(Register::E)),
-            0x2C => Instruction::SRA(Box::new(Register::H)),
-            0x2D => Instruction::SRA(Box::new(Register::L)),
-            0x2E => Instruction::SRA(Box::new(WordRegister::HL.into_address())),
-            0x2F => Instruction::SRA(Box::new(Register::A)),
+            0x28 => Instruction::SRA(InstrArgByte::Register(Reg::B)),
+            0x29 => Instruction::SRA(InstrArgByte::Register(Reg::C)),
+            0x2A => Instruction::SRA(InstrArgByte::Register(Reg::D)),
+            0x2B => Instruction::SRA(InstrArgByte::Register(Reg::E)),
+            0x2C => Instruction::SRA(InstrArgByte::Register(Reg::H)),
+            0x2D => Instruction::SRA(InstrArgByte::Register(Reg::L)),
+            0x2E => Instruction::SRA(InstrArgByte::AddressRegister(WReg::HL)),
+            0x2F => Instruction::SRA(InstrArgByte::Register(Reg::A)),
 
-            0x30 => Instruction::SWAP(Box::new(Register::B)),
-            0x31 => Instruction::SWAP(Box::new(Register::C)),
-            0x32 => Instruction::SWAP(Box::new(Register::D)),
-            0x33 => Instruction::SWAP(Box::new(Register::E)),
-            0x34 => Instruction::SWAP(Box::new(Register::H)),
-            0x35 => Instruction::SWAP(Box::new(Register::L)),
-            0x36 => Instruction::SWAP(Box::new(WordRegister::HL.into_address())),
-            0x37 => Instruction::SWAP(Box::new(Register::A)),
+            0x30 => Instruction::SWAP(InstrArgByte::Register(Reg::B)),
+            0x31 => Instruction::SWAP(InstrArgByte::Register(Reg::C)),
+            0x32 => Instruction::SWAP(InstrArgByte::Register(Reg::D)),
+            0x33 => Instruction::SWAP(InstrArgByte::Register(Reg::E)),
+            0x34 => Instruction::SWAP(InstrArgByte::Register(Reg::H)),
+            0x35 => Instruction::SWAP(InstrArgByte::Register(Reg::L)),
+            0x36 => Instruction::SWAP(InstrArgByte::AddressRegister(WReg::HL)),
+            0x37 => Instruction::SWAP(InstrArgByte::Register(Reg::A)),
 
-            0x38 => Instruction::SRL(Box::new(Register::B)),
-            0x39 => Instruction::SRL(Box::new(Register::C)),
-            0x3A => Instruction::SRL(Box::new(Register::D)),
-            0x3B => Instruction::SRL(Box::new(Register::E)),
-            0x3C => Instruction::SRL(Box::new(Register::H)),
-            0x3D => Instruction::SRL(Box::new(Register::L)),
-            0x3E => Instruction::SRL(Box::new(WordRegister::HL.into_address())),
-            0x3F => Instruction::SRL(Box::new(Register::A)),
+            0x38 => Instruction::SRL(InstrArgByte::Register(Reg::B)),
+            0x39 => Instruction::SRL(InstrArgByte::Register(Reg::C)),
+            0x3A => Instruction::SRL(InstrArgByte::Register(Reg::D)),
+            0x3B => Instruction::SRL(InstrArgByte::Register(Reg::E)),
+            0x3C => Instruction::SRL(InstrArgByte::Register(Reg::H)),
+            0x3D => Instruction::SRL(InstrArgByte::Register(Reg::L)),
+            0x3E => Instruction::SRL(InstrArgByte::AddressRegister(WReg::HL)),
+            0x3F => Instruction::SRL(InstrArgByte::Register(Reg::A)),
 
-            0x40 => Instruction::BIT(0, Box::new(Register::B)),
-            0x41 => Instruction::BIT(0, Box::new(Register::C)),
-            0x42 => Instruction::BIT(0, Box::new(Register::D)),
-            0x43 => Instruction::BIT(0, Box::new(Register::E)),
-            0x44 => Instruction::BIT(0, Box::new(Register::H)),
-            0x45 => Instruction::BIT(0, Box::new(Register::L)),
-            0x46 => Instruction::BIT(0, Box::new(WordRegister::HL.into_address())),
-            0x47 => Instruction::BIT(0, Box::new(Register::A)),
+            0x40 => Instruction::BIT(0, InstrArgByte::Register(Reg::B)),
+            0x41 => Instruction::BIT(0, InstrArgByte::Register(Reg::C)),
+            0x42 => Instruction::BIT(0, InstrArgByte::Register(Reg::D)),
+            0x43 => Instruction::BIT(0, InstrArgByte::Register(Reg::E)),
+            0x44 => Instruction::BIT(0, InstrArgByte::Register(Reg::H)),
+            0x45 => Instruction::BIT(0, InstrArgByte::Register(Reg::L)),
+            0x46 => Instruction::BIT(0, InstrArgByte::AddressRegister(WReg::HL)),
+            0x47 => Instruction::BIT(0, InstrArgByte::Register(Reg::A)),
 
-            0x48 => Instruction::BIT(1, Box::new(Register::B)),
-            0x49 => Instruction::BIT(1, Box::new(Register::C)),
-            0x4A => Instruction::BIT(1, Box::new(Register::D)),
-            0x4B => Instruction::BIT(1, Box::new(Register::E)),
-            0x4C => Instruction::BIT(1, Box::new(Register::H)),
-            0x4D => Instruction::BIT(1, Box::new(Register::L)),
-            0x4E => Instruction::BIT(1, Box::new(WordRegister::HL.into_address())),
-            0x4F => Instruction::BIT(1, Box::new(Register::A)),
+            0x48 => Instruction::BIT(1, InstrArgByte::Register(Reg::B)),
+            0x49 => Instruction::BIT(1, InstrArgByte::Register(Reg::C)),
+            0x4A => Instruction::BIT(1, InstrArgByte::Register(Reg::D)),
+            0x4B => Instruction::BIT(1, InstrArgByte::Register(Reg::E)),
+            0x4C => Instruction::BIT(1, InstrArgByte::Register(Reg::H)),
+            0x4D => Instruction::BIT(1, InstrArgByte::Register(Reg::L)),
+            0x4E => Instruction::BIT(1, InstrArgByte::AddressRegister(WReg::HL)),
+            0x4F => Instruction::BIT(1, InstrArgByte::Register(Reg::A)),
 
-            0x50 => Instruction::BIT(2, Box::new(Register::B)),
-            0x51 => Instruction::BIT(2, Box::new(Register::C)),
-            0x52 => Instruction::BIT(2, Box::new(Register::D)),
-            0x53 => Instruction::BIT(2, Box::new(Register::E)),
-            0x54 => Instruction::BIT(2, Box::new(Register::H)),
-            0x55 => Instruction::BIT(2, Box::new(Register::L)),
-            0x56 => Instruction::BIT(2, Box::new(WordRegister::HL.into_address())),
-            0x57 => Instruction::BIT(2, Box::new(Register::A)),
+            0x50 => Instruction::BIT(2, InstrArgByte::Register(Reg::B)),
+            0x51 => Instruction::BIT(2, InstrArgByte::Register(Reg::C)),
+            0x52 => Instruction::BIT(2, InstrArgByte::Register(Reg::D)),
+            0x53 => Instruction::BIT(2, InstrArgByte::Register(Reg::E)),
+            0x54 => Instruction::BIT(2, InstrArgByte::Register(Reg::H)),
+            0x55 => Instruction::BIT(2, InstrArgByte::Register(Reg::L)),
+            0x56 => Instruction::BIT(2, InstrArgByte::AddressRegister(WReg::HL)),
+            0x57 => Instruction::BIT(2, InstrArgByte::Register(Reg::A)),
 
-            0x58 => Instruction::BIT(3, Box::new(Register::B)),
-            0x59 => Instruction::BIT(3, Box::new(Register::C)),
-            0x5A => Instruction::BIT(3, Box::new(Register::D)),
-            0x5B => Instruction::BIT(3, Box::new(Register::E)),
-            0x5C => Instruction::BIT(3, Box::new(Register::H)),
-            0x5D => Instruction::BIT(3, Box::new(Register::L)),
-            0x5E => Instruction::BIT(3, Box::new(WordRegister::HL.into_address())),
-            0x5F => Instruction::BIT(3, Box::new(Register::A)),
+            0x58 => Instruction::BIT(3, InstrArgByte::Register(Reg::B)),
+            0x59 => Instruction::BIT(3, InstrArgByte::Register(Reg::C)),
+            0x5A => Instruction::BIT(3, InstrArgByte::Register(Reg::D)),
+            0x5B => Instruction::BIT(3, InstrArgByte::Register(Reg::E)),
+            0x5C => Instruction::BIT(3, InstrArgByte::Register(Reg::H)),
+            0x5D => Instruction::BIT(3, InstrArgByte::Register(Reg::L)),
+            0x5E => Instruction::BIT(3, InstrArgByte::AddressRegister(WReg::HL)),
+            0x5F => Instruction::BIT(3, InstrArgByte::Register(Reg::A)),
 
-            0x60 => Instruction::BIT(4, Box::new(Register::B)),
-            0x61 => Instruction::BIT(4, Box::new(Register::C)),
-            0x62 => Instruction::BIT(4, Box::new(Register::D)),
-            0x63 => Instruction::BIT(4, Box::new(Register::E)),
-            0x64 => Instruction::BIT(4, Box::new(Register::H)),
-            0x65 => Instruction::BIT(4, Box::new(Register::L)),
-            0x66 => Instruction::BIT(4, Box::new(WordRegister::HL.into_address())),
-            0x67 => Instruction::BIT(4, Box::new(Register::A)),
+            0x60 => Instruction::BIT(4, InstrArgByte::Register(Reg::B)),
+            0x61 => Instruction::BIT(4, InstrArgByte::Register(Reg::C)),
+            0x62 => Instruction::BIT(4, InstrArgByte::Register(Reg::D)),
+            0x63 => Instruction::BIT(4, InstrArgByte::Register(Reg::E)),
+            0x64 => Instruction::BIT(4, InstrArgByte::Register(Reg::H)),
+            0x65 => Instruction::BIT(4, InstrArgByte::Register(Reg::L)),
+            0x66 => Instruction::BIT(4, InstrArgByte::AddressRegister(WReg::HL)),
+            0x67 => Instruction::BIT(4, InstrArgByte::Register(Reg::A)),
 
-            0x68 => Instruction::BIT(5, Box::new(Register::B)),
-            0x69 => Instruction::BIT(5, Box::new(Register::C)),
-            0x6A => Instruction::BIT(5, Box::new(Register::D)),
-            0x6B => Instruction::BIT(5, Box::new(Register::E)),
-            0x6C => Instruction::BIT(5, Box::new(Register::H)),
-            0x6D => Instruction::BIT(5, Box::new(Register::L)),
-            0x6E => Instruction::BIT(5, Box::new(WordRegister::HL.into_address())),
-            0x6F => Instruction::BIT(5, Box::new(Register::A)),
+            0x68 => Instruction::BIT(5, InstrArgByte::Register(Reg::B)),
+            0x69 => Instruction::BIT(5, InstrArgByte::Register(Reg::C)),
+            0x6A => Instruction::BIT(5, InstrArgByte::Register(Reg::D)),
+            0x6B => Instruction::BIT(5, InstrArgByte::Register(Reg::E)),
+            0x6C => Instruction::BIT(5, InstrArgByte::Register(Reg::H)),
+            0x6D => Instruction::BIT(5, InstrArgByte::Register(Reg::L)),
+            0x6E => Instruction::BIT(5, InstrArgByte::AddressRegister(WReg::HL)),
+            0x6F => Instruction::BIT(5, InstrArgByte::Register(Reg::A)),
 
-            0x70 => Instruction::BIT(6, Box::new(Register::B)),
-            0x71 => Instruction::BIT(6, Box::new(Register::C)),
-            0x72 => Instruction::BIT(6, Box::new(Register::D)),
-            0x73 => Instruction::BIT(6, Box::new(Register::E)),
-            0x74 => Instruction::BIT(6, Box::new(Register::H)),
-            0x75 => Instruction::BIT(6, Box::new(Register::L)),
-            0x76 => Instruction::BIT(6, Box::new(WordRegister::HL.into_address())),
-            0x77 => Instruction::BIT(6, Box::new(Register::A)),
+            0x70 => Instruction::BIT(6, InstrArgByte::Register(Reg::B)),
+            0x71 => Instruction::BIT(6, InstrArgByte::Register(Reg::C)),
+            0x72 => Instruction::BIT(6, InstrArgByte::Register(Reg::D)),
+            0x73 => Instruction::BIT(6, InstrArgByte::Register(Reg::E)),
+            0x74 => Instruction::BIT(6, InstrArgByte::Register(Reg::H)),
+            0x75 => Instruction::BIT(6, InstrArgByte::Register(Reg::L)),
+            0x76 => Instruction::BIT(6, InstrArgByte::AddressRegister(WReg::HL)),
+            0x77 => Instruction::BIT(6, InstrArgByte::Register(Reg::A)),
 
-            0x78 => Instruction::BIT(7, Box::new(Register::B)),
-            0x79 => Instruction::BIT(7, Box::new(Register::C)),
-            0x7A => Instruction::BIT(7, Box::new(Register::D)),
-            0x7B => Instruction::BIT(7, Box::new(Register::E)),
-            0x7C => Instruction::BIT(7, Box::new(Register::H)),
-            0x7D => Instruction::BIT(7, Box::new(Register::L)),
-            0x7E => Instruction::BIT(7, Box::new(WordRegister::HL.into_address())),
-            0x7F => Instruction::BIT(7, Box::new(Register::A)),
+            0x78 => Instruction::BIT(7, InstrArgByte::Register(Reg::B)),
+            0x79 => Instruction::BIT(7, InstrArgByte::Register(Reg::C)),
+            0x7A => Instruction::BIT(7, InstrArgByte::Register(Reg::D)),
+            0x7B => Instruction::BIT(7, InstrArgByte::Register(Reg::E)),
+            0x7C => Instruction::BIT(7, InstrArgByte::Register(Reg::H)),
+            0x7D => Instruction::BIT(7, InstrArgByte::Register(Reg::L)),
+            0x7E => Instruction::BIT(7, InstrArgByte::AddressRegister(WReg::HL)),
+            0x7F => Instruction::BIT(7, InstrArgByte::Register(Reg::A)),
 
-            0x80 => Instruction::RES(0, Box::new(Register::B)),
-            0x81 => Instruction::RES(0, Box::new(Register::C)),
-            0x82 => Instruction::RES(0, Box::new(Register::D)),
-            0x83 => Instruction::RES(0, Box::new(Register::E)),
-            0x84 => Instruction::RES(0, Box::new(Register::H)),
-            0x85 => Instruction::RES(0, Box::new(Register::L)),
-            0x86 => Instruction::RES(0, Box::new(WordRegister::HL.into_address())),
-            0x87 => Instruction::RES(0, Box::new(Register::A)),
+            0x80 => Instruction::RES(0, InstrArgByte::Register(Reg::B)),
+            0x81 => Instruction::RES(0, InstrArgByte::Register(Reg::C)),
+            0x82 => Instruction::RES(0, InstrArgByte::Register(Reg::D)),
+            0x83 => Instruction::RES(0, InstrArgByte::Register(Reg::E)),
+            0x84 => Instruction::RES(0, InstrArgByte::Register(Reg::H)),
+            0x85 => Instruction::RES(0, InstrArgByte::Register(Reg::L)),
+            0x86 => Instruction::RES(0, InstrArgByte::AddressRegister(WReg::HL)),
+            0x87 => Instruction::RES(0, InstrArgByte::Register(Reg::A)),
 
-            0x88 => Instruction::RES(1, Box::new(Register::B)),
-            0x89 => Instruction::RES(1, Box::new(Register::C)),
-            0x8A => Instruction::RES(1, Box::new(Register::D)),
-            0x8B => Instruction::RES(1, Box::new(Register::E)),
-            0x8C => Instruction::RES(1, Box::new(Register::H)),
-            0x8D => Instruction::RES(1, Box::new(Register::L)),
-            0x8E => Instruction::RES(1, Box::new(WordRegister::HL.into_address())),
-            0x8F => Instruction::RES(1, Box::new(Register::A)),
+            0x88 => Instruction::RES(1, InstrArgByte::Register(Reg::B)),
+            0x89 => Instruction::RES(1, InstrArgByte::Register(Reg::C)),
+            0x8A => Instruction::RES(1, InstrArgByte::Register(Reg::D)),
+            0x8B => Instruction::RES(1, InstrArgByte::Register(Reg::E)),
+            0x8C => Instruction::RES(1, InstrArgByte::Register(Reg::H)),
+            0x8D => Instruction::RES(1, InstrArgByte::Register(Reg::L)),
+            0x8E => Instruction::RES(1, InstrArgByte::AddressRegister(WReg::HL)),
+            0x8F => Instruction::RES(1, InstrArgByte::Register(Reg::A)),
 
-            0x90 => Instruction::RES(2, Box::new(Register::B)),
-            0x91 => Instruction::RES(2, Box::new(Register::C)),
-            0x92 => Instruction::RES(2, Box::new(Register::D)),
-            0x93 => Instruction::RES(2, Box::new(Register::E)),
-            0x94 => Instruction::RES(2, Box::new(Register::H)),
-            0x95 => Instruction::RES(2, Box::new(Register::L)),
-            0x96 => Instruction::RES(2, Box::new(WordRegister::HL.into_address())),
-            0x97 => Instruction::RES(2, Box::new(Register::A)),
+            0x90 => Instruction::RES(2, InstrArgByte::Register(Reg::B)),
+            0x91 => Instruction::RES(2, InstrArgByte::Register(Reg::C)),
+            0x92 => Instruction::RES(2, InstrArgByte::Register(Reg::D)),
+            0x93 => Instruction::RES(2, InstrArgByte::Register(Reg::E)),
+            0x94 => Instruction::RES(2, InstrArgByte::Register(Reg::H)),
+            0x95 => Instruction::RES(2, InstrArgByte::Register(Reg::L)),
+            0x96 => Instruction::RES(2, InstrArgByte::AddressRegister(WReg::HL)),
+            0x97 => Instruction::RES(2, InstrArgByte::Register(Reg::A)),
 
-            0x98 => Instruction::RES(3, Box::new(Register::B)),
-            0x99 => Instruction::RES(3, Box::new(Register::C)),
-            0x9A => Instruction::RES(3, Box::new(Register::D)),
-            0x9B => Instruction::RES(3, Box::new(Register::E)),
-            0x9C => Instruction::RES(3, Box::new(Register::H)),
-            0x9D => Instruction::RES(3, Box::new(Register::L)),
-            0x9E => Instruction::RES(3, Box::new(WordRegister::HL.into_address())),
-            0x9F => Instruction::RES(3, Box::new(Register::A)),
+            0x98 => Instruction::RES(3, InstrArgByte::Register(Reg::B)),
+            0x99 => Instruction::RES(3, InstrArgByte::Register(Reg::C)),
+            0x9A => Instruction::RES(3, InstrArgByte::Register(Reg::D)),
+            0x9B => Instruction::RES(3, InstrArgByte::Register(Reg::E)),
+            0x9C => Instruction::RES(3, InstrArgByte::Register(Reg::H)),
+            0x9D => Instruction::RES(3, InstrArgByte::Register(Reg::L)),
+            0x9E => Instruction::RES(3, InstrArgByte::AddressRegister(WReg::HL)),
+            0x9F => Instruction::RES(3, InstrArgByte::Register(Reg::A)),
 
-            0xA0 => Instruction::RES(4, Box::new(Register::B)),
-            0xA1 => Instruction::RES(4, Box::new(Register::C)),
-            0xA2 => Instruction::RES(4, Box::new(Register::D)),
-            0xA3 => Instruction::RES(4, Box::new(Register::E)),
-            0xA4 => Instruction::RES(4, Box::new(Register::H)),
-            0xA5 => Instruction::RES(4, Box::new(Register::L)),
-            0xA6 => Instruction::RES(4, Box::new(WordRegister::HL.into_address())),
-            0xA7 => Instruction::RES(4, Box::new(Register::A)),
+            0xA0 => Instruction::RES(4, InstrArgByte::Register(Reg::B)),
+            0xA1 => Instruction::RES(4, InstrArgByte::Register(Reg::C)),
+            0xA2 => Instruction::RES(4, InstrArgByte::Register(Reg::D)),
+            0xA3 => Instruction::RES(4, InstrArgByte::Register(Reg::E)),
+            0xA4 => Instruction::RES(4, InstrArgByte::Register(Reg::H)),
+            0xA5 => Instruction::RES(4, InstrArgByte::Register(Reg::L)),
+            0xA6 => Instruction::RES(4, InstrArgByte::AddressRegister(WReg::HL)),
+            0xA7 => Instruction::RES(4, InstrArgByte::Register(Reg::A)),
 
-            0xA8 => Instruction::RES(5, Box::new(Register::B)),
-            0xA9 => Instruction::RES(5, Box::new(Register::C)),
-            0xAA => Instruction::RES(5, Box::new(Register::D)),
-            0xAB => Instruction::RES(5, Box::new(Register::E)),
-            0xAC => Instruction::RES(5, Box::new(Register::H)),
-            0xAD => Instruction::RES(5, Box::new(Register::L)),
-            0xAE => Instruction::RES(5, Box::new(WordRegister::HL.into_address())),
-            0xAF => Instruction::RES(5, Box::new(Register::A)),
+            0xA8 => Instruction::RES(5, InstrArgByte::Register(Reg::B)),
+            0xA9 => Instruction::RES(5, InstrArgByte::Register(Reg::C)),
+            0xAA => Instruction::RES(5, InstrArgByte::Register(Reg::D)),
+            0xAB => Instruction::RES(5, InstrArgByte::Register(Reg::E)),
+            0xAC => Instruction::RES(5, InstrArgByte::Register(Reg::H)),
+            0xAD => Instruction::RES(5, InstrArgByte::Register(Reg::L)),
+            0xAE => Instruction::RES(5, InstrArgByte::AddressRegister(WReg::HL)),
+            0xAF => Instruction::RES(5, InstrArgByte::Register(Reg::A)),
 
-            0xB0 => Instruction::RES(6, Box::new(Register::B)),
-            0xB1 => Instruction::RES(6, Box::new(Register::C)),
-            0xB2 => Instruction::RES(6, Box::new(Register::D)),
-            0xB3 => Instruction::RES(6, Box::new(Register::E)),
-            0xB4 => Instruction::RES(6, Box::new(Register::H)),
-            0xB5 => Instruction::RES(6, Box::new(Register::L)),
-            0xB6 => Instruction::RES(6, Box::new(WordRegister::HL.into_address())),
-            0xB7 => Instruction::RES(6, Box::new(Register::A)),
+            0xB0 => Instruction::RES(6, InstrArgByte::Register(Reg::B)),
+            0xB1 => Instruction::RES(6, InstrArgByte::Register(Reg::C)),
+            0xB2 => Instruction::RES(6, InstrArgByte::Register(Reg::D)),
+            0xB3 => Instruction::RES(6, InstrArgByte::Register(Reg::E)),
+            0xB4 => Instruction::RES(6, InstrArgByte::Register(Reg::H)),
+            0xB5 => Instruction::RES(6, InstrArgByte::Register(Reg::L)),
+            0xB6 => Instruction::RES(6, InstrArgByte::AddressRegister(WReg::HL)),
+            0xB7 => Instruction::RES(6, InstrArgByte::Register(Reg::A)),
 
-            0xB8 => Instruction::RES(7, Box::new(Register::B)),
-            0xB9 => Instruction::RES(7, Box::new(Register::C)),
-            0xBA => Instruction::RES(7, Box::new(Register::D)),
-            0xBB => Instruction::RES(7, Box::new(Register::E)),
-            0xBC => Instruction::RES(7, Box::new(Register::H)),
-            0xBD => Instruction::RES(7, Box::new(Register::L)),
-            0xBE => Instruction::RES(7, Box::new(WordRegister::HL.into_address())),
-            0xBF => Instruction::RES(7, Box::new(Register::A)),
+            0xB8 => Instruction::RES(7, InstrArgByte::Register(Reg::B)),
+            0xB9 => Instruction::RES(7, InstrArgByte::Register(Reg::C)),
+            0xBA => Instruction::RES(7, InstrArgByte::Register(Reg::D)),
+            0xBB => Instruction::RES(7, InstrArgByte::Register(Reg::E)),
+            0xBC => Instruction::RES(7, InstrArgByte::Register(Reg::H)),
+            0xBD => Instruction::RES(7, InstrArgByte::Register(Reg::L)),
+            0xBE => Instruction::RES(7, InstrArgByte::AddressRegister(WReg::HL)),
+            0xBF => Instruction::RES(7, InstrArgByte::Register(Reg::A)),
 
-            0xC0 => Instruction::SET(0, Box::new(Register::B)),
-            0xC1 => Instruction::SET(0, Box::new(Register::C)),
-            0xC2 => Instruction::SET(0, Box::new(Register::D)),
-            0xC3 => Instruction::SET(0, Box::new(Register::E)),
-            0xC4 => Instruction::SET(0, Box::new(Register::H)),
-            0xC5 => Instruction::SET(0, Box::new(Register::L)),
-            0xC6 => Instruction::SET(0, Box::new(WordRegister::HL.into_address())),
-            0xC7 => Instruction::SET(0, Box::new(Register::A)),
+            0xC0 => Instruction::SET(0, InstrArgByte::Register(Reg::B)),
+            0xC1 => Instruction::SET(0, InstrArgByte::Register(Reg::C)),
+            0xC2 => Instruction::SET(0, InstrArgByte::Register(Reg::D)),
+            0xC3 => Instruction::SET(0, InstrArgByte::Register(Reg::E)),
+            0xC4 => Instruction::SET(0, InstrArgByte::Register(Reg::H)),
+            0xC5 => Instruction::SET(0, InstrArgByte::Register(Reg::L)),
+            0xC6 => Instruction::SET(0, InstrArgByte::AddressRegister(WReg::HL)),
+            0xC7 => Instruction::SET(0, InstrArgByte::Register(Reg::A)),
 
-            0xC8 => Instruction::SET(1, Box::new(Register::B)),
-            0xC9 => Instruction::SET(1, Box::new(Register::C)),
-            0xCA => Instruction::SET(1, Box::new(Register::D)),
-            0xCB => Instruction::SET(1, Box::new(Register::E)),
-            0xCC => Instruction::SET(1, Box::new(Register::H)),
-            0xCD => Instruction::SET(1, Box::new(Register::L)),
-            0xCE => Instruction::SET(1, Box::new(WordRegister::HL.into_address())),
-            0xCF => Instruction::SET(1, Box::new(Register::A)),
+            0xC8 => Instruction::SET(1, InstrArgByte::Register(Reg::B)),
+            0xC9 => Instruction::SET(1, InstrArgByte::Register(Reg::C)),
+            0xCA => Instruction::SET(1, InstrArgByte::Register(Reg::D)),
+            0xCB => Instruction::SET(1, InstrArgByte::Register(Reg::E)),
+            0xCC => Instruction::SET(1, InstrArgByte::Register(Reg::H)),
+            0xCD => Instruction::SET(1, InstrArgByte::Register(Reg::L)),
+            0xCE => Instruction::SET(1, InstrArgByte::AddressRegister(WReg::HL)),
+            0xCF => Instruction::SET(1, InstrArgByte::Register(Reg::A)),
 
-            0xD0 => Instruction::SET(2, Box::new(Register::B)),
-            0xD1 => Instruction::SET(2, Box::new(Register::C)),
-            0xD2 => Instruction::SET(2, Box::new(Register::D)),
-            0xD3 => Instruction::SET(2, Box::new(Register::E)),
-            0xD4 => Instruction::SET(2, Box::new(Register::H)),
-            0xD5 => Instruction::SET(2, Box::new(Register::L)),
-            0xD6 => Instruction::SET(2, Box::new(WordRegister::HL.into_address())),
-            0xD7 => Instruction::SET(2, Box::new(Register::A)),
+            0xD0 => Instruction::SET(2, InstrArgByte::Register(Reg::B)),
+            0xD1 => Instruction::SET(2, InstrArgByte::Register(Reg::C)),
+            0xD2 => Instruction::SET(2, InstrArgByte::Register(Reg::D)),
+            0xD3 => Instruction::SET(2, InstrArgByte::Register(Reg::E)),
+            0xD4 => Instruction::SET(2, InstrArgByte::Register(Reg::H)),
+            0xD5 => Instruction::SET(2, InstrArgByte::Register(Reg::L)),
+            0xD6 => Instruction::SET(2, InstrArgByte::AddressRegister(WReg::HL)),
+            0xD7 => Instruction::SET(2, InstrArgByte::Register(Reg::A)),
 
-            0xD8 => Instruction::SET(3, Box::new(Register::B)),
-            0xD9 => Instruction::SET(3, Box::new(Register::C)),
-            0xDA => Instruction::SET(3, Box::new(Register::D)),
-            0xDB => Instruction::SET(3, Box::new(Register::E)),
-            0xDC => Instruction::SET(3, Box::new(Register::H)),
-            0xDD => Instruction::SET(3, Box::new(Register::L)),
-            0xDE => Instruction::SET(3, Box::new(WordRegister::HL.into_address())),
-            0xDF => Instruction::SET(3, Box::new(Register::A)),
+            0xD8 => Instruction::SET(3, InstrArgByte::Register(Reg::B)),
+            0xD9 => Instruction::SET(3, InstrArgByte::Register(Reg::C)),
+            0xDA => Instruction::SET(3, InstrArgByte::Register(Reg::D)),
+            0xDB => Instruction::SET(3, InstrArgByte::Register(Reg::E)),
+            0xDC => Instruction::SET(3, InstrArgByte::Register(Reg::H)),
+            0xDD => Instruction::SET(3, InstrArgByte::Register(Reg::L)),
+            0xDE => Instruction::SET(3, InstrArgByte::AddressRegister(WReg::HL)),
+            0xDF => Instruction::SET(3, InstrArgByte::Register(Reg::A)),
 
-            0xE0 => Instruction::SET(4, Box::new(Register::B)),
-            0xE1 => Instruction::SET(4, Box::new(Register::C)),
-            0xE2 => Instruction::SET(4, Box::new(Register::D)),
-            0xE3 => Instruction::SET(4, Box::new(Register::E)),
-            0xE4 => Instruction::SET(4, Box::new(Register::H)),
-            0xE5 => Instruction::SET(4, Box::new(Register::L)),
-            0xE6 => Instruction::SET(4, Box::new(WordRegister::HL.into_address())),
-            0xE7 => Instruction::SET(4, Box::new(Register::A)),
+            0xE0 => Instruction::SET(4, InstrArgByte::Register(Reg::B)),
+            0xE1 => Instruction::SET(4, InstrArgByte::Register(Reg::C)),
+            0xE2 => Instruction::SET(4, InstrArgByte::Register(Reg::D)),
+            0xE3 => Instruction::SET(4, InstrArgByte::Register(Reg::E)),
+            0xE4 => Instruction::SET(4, InstrArgByte::Register(Reg::H)),
+            0xE5 => Instruction::SET(4, InstrArgByte::Register(Reg::L)),
+            0xE6 => Instruction::SET(4, InstrArgByte::AddressRegister(WReg::HL)),
+            0xE7 => Instruction::SET(4, InstrArgByte::Register(Reg::A)),
 
-            0xE8 => Instruction::SET(5, Box::new(Register::B)),
-            0xE9 => Instruction::SET(5, Box::new(Register::C)),
-            0xEA => Instruction::SET(5, Box::new(Register::D)),
-            0xEB => Instruction::SET(5, Box::new(Register::E)),
-            0xEC => Instruction::SET(5, Box::new(Register::H)),
-            0xED => Instruction::SET(5, Box::new(Register::L)),
-            0xEE => Instruction::SET(5, Box::new(WordRegister::HL.into_address())),
-            0xEF => Instruction::SET(5, Box::new(Register::A)),
+            0xE8 => Instruction::SET(5, InstrArgByte::Register(Reg::B)),
+            0xE9 => Instruction::SET(5, InstrArgByte::Register(Reg::C)),
+            0xEA => Instruction::SET(5, InstrArgByte::Register(Reg::D)),
+            0xEB => Instruction::SET(5, InstrArgByte::Register(Reg::E)),
+            0xEC => Instruction::SET(5, InstrArgByte::Register(Reg::H)),
+            0xED => Instruction::SET(5, InstrArgByte::Register(Reg::L)),
+            0xEE => Instruction::SET(5, InstrArgByte::AddressRegister(WReg::HL)),
+            0xEF => Instruction::SET(5, InstrArgByte::Register(Reg::A)),
 
-            0xF0 => Instruction::SET(6, Box::new(Register::B)),
-            0xF1 => Instruction::SET(6, Box::new(Register::C)),
-            0xF2 => Instruction::SET(6, Box::new(Register::D)),
-            0xF3 => Instruction::SET(6, Box::new(Register::E)),
-            0xF4 => Instruction::SET(6, Box::new(Register::H)),
-            0xF5 => Instruction::SET(6, Box::new(Register::L)),
-            0xF6 => Instruction::SET(6, Box::new(WordRegister::HL.into_address())),
-            0xF7 => Instruction::SET(6, Box::new(Register::A)),
+            0xF0 => Instruction::SET(6, InstrArgByte::Register(Reg::B)),
+            0xF1 => Instruction::SET(6, InstrArgByte::Register(Reg::C)),
+            0xF2 => Instruction::SET(6, InstrArgByte::Register(Reg::D)),
+            0xF3 => Instruction::SET(6, InstrArgByte::Register(Reg::E)),
+            0xF4 => Instruction::SET(6, InstrArgByte::Register(Reg::H)),
+            0xF5 => Instruction::SET(6, InstrArgByte::Register(Reg::L)),
+            0xF6 => Instruction::SET(6, InstrArgByte::AddressRegister(WReg::HL)),
+            0xF7 => Instruction::SET(6, InstrArgByte::Register(Reg::A)),
 
-            0xF8 => Instruction::SET(7, Box::new(Register::B)),
-            0xF9 => Instruction::SET(7, Box::new(Register::C)),
-            0xFA => Instruction::SET(7, Box::new(Register::D)),
-            0xFB => Instruction::SET(7, Box::new(Register::E)),
-            0xFC => Instruction::SET(7, Box::new(Register::H)),
-            0xFD => Instruction::SET(7, Box::new(Register::L)),
-            0xFE => Instruction::SET(7, Box::new(WordRegister::HL.into_address())),
-            0xFF => Instruction::SET(7, Box::new(Register::A)),
+            0xF8 => Instruction::SET(7, InstrArgByte::Register(Reg::B)),
+            0xF9 => Instruction::SET(7, InstrArgByte::Register(Reg::C)),
+            0xFA => Instruction::SET(7, InstrArgByte::Register(Reg::D)),
+            0xFB => Instruction::SET(7, InstrArgByte::Register(Reg::E)),
+            0xFC => Instruction::SET(7, InstrArgByte::Register(Reg::H)),
+            0xFD => Instruction::SET(7, InstrArgByte::Register(Reg::L)),
+            0xFE => Instruction::SET(7, InstrArgByte::AddressRegister(WReg::HL)),
+            0xFF => Instruction::SET(7, InstrArgByte::Register(Reg::A)),
         };
 
         self.execute_instruction(memory_bus, instruction)?;
