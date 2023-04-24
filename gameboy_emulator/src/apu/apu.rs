@@ -35,8 +35,7 @@ pub struct Apu {
     channel3: WaveChannel,
     channel4: NoiseChannel,
 
-    left_audio_buffer: HeapRb<f32>,
-    right_audio_buffer: HeapRb<f32>,
+    audio_buffer: HeapRb<f32>,
 
     // Nearest-neighbour sampling.
     // Counts down with each clock tick, gathers an audio sample when it hits 0 then resets.
@@ -60,8 +59,7 @@ impl Apu {
             
             // TODO: lower this later
             /// allocate enough capacity for 10 frames of audio
-            left_audio_buffer: HeapRb::new(8192),
-            right_audio_buffer: HeapRb::new(8192),
+            audio_buffer: HeapRb::new(2048),
 
             sample_counter: 95, // = 4194304 / 44100 (rounded)
             //sample_counter: 19, // = 4194304 / (5* 44100) (rounded)
@@ -93,7 +91,7 @@ impl Apu {
     }
 
     pub fn get_queued_audio(&mut self) -> Vec<f32> {
-        self.left_audio_buffer.pop_iter().collect()
+        self.audio_buffer.pop_iter().collect()
     }
 
     fn increment_frame_sequencer(&mut self) {
@@ -122,12 +120,40 @@ impl Apu {
     }
 
     fn gather_sample(&mut self) {
-        let ch1 = self.channel1.sample_dac();
-        let ch2 = self.channel2.sample_dac();
-        let ch3 = self.channel3.sample_dac();
-        let ch4 = self.channel4.sample_dac();
-        let sample = (ch1 + ch2 + ch3 + ch4) / 4.;
-        self.left_audio_buffer.push_overwrite(sample);
+        if !self.apu_enable {
+            self.audio_buffer.push_overwrite(0.);
+            self.audio_buffer.push_overwrite(0.);
+            return;
+        }
+
+        let channel_samples = [
+            self.channel1.sample_dac(), 
+            self.channel2.sample_dac(), 
+            self.channel3.sample_dac(), 
+            self.channel4.sample_dac()];
+
+        let mut right_sample = 0.;
+        let mut left_sample = 0.;
+
+        // Mixing
+        for i in 0 .. 4 {
+            if (self.nr51 >> i) & 1 == 1 {
+                right_sample += channel_samples[i] / 4.;
+            }
+            if (self.nr51 >> (i + 4)) & 1 == 1 {
+                left_sample += channel_samples[i] / 4.;
+            }
+        }
+
+        // Volume
+        right_sample *= ((self.nr50 & 0b111) + 1) as f32 / 8.;
+        left_sample *= (((self.nr50 >> 4) & 0b111) + 1) as f32 / 8.;
+
+        // High pass filter goes here
+
+        // Output
+        self.audio_buffer.push_overwrite(left_sample);
+        self.audio_buffer.push_overwrite(right_sample);
     }
 
     // Write that ignores whether the apu is enabled
