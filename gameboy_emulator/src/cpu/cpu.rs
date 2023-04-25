@@ -212,7 +212,7 @@ impl CPU {
 }
 
 impl Steppable for CPU {
-    fn step(&mut self, state: &crate::gameboy::GameBoyState) -> Result<ElapsedTime> {
+    fn step(&mut self, state: &crate::gameboy::GameBoyState, _elapsed: u32) -> Result<ElapsedTime> {
         let mut memory_bus = state.memory_bus.borrow_mut();
 
         let mut elapsed_cycles = if !self.halted {
@@ -225,10 +225,10 @@ impl Steppable for CPU {
             } else {
                 elapsed_cycles = self.execute_regular_opcode(&mut memory_bus, opcode)?;
             }
-            elapsed_cycles
+            elapsed_cycles * 4 // convert from M-cycles to T-cycles
         } else {
-            // Return 1 cycle
-            1
+            // Return 4 T-cycles (1 M-cycle)
+            4
         };
 
         elapsed_cycles += self.check_interrupts(&mut memory_bus)?;

@@ -103,6 +103,7 @@ impl Steppable for Timer {
     fn step(
         &mut self,
         state: &crate::gameboy::GameBoyState,
+        _elapsed: u32,
     ) -> crate::error::Result<crate::component::ElapsedTime> {
         // DIV register increments every 256 T-cycles
         self.div_clocksum += 1;

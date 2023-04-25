@@ -2,7 +2,7 @@ use crate::{error::Result, gameboy::GameBoyState};
 
 pub type Address = usize;
 
-pub type ElapsedTime = u64;
+pub type ElapsedTime = u32;
 
 pub trait Addressable {
     fn read_u8(&mut self, address: Address) -> Result<u8>;
@@ -11,7 +11,7 @@ pub trait Addressable {
 }
 
 pub trait Steppable {
-    fn step(&mut self, state: &GameBoyState) -> Result<ElapsedTime>;
+    fn step(&mut self, state: &GameBoyState, elapsed: u32) -> Result<ElapsedTime>;
 }
 
 pub trait Component {

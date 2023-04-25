@@ -4,12 +4,12 @@ use std::fmt::Display;
 
 use log::*;
 
+use crate::component::Address;
+
 use self::{
     mbc1::{Mbc1, Mbc1Mode},
     mbc3::Mbc3,
 };
-
-pub type Address = usize;
 
 #[derive(Debug)]
 pub struct AddressingError(pub Address);

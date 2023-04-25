@@ -61,10 +61,15 @@ pub enum PpuScanlineState {
     HBlank,
 }
 
-/// Struct returned to indicate the pixel with these coords should be updated
-pub struct UpdatePixel {
+pub struct PlacePixel {
     pub x: u8,
     pub y: u8,
+}
+
+/// Struct returned to indicate the pixel with these coords should be updated
+pub struct StepResult {
+    pub pixel: Option<PlacePixel>,
+    pub sleep: u32,
 }
 pub struct Lcd {
     /// LY: LCD Y coordinate (read only)
@@ -173,27 +178,29 @@ impl Lcd {
 
     pub fn step(
         &mut self,
+        elapsed: u32,
         memory_bus: &mut MemoryBus,
         wx: u8,
         wy: u8,
-    ) -> Result<Option<UpdatePixel>> {
-        let mut pixel_data = None;
-        self.dots += 1;
+    ) -> Result<StepResult> {
+        self.dots += elapsed;
 
-        match self.state {
+        let step_result: StepResult = match self.state {
             PpuScanlineState::OamSearch => {
                 if self.dots == 80 {
                     self.change_state(PpuScanlineState::PixelTransfer);
                 }
+                StepResult {
+                    pixel: None,
+                    sleep: 1,
+                }
             }
             PpuScanlineState::PixelTransfer => {
-                // TODO: Fetch pixel data into our pixel FIFO.
-                // TODO: Put a pixel (if any) from the FIFO on screen.
-
                 // For now, just use the current xy coordinates as an index into the background map
                 // to get a pixel
+                let mut pixel_data = None;
                 if self.scan_x >= 12 {
-                    pixel_data = Some(UpdatePixel {
+                    pixel_data = Some(PlacePixel {
                         x: self.scan_x - 12,
                         y: self.ly.into(),
                     });
@@ -205,43 +212,76 @@ impl Lcd {
                     if let Some(interrupt) = self.change_state(PpuScanlineState::HBlank) {
                         memory_bus.interrupt(interrupt)?;
                     }
+                    StepResult {
+                        pixel: pixel_data,
+                        sleep: 456 - self.dots,
+                    }
+                } else {
+                    StepResult {
+                        pixel: pixel_data,
+                        sleep: 1,
+                    }
                 }
             }
             PpuScanlineState::HBlank => {
-                if self.dots == 456 {
-                    self.dots = 0;
-                    if let Some(interrupt) = self.increment_ly(wx, wy) {
+                if self.dots != 456 {
+                    panic!()
+                }
+
+                self.dots = 0;
+                if let Some(interrupt) = self.increment_ly(wx, wy) {
+                    memory_bus.interrupt(interrupt)?;
+                }
+                if self.ly == 144 {
+                    if let Some(interrupt) = self.change_state(PpuScanlineState::VBlank) {
                         memory_bus.interrupt(interrupt)?;
                     }
-                    if self.ly == 144 {
-                        if let Some(interrupt) = self.change_state(PpuScanlineState::VBlank) {
-                            memory_bus.interrupt(interrupt)?;
-                        }
-                        memory_bus.interrupt(Interrupt::VBlank)?;
-                        self.frame_count += 1;
-                    } else {
-                        if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
-                            memory_bus.interrupt(interrupt)?;
-                        }
+                    memory_bus.interrupt(Interrupt::VBlank)?;
+                    self.frame_count += 1;
+
+                    StepResult {
+                        pixel: None,
+                        sleep: 456,
+                    }
+                } else {
+                    if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
+                        memory_bus.interrupt(interrupt)?;
+                    }
+
+                    StepResult {
+                        pixel: None,
+                        sleep: 1,
                     }
                 }
             }
             PpuScanlineState::VBlank => {
-                if self.dots == 456 {
-                    self.dots = 0;
-                    if let Some(interrupt) = self.increment_ly(wx, wy) {
+                if self.dots != 456 {
+                    panic!()
+                }
+
+                self.dots = 0;
+                if let Some(interrupt) = self.increment_ly(wx, wy) {
+                    memory_bus.interrupt(interrupt)?;
+                }
+                if self.ly == 0 {
+                    //println!("End VBLANK");
+                    if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
                         memory_bus.interrupt(interrupt)?;
                     }
-                    if self.ly == 0 {
-                        //println!("End VBLANK");
-                        if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
-                            memory_bus.interrupt(interrupt)?;
-                        }
+
+                    StepResult {
+                        pixel: None,
+                        sleep: 1,
+                    }
+                } else {
+                    StepResult {
+                        pixel: None,
+                        sleep: 456,
                     }
                 }
             }
-        }
+        };
 
-        Ok(pixel_data)
+        Ok(step_result)
     }
 }

@@ -43,6 +43,9 @@ pub struct GameBoyState {
     pub(crate) joypad: Rc<RefCell<Joypad>>,
     pub(crate) timer: Rc<RefCell<Timer>>,
     pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
+
+    elapsed_since_ppu_step: u32,
+    next_ppu_step: u32,
 }
 
 impl GameBoyState {
@@ -85,13 +88,13 @@ impl GameBoyState {
         Ok(())
     }
 
-    pub fn tick(&mut self) -> u64 {
+    pub fn tick(&mut self) -> u32 {
         self.emulation_event(EmulationEvent::Trace(self.debug_info()));
 
         let elapsed_cycles = self
             .cpu
             .borrow_mut()
-            .step(&self)
+            .step(&self, 4)
             .map_err(|e| println!("{}", e))
             .unwrap();
 
@@ -99,13 +102,20 @@ impl GameBoyState {
             let mut ppu = self.ppu.borrow_mut();
             let mut timer = self.timer.borrow_mut();
             let mut apu = self.apu.borrow_mut();
-            for _ in 0..elapsed_cycles {
-                // Timer and ppu step each T-cycle
-                for _ in 0..4 {
-                    timer.step(&self).expect("error while stepping timer");
-                    ppu.step(&self).expect("error while stepping ppu");
 
-                    apu.tick(timer.get_div());
+            for _ in 0..elapsed_cycles {
+                // Timer, and apu step each T-cycle
+                timer.step(&self, 1).expect("error while stepping timer");
+
+                apu.tick(timer.get_div());
+
+                self.elapsed_since_ppu_step += 1;
+
+                if self.elapsed_since_ppu_step == self.next_ppu_step {
+                    self.next_ppu_step = ppu
+                        .step(&self, self.elapsed_since_ppu_step)
+                        .expect("error while stepping ppu");
+                    self.elapsed_since_ppu_step = 0;
                 }
             }
             trace!("stepped ppu and timer for {} M-cycles", elapsed_cycles);
@@ -232,6 +242,9 @@ impl GameBoyState {
             joypad,
             timer,
             memory_bus: memory_bus.clone(),
+
+            elapsed_since_ppu_step: 0,
+            next_ppu_step: 1,
         }
     }
 
@@ -252,7 +265,7 @@ impl GameBoyState {
         array
     }
 
-    pub fn tick_for_frame(&mut self) -> u64 {
+    pub fn tick_for_frame(&mut self) -> u32 {
         let mut elapsed_cycles = 0;
         let old_frame_count = self.ppu.borrow().get_frame_count();
         loop {
