@@ -54,7 +54,7 @@ impl LcdControl {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum PpuScanlineState {
+pub enum PpuScanlineState {
     OamSearch,
     PixelTransfer,
     VBlank,
@@ -77,7 +77,7 @@ pub struct Lcd {
     pub stat: BitField,
     stat_interrupt_line: [bool; 4],
 
-    state: PpuScanlineState,
+    pub state: PpuScanlineState,
     dots: u32,
     pub window_line_counter: u8,
 
@@ -192,13 +192,15 @@ impl Lcd {
 
                 // For now, just use the current xy coordinates as an index into the background map
                 // to get a pixel
-                pixel_data = Some(UpdatePixel {
-                    x: self.scan_x,
-                    y: self.ly.into(),
-                });
+                if self.scan_x >= 12 {
+                    pixel_data = Some(UpdatePixel {
+                        x: self.scan_x - 12,
+                        y: self.ly.into(),
+                    });
+                }
 
                 self.scan_x += 1;
-                if self.scan_x == 160 {
+                if self.scan_x == 172 {
                     self.scan_x = 0;
                     if let Some(interrupt) = self.change_state(PpuScanlineState::HBlank) {
                         memory_bus.interrupt(interrupt)?;

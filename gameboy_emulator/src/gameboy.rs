@@ -171,7 +171,7 @@ impl GameBoyState {
     }
 
     pub fn get_screen(&self) -> Vec<TileColor> {
-        self.ppu.borrow().get_screen().to_vec()
+        self.ppu.borrow().get_screen()
     }
 
     pub fn get_screen_hash(&self) -> u64 {

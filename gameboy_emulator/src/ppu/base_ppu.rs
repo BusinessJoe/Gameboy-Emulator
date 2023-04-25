@@ -4,7 +4,7 @@ use crate::{
 };
 use crate::{Error, Result};
 
-use super::palette::PaletteRegister;
+use super::{lcd::PpuScanlineState, palette::PaletteRegister};
 use super::{
     lcd::{self, UpdatePixel},
     palette::{SpriteTileColor, TileColor},
@@ -58,10 +58,28 @@ impl PpuState {
 
     fn read(&mut self, address: Address) -> Result<u8> {
         let value = match address {
+            // VRAM is disabled while LCD enabled during pixel transfer
+            0x8000..=0x9fff
+                if self.lcd.lcd_control.lcd_ppu_enable
+                    && self.lcd.state == PpuScanlineState::PixelTransfer =>
+            {
+                dbg!(address);
+                0xff
+            }
             0x8000..=0x97ff => self.tile_data[address - 0x8000],
             0x9800..=0x9bff => self.background_map[address - 0x9800],
             0x9c00..=0x9fff => self.window_map[address - 0x9c00],
+
+            // OAM is disabled while LCD enabled during OAM search and pixel transfer
+            0xfe00..=0xfe9f
+                if self.lcd.lcd_control.lcd_ppu_enable
+                    && (self.lcd.state == PpuScanlineState::OamSearch)
+                        | (self.lcd.state == PpuScanlineState::PixelTransfer) =>
+            {
+                0xff
+            }
             0xfe00..=0xfe9f => self.sprite_tiles_table[address - 0xfe00],
+
             0xff40 => self.lcd.lcd_control.read(),
             0xff41 => self.lcd.stat.0,
             0xff42 => self.scy,
@@ -86,6 +104,13 @@ impl PpuState {
 
     fn write(&mut self, address: Address, data: u8) -> Result<()> {
         match address {
+            // VRAM is disabled while LCD enabled during pixel transfer
+            0x8000..=0x9fff
+                if self.lcd.lcd_control.lcd_ppu_enable
+                    && self.lcd.state == PpuScanlineState::PixelTransfer =>
+            {
+                println!("write to address {:#x} ignored", address);
+            }
             0x8000..=0x97ff => {
                 log::trace!("write to tile data: {:#x} into {:#x}", data, address);
                 self.tile_data[address - 0x8000] = data;
@@ -96,9 +121,16 @@ impl PpuState {
             0x9c00..=0x9fff => {
                 self.window_map[address - 0x9c00] = data;
             }
+
+            // OAM is disabled while LCD enabled during OAM search and pixel transfer
+            0xfe00..=0xfe9f
+                if self.lcd.lcd_control.lcd_ppu_enable
+                    && (self.lcd.state == PpuScanlineState::OamSearch)
+                        | (self.lcd.state == PpuScanlineState::PixelTransfer) => {}
             0xfe00..=0xfe9f => {
                 self.sprite_tiles_table[address - 0xfe00] = data;
             }
+
             0xff40 => self.lcd.lcd_control.write(data),
             0xff41 => self.lcd.stat.0 = data,
             0xff42 => self.scy = data,
@@ -128,36 +160,6 @@ pub struct Tile(Vec<u8>);
 impl Tile {
     pub fn new() -> Tile {
         Tile(vec![0; 64])
-    }
-
-    fn as_rgba(&self) -> Vec<u8> {
-        let mut color_data = vec![0; 64 * 4];
-        for (i, pixel) in self.0.iter().enumerate() {
-            let rgba = match pixel {
-                0 => [255, 255, 255, 255],
-                1 => [255, 200, 200, 200],
-                2 => [255, 100, 100, 100],
-                3 => [255, 0, 0, 0],
-                _ => panic!(),
-            };
-            color_data[i * 4..(i + 1) * 4].copy_from_slice(&rgba);
-        }
-        color_data
-    }
-
-    fn as_oam_rgba(&self) -> Vec<u8> {
-        let mut color_data = vec![0; 64 * 4];
-        for (i, pixel) in self.0.iter().enumerate() {
-            let rgba = match pixel {
-                0 => [0, 0, 0, 0],
-                1 => [255, 200, 200, 200],
-                2 => [255, 100, 100, 100],
-                3 => [255, 0, 0, 0],
-                _ => panic!(),
-            };
-            color_data[i * 4..(i + 1) * 4].copy_from_slice(&rgba);
-        }
-        color_data
     }
 
     pub fn get_pixel(&self, x: u8, y: u8) -> u8 {
@@ -397,12 +399,20 @@ impl BasePpu {
         }
     }
 
-    pub fn get_screen(&self) -> &[TileColor] {
-        &self.renderer.screen_pixels
+    pub fn get_screen(&self) -> Vec<TileColor> {
+        if self.state.lcd.lcd_control.lcd_ppu_enable {
+            self.renderer.screen_pixels.clone()
+        } else {
+            vec![TileColor::White; 160 * 144]
+        }
     }
 
     pub fn get_frame_count(&self) -> u128 {
         self.state.lcd.frame_count
+    }
+
+    pub fn oam_transfer(&mut self, data: &[u8]) {
+        self.state.sprite_tiles_table.copy_from_slice(data);
     }
 
     fn get_bg_or_window_pixel(&self, x: u8, y: u8) -> TileColor {

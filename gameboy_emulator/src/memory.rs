@@ -60,10 +60,19 @@ impl MemoryBus {
     // Initiate an OAM transfer
     fn oam_transfer(&mut self, value: u8) -> Result<()> {
         let read_base_address = usize::from(value) * 0x100;
+        let mut data = vec![0; 0xa0];
+
         for i in 0..0xa0 {
-            let data = self.read_u8(read_base_address + i)?;
-            self.write_u8(0xfe00 + i, data)?;
+            data[i] = self.read_u8(read_base_address + i)?;
         }
+
+        self.ppu.borrow_mut().oam_transfer(&data);
+
+        // for i in 0 .. 0xa0 {
+        //     let data = self.read_u8(read_base_address + i)?;
+        //     self.ppu.borrow_mut().
+        //     self.write_u8(0xfe00 + i, data)?;
+        // }
         Ok(())
     }
 
