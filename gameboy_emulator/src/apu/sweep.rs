@@ -58,7 +58,7 @@ impl FrequencySweep {
 
         return_val
     }
-    
+
     pub fn trigger(&mut self, frequency: u16) {
         self.shadow_frequency = frequency;
         if self.pace() > 0 {

@@ -14,9 +14,13 @@ pub struct VolumeEnvelope {
 
 impl VolumeEnvelope {
     pub fn new(register: u8) -> Self {
-        Self { 
-            initial_volume: register >> 4, 
-            direction: if register & 0b1000 == 0 { Direction::Decrease } else { Direction::Increase }, 
+        Self {
+            initial_volume: register >> 4,
+            direction: if register & 0b1000 == 0 {
+                Direction::Decrease
+            } else {
+                Direction::Increase
+            },
             period: register & 0b111,
 
             volume: register >> 4,

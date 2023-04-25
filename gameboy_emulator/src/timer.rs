@@ -59,42 +59,6 @@ impl Timer {
             _ => panic!(),
         }
     }
-
-    fn _read(&mut self, address: Address) -> crate::error::Result<u8> {
-        let value = match address {
-            DIV => self.div,
-            TIMA => self.tima,
-            TMA => self.tma,
-            TAC => self.tac,
-            _ => {
-                return Err(Error::from_address_with_source(
-                    address,
-                    "timer read".to_string(),
-                ))
-            }
-        };
-        Ok(value)
-    }
-
-    fn _write(&mut self, address: Address, value: u8) -> crate::error::Result<()> {
-        match address {
-            // writing any value to DIV resets it to 0
-            DIV => {
-                self.div = 0;
-                self.div_clocksum = 0;
-            }
-            TIMA => self.tima = value,
-            TMA => self.tma = value,
-            TAC => self.tac = 0b11111000 | 0b111 & value,
-            _ => {
-                return Err(Error::from_address_with_source(
-                    address,
-                    "timer write".to_string(),
-                ))
-            }
-        }
-        Ok(())
-    }
 }
 
 impl Addressable for Timer {

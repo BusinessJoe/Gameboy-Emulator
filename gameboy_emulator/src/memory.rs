@@ -60,7 +60,7 @@ impl MemoryBus {
     // Initiate an OAM transfer
     fn oam_transfer(&mut self, value: u8) -> Result<()> {
         let read_base_address = usize::from(value) * 0x100;
-        for i in 0 .. 0xa0 {
+        for i in 0..0xa0 {
             let data = self.read_u8(read_base_address + i)?;
             self.write_u8(0xfe00 + i, data)?;
         }
@@ -91,7 +91,6 @@ impl MemoryBus {
 }
 
 impl Addressable for MemoryBus {
-    
     fn read_u8(&mut self, address: Address) -> Result<u8> {
         let byte = match address {
             0..=0x7fff => {
@@ -114,7 +113,7 @@ impl Addressable for MemoryBus {
             0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
             // IF register always has top 3 bits high
             0xff0f => Ok(self.data[address] | 0xe0),
-            0xff10 ..= 0xff3f => self.apu.borrow_mut().read_u8(address),
+            0xff10..=0xff3f => self.apu.borrow_mut().read_u8(address),
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
             0xff47..=0xff4b => self.ppu.borrow_mut().read_u8(address),
@@ -132,7 +131,6 @@ impl Addressable for MemoryBus {
 
     fn write_u8(&mut self, address: Address, value: u8) -> Result<()> {
         if address == 0xFF02 && value == 0x81 {
-            dbg!(self.data[0xff01]);
             self.serial_port_data.push(self.data[0xFF01]);
         }
 
@@ -157,7 +155,7 @@ impl Addressable for MemoryBus {
             0xff00 => self.joypad.borrow_mut().write(value),
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
-            0xff10 ..= 0xff3f => self.apu.borrow_mut().write_u8(address, value)?,
+            0xff10..=0xff3f => self.apu.borrow_mut().write_u8(address, value)?,
             // PPU mappings
             0xff40..=0xff44 => self.ppu.borrow_mut().write_u8(address, value)?,
             // lyc write, we need to check if that triggers a stat interrupt

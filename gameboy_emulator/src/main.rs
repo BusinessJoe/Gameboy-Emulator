@@ -4,13 +4,13 @@ use gameboy_emulator::ppu::TileColor;
 use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
 use log::*;
 use ringbuf::Rb;
-use sdl2::{self, audio};
 use sdl2::audio::AudioQueue;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::render::{BlendMode, Canvas};
 use sdl2::video::Window;
+use sdl2::{self, audio};
 use strum::IntoEnumIterator;
 
 use std::fs::{self, File};
@@ -42,7 +42,7 @@ fn main() -> Result<(), String> {
     print!("{}", &cartridge);
 
     let sdl_context = sdl2::init()?;
-    
+
     let mut canvas = init_sdl2_video(&sdl_context)?;
     let audio_queue = init_sdl2_audio(&sdl_context)?;
 
@@ -55,7 +55,7 @@ fn main() -> Result<(), String> {
     let memory_bus = gameboy_state.get_memory_bus();
 
     let mut audio_data_history = ringbuf::HeapRb::<f32>::new(44100 * 30);
-    
+
     audio_queue.resume();
 
     'mainloop: loop {
@@ -68,18 +68,16 @@ fn main() -> Result<(), String> {
                 | Event::Quit { .. } => {
                     dbg!(gameboy_state.get_screen_hash());
                     println!("Saving audio");
-                    File::create(Path::new("output.wav")).and_then(|mut wav| {
-                        let data: Vec<f32> = audio_data_history.iter().copied().collect();
-                        let wav_header = wav::Header::new(
-                            wav::WAV_FORMAT_IEEE_FLOAT,
-                            1,
-                            44100,
-                            32
-                        );
-                        wav::write(wav_header, &wav::BitDepth::ThirtyTwoFloat(data), &mut wav)
-                    }).unwrap();
+                    File::create(Path::new("output.wav"))
+                        .and_then(|mut wav| {
+                            let data: Vec<f32> = audio_data_history.iter().copied().collect();
+                            let wav_header =
+                                wav::Header::new(wav::WAV_FORMAT_IEEE_FLOAT, 1, 44100, 32);
+                            wav::write(wav_header, &wav::BitDepth::ThirtyTwoFloat(data), &mut wav)
+                        })
+                        .unwrap();
                     println!("Audio saved");
-                    
+
                     break 'mainloop;
                 }
                 Event::KeyDown {

@@ -1,6 +1,8 @@
-use crate::{component::Address, Result, Error};
+use crate::{component::Address, Error, Result};
 
-use super::{utils::digital_to_analog, volume_envelope::VolumeEnvelope, sweep::FrequencySweep, dac::Dac};
+use super::{
+    dac::Dac, sweep::FrequencySweep, utils::digital_to_analog, volume_envelope::VolumeEnvelope,
+};
 
 pub struct SquareChannel {
     // sweep
@@ -18,7 +20,7 @@ pub struct SquareChannel {
 
     // wavelength high & control
     pub nrx4: u8,
-    
+
     // stores number of T-cycles until next waveform step
     freq_timer: u16,
 
@@ -32,17 +34,20 @@ pub struct SquareChannel {
     dac: Dac,
 }
 
-
 impl SquareChannel {
     pub fn new(sweep: bool, baseline_address: Address) -> Self {
         let mut channel = Self {
-            frequency_sweep: if sweep { Some(FrequencySweep::new(0)) } else { None },
+            frequency_sweep: if sweep {
+                Some(FrequencySweep::new(0))
+            } else {
+                None
+            },
             duty_cycle: 0,
             length_timer: 0,
             nrx2: 0,
             nrx3: 0,
             nrx4: 0,
-            
+
             freq_timer: 0,
             waveform_step: 0,
 
@@ -57,9 +62,8 @@ impl SquareChannel {
     }
 
     fn sample(&self) -> u8 {
-
         let current_waveform = self.waveform_amplitude();
-        
+
         current_waveform * self.volume_envelope.volume()
         // self.test_value += 0.5;
         // if self.test_value > 15. {
@@ -82,9 +86,9 @@ impl SquareChannel {
 
     pub fn sample_dac(&mut self) -> f32 {
         if !self.on {
-            return 0.
+            return 0.;
         }
-        
+
         self.dac.to_analog(self.sample())
     }
 
@@ -104,7 +108,7 @@ impl SquareChannel {
 
         if self.length_timer > 0 {
             self.length_timer -= 1;
-            
+
             if self.length_timer == 0 {
                 self.disable()
             }
@@ -127,7 +131,6 @@ impl SquareChannel {
                 panic!()
             }
         }
-        
     }
 
     fn wavelength(&self) -> u16 {
@@ -151,7 +154,7 @@ impl SquareChannel {
             [1, 1, 1, 1, 1, 1, 0, 0],
         ][self.duty_cycle as usize][self.waveform_step as usize]
     }
-    
+
     fn trigger(&mut self) {
         self.enable();
         if self.length_timer == 0 {
@@ -164,19 +167,14 @@ impl SquareChannel {
         if let Some(frequency_sweep) = self.frequency_sweep.as_mut() {
             frequency_sweep.trigger(wavelength)
         }
-       
     }
 
     pub fn read(&self, address: Address) -> Result<u8> {
         match address - self.baseline_address {
             0 => match &self.frequency_sweep {
-                Some(fs) => {
-                    Ok(fs.get() | 0b10000000)
-                }
-                None => {
-                    Ok(0xff)
-                }
-            }
+                Some(fs) => Ok(fs.get() | 0b10000000),
+                None => Ok(0xff),
+            },
             1 => Ok(self.duty_cycle << 6 | 0b00111111),
             2 => Ok(self.nrx2),
             3 => Ok(0xff),
@@ -187,7 +185,11 @@ impl SquareChannel {
 
     pub fn write(&mut self, address: Address, value: u8) -> Result<()> {
         match address - self.baseline_address {
-            0 => if let Some(fs) = &mut self.frequency_sweep { fs.set(value) },
+            0 => {
+                if let Some(fs) = &mut self.frequency_sweep {
+                    fs.set(value)
+                }
+            }
             1 => {
                 self.duty_cycle = (value & 0b11000000) >> 6;
                 self.length_timer = 64 - (value & 0b00111111);
