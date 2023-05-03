@@ -5,7 +5,7 @@
 
 use crate::apu::Apu;
 use crate::cartridge::Cartridge;
-use crate::component::{Address, Addressable};
+use crate::component::{Address, Addressable, TickCount, BatchSteppable, Steppable};
 use crate::error::Result;
 use crate::interrupt::InterruptRegs;
 use crate::joypad::Joypad;
@@ -22,6 +22,8 @@ pub struct MemoryBus {
     pub(crate) interrupt_regs: InterruptRegs,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
+
+    tick_count: TickCount,
 }
 
 impl MemoryBus {
@@ -40,9 +42,18 @@ impl MemoryBus {
             interrupt_regs: InterruptRegs::new(),
             data: [0; 0x10000],
             serial_port_data: Vec::new(),
+            tick_count: 0,
         };
 
         memory_bus
+    }
+
+    pub fn increment_tick_counter(&mut self, increment: u128) {
+        self.tick_count += increment;
+    }
+
+    pub fn fast_forward_timer(&mut self) -> Result<()> {
+        self.timer.fast_forward(&mut self.interrupt_regs, self.tick_count)
     }
 
     pub fn get_serial_port_data(&self) -> &[u8] {
@@ -97,7 +108,10 @@ impl Addressable for MemoryBus {
             // Joypad
             0xff00 => Ok(self.joypad.read()),
             // Timer
-            0xff04..=0xff07 => self.timer.read_u8(address),
+            0xff04..=0xff07 => {
+                self.timer.fast_forward(&mut self.interrupt_regs, self.tick_count)?;
+                self.timer.read_u8(address)
+            }
             // IF register always has top 3 bits high
             0xff0f => Ok(self.interrupt_regs.interrupt_flag | 0xe0),
             0xff10..=0xff3f => self.apu.read_u8(address),
@@ -141,7 +155,10 @@ impl Addressable for MemoryBus {
             // Joypad
             0xff00 => self.joypad.write(value),
             // Timer
-            0xff04..=0xff07 => self.timer.write_u8(address, value)?,
+            0xff04 ..= 0xff07 => {
+                self.timer.fast_forward(&mut self.interrupt_regs, self.tick_count)?;
+                self.timer.write_u8(address, value)?
+            }
             0xff0f => self.interrupt_regs.interrupt_flag = value,
             0xff10..=0xff3f => self.apu.write_u8(address, value)?,
             // PPU mappings

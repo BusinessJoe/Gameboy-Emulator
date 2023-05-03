@@ -7,6 +7,7 @@ pub enum Interrupt {
     Joypad,
 }
 
+#[derive(Clone)]
 pub struct InterruptRegs {
     pub interrupt_flag: u8
 }

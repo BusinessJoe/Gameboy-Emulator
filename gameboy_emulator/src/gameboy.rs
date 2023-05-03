@@ -89,13 +89,10 @@ impl GameBoyState {
             .unwrap();
 
         {
-            // let mut ppu = self.ppu.borrow_mut();
-            // let mut timer = self.timer.borrow_mut();
-            // let mut apu = self.apu.borrow_mut();
+            self.memory_bus.increment_tick_counter(elapsed_cycles.into());
 
             for _ in 0..elapsed_cycles {
-                // Timer, and apu step each T-cycle
-                self.memory_bus.timer.step(&mut self.memory_bus.interrupt_regs, 1).expect("error while stepping timer");
+                // Ppu and Apu step each T-cycle
 
                 self.memory_bus.apu.tick(self.memory_bus.timer.get_div());
 
@@ -108,7 +105,7 @@ impl GameBoyState {
                     self.elapsed_since_ppu_step = 0;
                 }
             }
-            trace!("stepped ppu and timer for {} M-cycles", elapsed_cycles);
+            trace!("stepped ppu and apu for {} M-cycles", elapsed_cycles);
         }
 
         // Return T-cycles

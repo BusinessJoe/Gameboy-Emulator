@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::component::{Addressable, ElapsedTime, Steppable};
+use crate::component::{Addressable, ElapsedTime, Steppable, BatchSteppable};
 use crate::cpu::{instruction::*, register::*};
 use crate::error::Result;
 use crate::memory::MemoryBus;
@@ -46,12 +46,12 @@ impl Cpu {
     fn check_single_interrupt(
         &mut self,
         memory_bus: &mut MemoryBus,
+        ie_flag: u8,
+        if_flag: u8,
         bit: u8,
         address: u16,
     ) -> Result<u8> {
         // Check IME flag and relevant bit in IE flag.
-        let ie_flag = memory_bus.read_u8(0xffff)?;
-        let if_flag = memory_bus.read_u8(0xff0f)?;
         if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) && ((if_flag >> bit) & 1 == 1) {
             info!(
                 "Handling interrupt: {}",
@@ -66,7 +66,6 @@ impl Cpu {
             );
 
             // Reset interrupt bit in IF flag
-            let if_flag = memory_bus.read_u8(0xff0f)?;
             memory_bus.write_u8(0xff0f, if_flag & !(1 << bit))?;
 
             // Reset IME flag
@@ -94,8 +93,14 @@ impl Cpu {
     }
 
     fn check_interrupts(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
+        let interrupt_enable = memory_bus.read_u8(0xffff)?;
+        let interrupt_flag = memory_bus.read_u8(0xff0f)?;
+
+        if interrupt_enable & 0b00100 != 0 && interrupt_flag & 0b00100 == 0 {
+            memory_bus.fast_forward_timer()?;
+        }
         // If IE and IF
-        if memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0 {
+        if interrupt_enable & interrupt_flag != 0 {
             // Unhalt
             if self.halted {
                 info! {"Unhalting"};
@@ -106,7 +111,7 @@ impl Cpu {
                 if self.interrupt_enabled {
                     let address = 0x40 + bit * 0x8;
                     let elapsed_cycles =
-                        self.check_single_interrupt(memory_bus, bit, address.into())?;
+                        self.check_single_interrupt(memory_bus, interrupt_enable, interrupt_flag, bit, address.into())?;
                     if elapsed_cycles > 0 {
                         return Ok(elapsed_cycles);
                     }
