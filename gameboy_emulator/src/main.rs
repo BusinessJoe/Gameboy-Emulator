@@ -49,8 +49,6 @@ fn main() -> Result<(), String> {
         .load_cartridge(cartridge)
         .map_err(|e| e.to_string())?;
 
-    let joypad = gameboy_state.get_joypad();
-
     let mut audio_data_history = ringbuf::HeapRb::<f32>::new(44100 * 30);
 
     audio_queue.resume();
@@ -93,7 +91,7 @@ fn main() -> Result<(), String> {
                 } => {
                     for joypad_input in JoypadInput::iter() {
                         if map_joypad_to_keys(joypad_input).contains(&keycode) {
-                            joypad.borrow_mut().key_released(joypad_input);
+                            gameboy_state.release_joypad_input(joypad_input);
                         }
                     }
                 }

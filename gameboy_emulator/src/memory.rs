@@ -1,9 +1,7 @@
 /*!
- * The memory bus holds ownership of the ppu and cartridge.
+ * The memory bus holds ownership of the non-cpu components of the gameboy.
  * This structure makes it easy to delegate reads/writes to the corresponding memory-mapped component.
  */
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use crate::apu::Apu;
 use crate::cartridge::Cartridge;
@@ -17,10 +15,10 @@ use crate::timer::Timer;
 /// Mock memory bus
 pub struct MemoryBus {
     pub(crate) cartridge: Option<Cartridge>,
-    pub(crate) ppu: Rc<RefCell<BasePpu>>,
-    pub(crate) apu: Rc<RefCell<Apu>>,
-    pub(crate) joypad: Rc<RefCell<Joypad>>,
-    pub(crate) timer: Rc<RefCell<Timer>>,
+    pub(crate) ppu: BasePpu,
+    pub(crate) apu: Apu,
+    pub(crate) joypad: Joypad,
+    pub(crate) timer: Timer,
     pub(crate) interrupt_regs: InterruptRegs,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
@@ -28,10 +26,10 @@ pub struct MemoryBus {
 
 impl MemoryBus {
     pub fn new(
-        ppu: Rc<RefCell<BasePpu>>,
-        apu: Rc<RefCell<Apu>>,
-        joypad: Rc<RefCell<Joypad>>,
-        timer: Rc<RefCell<Timer>>,
+        ppu: BasePpu,
+        apu: Apu,
+        joypad: Joypad,
+        timer: Timer,
     ) -> Self {
         let memory_bus = Self {
             cartridge: None,
@@ -60,7 +58,7 @@ impl MemoryBus {
             data[i] = self.read_u8(read_base_address + i)?;
         }
 
-        self.ppu.borrow_mut().oam_transfer(&data);
+        self.ppu.oam_transfer(&data);
 
         // for i in 0 .. 0xa0 {
         //     let data = self.read_u8(read_base_address + i)?;
@@ -87,7 +85,7 @@ impl Addressable for MemoryBus {
                 let value = cartridge.read(address).expect("Error reading cartridge");
                 Ok(value)
             }
-            0x8000..=0x9fff => self.ppu.borrow_mut().read_u8(address),
+            0x8000..=0x9fff => self.ppu.read_u8(address),
             // Cartridge RAM
             0xa000..=0xbfff => {
                 let cartridge = self.cartridge.as_ref().expect("No cartridge inserted");
@@ -95,17 +93,17 @@ impl Addressable for MemoryBus {
                 Ok(value)
             }
             // OAM
-            0xfe00..=0xfe9f => self.ppu.borrow_mut().read_u8(address),
+            0xfe00..=0xfe9f => self.ppu.read_u8(address),
             // Joypad
-            0xff00 => Ok(self.joypad.borrow().read()),
+            0xff00 => Ok(self.joypad.read()),
             // Timer
-            0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
+            0xff04..=0xff07 => self.timer.read_u8(address),
             // IF register always has top 3 bits high
             0xff0f => Ok(self.interrupt_regs.interrupt_flag | 0xe0),
-            0xff10..=0xff3f => self.apu.borrow_mut().read_u8(address),
+            0xff10..=0xff3f => self.apu.read_u8(address),
             // PPU mappings
-            0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
-            0xff47..=0xff4b => self.ppu.borrow_mut().read_u8(address),
+            0xff40..=0xff45 => self.ppu.read_u8(address),
+            0xff47..=0xff4b => self.ppu.read_u8(address),
             0xff4d => Ok(0xff),
             _ => match self.data.get(address) {
                 Some(byte) => Ok(*byte),
@@ -130,7 +128,7 @@ impl Addressable for MemoryBus {
                     .write(address, value)
                     .expect("Error reading cartridge");
             }
-            0x8000..=0x9fff => self.ppu.borrow_mut().write_u8(address, value)?,
+            0x8000..=0x9fff => self.ppu.write_u8(address, value)?,
             // Cartridge RAM
             0xa000..=0xbfff => {
                 let cartridge = self.cartridge.as_mut().expect("No cartridge inserted");
@@ -139,27 +137,26 @@ impl Addressable for MemoryBus {
                     .expect("Error reading cartridge");
             }
             // OAM
-            0xfe00..=0xfe9f => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xfe00..=0xfe9f => self.ppu.write_u8(address, value)?,
             // Joypad
-            0xff00 => self.joypad.borrow_mut().write(value),
+            0xff00 => self.joypad.write(value),
             // Timer
-            0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
+            0xff04..=0xff07 => self.timer.write_u8(address, value)?,
             0xff0f => self.interrupt_regs.interrupt_flag = value,
-            0xff10..=0xff3f => self.apu.borrow_mut().write_u8(address, value)?,
+            0xff10..=0xff3f => self.apu.write_u8(address, value)?,
             // PPU mappings
-            0xff40..=0xff44 => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xff40..=0xff44 => self.ppu.write_u8(address, value)?,
             // lyc write, we need to check if that triggers a stat interrupt
             0xff45 => {
                 let result = {
-                    let mut ppu = self.ppu.borrow_mut();
-                    ppu.write_u8(address, value)?;
-                    ppu.state.lcd.check_ly_equals_lyc()
+                    self.ppu.write_u8(address, value)?;
+                    self.ppu.state.lcd.check_ly_equals_lyc()
                 };
                 if let Some(interrupt) = result {
                     self.interrupt_regs.interrupt(interrupt);
                 }
             }
-            0xff47..=0xff4b => self.ppu.borrow_mut().write_u8(address, value)?,
+            0xff47..=0xff4b => self.ppu.write_u8(address, value)?,
             0xff46 => self.oam_transfer(value)?,
             // Write to VRAM tile data
             _ => match self.data.get_mut(address) {
