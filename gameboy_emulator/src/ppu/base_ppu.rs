@@ -1,15 +1,15 @@
 use crate::{
     component::{Address, Addressable, ElapsedTime, Steppable},
-    gameboy::GameBoyState,
+    interrupt::InterruptRegs,
 };
 use crate::{Error, Result};
 
 use super::{
     lcd::{self},
-    palette::{SpriteTileColor, TileColor},
+    palette::TileColor,
 };
 use super::{
-    lcd::{PlacePixel, PpuScanlineState, StepResult},
+    lcd::{PlacePixel, PpuScanlineState},
     palette::PaletteRegister,
     renderer::Renderer,
 };
@@ -214,12 +214,13 @@ impl BasePpu {
 }
 
 impl Steppable for BasePpu {
-    fn step(&mut self, state: &GameBoyState, elapsed: u32) -> Result<ElapsedTime> {
-        let mut memory_bus = state.memory_bus.borrow_mut();
+    type Context = InterruptRegs;
+
+    fn step(&mut self, interrupt_regs: &mut Self::Context, elapsed: u32) -> Result<ElapsedTime> {
         let step_result =
             self.state
                 .lcd
-                .step(elapsed, &mut memory_bus, self.state.wx, self.state.wy)?;
+                .step(elapsed, interrupt_regs, self.state.wx, self.state.wy)?;
         if let Some(PlacePixel { x, y }) = step_result.pixel {
             self.place_pixel(x, y)?;
         }

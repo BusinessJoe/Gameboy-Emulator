@@ -1,6 +1,6 @@
 use crate::component::Addressable;
 use crate::error::Result;
-use crate::{cpu::CPU, memory::MemoryBus};
+use crate::{cpu::Cpu, memory::MemoryBus};
 use log::{error, info};
 use strum_macros::AsRefStr;
 
@@ -15,7 +15,7 @@ pub enum Reg {
 }
 
 impl Reg {
-    fn get(&self, cpu: &CPU) -> u8 {
+    fn get(&self, cpu: &Cpu) -> u8 {
         match self {
             Self::A => cpu.registers.a,
             Self::B => cpu.registers.b,
@@ -27,7 +27,7 @@ impl Reg {
         }
     }
 
-    fn set(&self, cpu: &mut CPU, value: u8) {
+    fn set(&self, cpu: &mut Cpu, value: u8) {
         match self {
             Self::A => cpu.registers.a = value,
             Self::B => cpu.registers.b = value,
@@ -50,7 +50,7 @@ pub enum WReg {
 }
 
 impl WReg {
-    fn get(&self, cpu: &CPU) -> u16 {
+    fn get(&self, cpu: &Cpu) -> u16 {
         match self {
             Self::AF => cpu.registers.get_af(),
             Self::BC => cpu.registers.get_bc(),
@@ -61,7 +61,7 @@ impl WReg {
         }
     }
 
-    fn set(&self, cpu: &mut CPU, value: u16) {
+    fn set(&self, cpu: &mut Cpu, value: u16) {
         match self {
             Self::AF => cpu.registers.set_af(value),
             Self::BC => cpu.registers.set_bc(value),
@@ -82,7 +82,7 @@ pub enum InstrArgByte {
 }
 
 impl InstrArgByte {
-    fn get_u8(&self, cpu: &CPU, memory_bus: &mut MemoryBus) -> Result<u8> {
+    fn get_u8(&self, cpu: &Cpu, memory_bus: &mut MemoryBus) -> Result<u8> {
         match self {
             Self::ImmediateByte(byte) => Ok(*byte),
             Self::AddressDirect(address) => memory_bus.read_u8((*address).into()),
@@ -98,7 +98,7 @@ impl InstrArgByte {
         }
     }
 
-    fn set_u8(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
+    fn set_u8(&self, cpu: &mut Cpu, memory_bus: &mut MemoryBus, value: u8) -> Result<()> {
         match self {
             Self::ImmediateByte(_) => panic!(),
             Self::AddressDirect(address) => memory_bus.write_u8((*address).into(), value),
@@ -123,7 +123,7 @@ pub enum InstrArgWord {
 }
 
 impl InstrArgWord {
-    fn get_u16(&self, cpu: &CPU) -> u16 {
+    fn get_u16(&self, cpu: &Cpu) -> u16 {
         match self {
             Self::ImmediateWord(word) => *word,
             Self::AddressDirect(_) => panic!(),
@@ -132,7 +132,7 @@ impl InstrArgWord {
         }
     }
 
-    fn set_u16(&self, cpu: &mut CPU, memory_bus: &mut MemoryBus, value: u16) -> Result<()> {
+    fn set_u16(&self, cpu: &mut Cpu, memory_bus: &mut MemoryBus, value: u16) -> Result<()> {
         match self {
             Self::ImmediateWord(_) => panic!(),
             Self::AddressDirect(address) => {
@@ -811,7 +811,7 @@ fn get_cb_opcode_delay(opcode: u8) -> u8 {
     }
 }
 
-impl CPU {
+impl Cpu {
     fn test_flag(&self, flag: Flag) -> bool {
         match flag {
             Flag::Z => self.registers.f.zero,

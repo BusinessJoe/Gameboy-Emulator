@@ -8,21 +8,20 @@ use std::rc::Rc;
 use crate::apu::Apu;
 use crate::cartridge::Cartridge;
 use crate::component::{Address, Addressable};
-use crate::emulator::events::EmulationEvent;
 use crate::error::Result;
-use crate::gameboy::Interrupt;
+use crate::interrupt::InterruptRegs;
 use crate::joypad::Joypad;
 use crate::ppu::BasePpu;
 use crate::timer::Timer;
-use log::debug;
 
 /// Mock memory bus
 pub struct MemoryBus {
     pub(crate) cartridge: Option<Cartridge>,
-    ppu: Rc<RefCell<BasePpu>>,
-    apu: Rc<RefCell<Apu>>,
-    joypad: Rc<RefCell<Joypad>>,
-    timer: Rc<RefCell<Timer>>,
+    pub(crate) ppu: Rc<RefCell<BasePpu>>,
+    pub(crate) apu: Rc<RefCell<Apu>>,
+    pub(crate) joypad: Rc<RefCell<Joypad>>,
+    pub(crate) timer: Rc<RefCell<Timer>>,
+    pub(crate) interrupt_regs: InterruptRegs,
     pub data: [u8; 0x10000],
     pub serial_port_data: Vec<u8>,
 }
@@ -40,6 +39,7 @@ impl MemoryBus {
             apu,
             joypad,
             timer,
+            interrupt_regs: InterruptRegs::new(),
             data: [0; 0x10000],
             serial_port_data: Vec::new(),
         };
@@ -49,12 +49,6 @@ impl MemoryBus {
 
     pub fn get_serial_port_data(&self) -> &[u8] {
         &self.serial_port_data
-    }
-
-    pub fn emulation_event(&self, event: EmulationEvent) {
-        // if let Some(sender) = &self.emulation_event_sender {
-        //     sender.send(event).unwrap();
-        // }
     }
 
     // Initiate an OAM transfer
@@ -73,20 +67,6 @@ impl MemoryBus {
         //     self.ppu.borrow_mut().
         //     self.write_u8(0xfe00 + i, data)?;
         // }
-        Ok(())
-    }
-
-    pub fn interrupt(&mut self, interrupt: Interrupt) -> Result<()> {
-        debug!("Interrupting");
-        let bit = match interrupt {
-            Interrupt::VBlank => 0,
-            Interrupt::Stat => 1,
-            Interrupt::Timer => 2,
-            Interrupt::Joypad => 4,
-        };
-        let mut interrupt_flag = self.read_u8(0xFF0F)?;
-        interrupt_flag |= 1 << bit;
-        self.write_u8(0xFF0F, interrupt_flag)?;
         Ok(())
     }
 
@@ -121,7 +101,7 @@ impl Addressable for MemoryBus {
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().read_u8(address),
             // IF register always has top 3 bits high
-            0xff0f => Ok(self.data[address] | 0xe0),
+            0xff0f => Ok(self.interrupt_regs.interrupt_flag | 0xe0),
             0xff10..=0xff3f => self.apu.borrow_mut().read_u8(address),
             // PPU mappings
             0xff40..=0xff45 => self.ppu.borrow_mut().read_u8(address),
@@ -164,6 +144,7 @@ impl Addressable for MemoryBus {
             0xff00 => self.joypad.borrow_mut().write(value),
             // Timer
             0xff04..=0xff07 => self.timer.borrow_mut().write_u8(address, value)?,
+            0xff0f => self.interrupt_regs.interrupt_flag = value,
             0xff10..=0xff3f => self.apu.borrow_mut().write_u8(address, value)?,
             // PPU mappings
             0xff40..=0xff44 => self.ppu.borrow_mut().write_u8(address, value)?,
@@ -175,7 +156,7 @@ impl Addressable for MemoryBus {
                     ppu.state.lcd.check_ly_equals_lyc()
                 };
                 if let Some(interrupt) = result {
-                    self.interrupt(interrupt)?;
+                    self.interrupt_regs.interrupt(interrupt);
                 }
             }
             0xff47..=0xff4b => self.ppu.borrow_mut().write_u8(address, value)?,

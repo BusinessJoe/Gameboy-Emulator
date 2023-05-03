@@ -1,6 +1,3 @@
-use js_sys::Uint8Array;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-
 pub struct PaletteRegister {
     pub register_value: u8, // ff47, ff48, or ff49
 }

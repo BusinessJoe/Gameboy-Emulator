@@ -1,6 +1,6 @@
 use crate::component::{Address, Addressable, Steppable};
 use crate::error::Error;
-use crate::gameboy::Interrupt;
+use crate::interrupt::{Interrupt, InterruptRegs};
 use log::info;
 
 pub struct Timer {
@@ -100,9 +100,11 @@ impl Addressable for Timer {
 }
 
 impl Steppable for Timer {
+    type Context = InterruptRegs;
+
     fn step(
         &mut self,
-        state: &crate::gameboy::GameBoyState,
+        interrupt_regs: &mut Self::Context,
         _elapsed: u32,
     ) -> crate::error::Result<crate::component::ElapsedTime> {
         // DIV register increments every 256 T-cycles
@@ -110,7 +112,6 @@ impl Steppable for Timer {
         if self.div_clocksum == 256 {
             self.div_clocksum = 0;
 
-            let old_div = self.div;
             self.div = self.div.wrapping_add(1);
         }
 
@@ -124,7 +125,7 @@ impl Steppable for Timer {
                 // When TIMA overflows, send an interrupt and reset TIMA to TMA
                 if self.tima == 0x00 {
                     info!("Sending timer interrupt");
-                    state.memory_bus.borrow_mut().interrupt(Interrupt::Timer)?;
+                    interrupt_regs.interrupt(Interrupt::Timer);
                     self.tima = self.tma;
                 }
                 self.timer_clocksum = 0;

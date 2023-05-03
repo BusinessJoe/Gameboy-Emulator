@@ -1,7 +1,6 @@
 use crate::error::Result;
-use crate::gameboy::Interrupt;
+use crate::interrupt::{Interrupt, InterruptRegs};
 use crate::utils::BitField;
-use crate::MemoryBus;
 
 /// Represents the LCD Control register at 0xff40
 #[derive(Debug, Clone, Copy)]
@@ -179,7 +178,7 @@ impl Lcd {
     pub fn step(
         &mut self,
         elapsed: u32,
-        memory_bus: &mut MemoryBus,
+        interrupt_regs: &mut InterruptRegs,
         wx: u8,
         wy: u8,
     ) -> Result<StepResult> {
@@ -187,9 +186,11 @@ impl Lcd {
 
         let step_result: StepResult = match self.state {
             PpuScanlineState::OamSearch => {
-                if self.dots == 80 {
-                    self.change_state(PpuScanlineState::PixelTransfer);
+                if self.dots != 80 {
+                    panic!()
                 }
+                
+                self.change_state(PpuScanlineState::PixelTransfer);
                 StepResult {
                     pixel: None,
                     sleep: 1,
@@ -210,7 +211,7 @@ impl Lcd {
                 if self.scan_x == 172 {
                     self.scan_x = 0;
                     if let Some(interrupt) = self.change_state(PpuScanlineState::HBlank) {
-                        memory_bus.interrupt(interrupt)?;
+                        interrupt_regs.interrupt(interrupt);
                     }
                     StepResult {
                         pixel: pixel_data,
@@ -230,13 +231,13 @@ impl Lcd {
 
                 self.dots = 0;
                 if let Some(interrupt) = self.increment_ly(wx, wy) {
-                    memory_bus.interrupt(interrupt)?;
+                    interrupt_regs.interrupt(interrupt);
                 }
                 if self.ly == 144 {
                     if let Some(interrupt) = self.change_state(PpuScanlineState::VBlank) {
-                        memory_bus.interrupt(interrupt)?;
+                        interrupt_regs.interrupt(interrupt);
                     }
-                    memory_bus.interrupt(Interrupt::VBlank)?;
+                    interrupt_regs.interrupt(Interrupt::VBlank);
                     self.frame_count += 1;
 
                     StepResult {
@@ -245,12 +246,12 @@ impl Lcd {
                     }
                 } else {
                     if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
-                        memory_bus.interrupt(interrupt)?;
+                        interrupt_regs.interrupt(interrupt);
                     }
 
                     StepResult {
                         pixel: None,
-                        sleep: 1,
+                        sleep: 80,
                     }
                 }
             }
@@ -261,17 +262,17 @@ impl Lcd {
 
                 self.dots = 0;
                 if let Some(interrupt) = self.increment_ly(wx, wy) {
-                    memory_bus.interrupt(interrupt)?;
+                    interrupt_regs.interrupt(interrupt);
                 }
                 if self.ly == 0 {
                     //println!("End VBLANK");
                     if let Some(interrupt) = self.change_state(PpuScanlineState::OamSearch) {
-                        memory_bus.interrupt(interrupt)?;
+                        interrupt_regs.interrupt(interrupt);
                     }
 
                     StepResult {
                         pixel: None,
-                        sleep: 1,
+                        sleep: 80,
                     }
                 } else {
                     StepResult {

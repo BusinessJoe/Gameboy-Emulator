@@ -12,6 +12,7 @@ mod memory;
 pub mod ppu;
 mod timer;
 mod utils;
+mod interrupt;
 
 pub use error::{Error, Result};
 pub use memory::MemoryBus;

@@ -4,9 +4,9 @@ use crate::component::{Addressable, ElapsedTime, Steppable};
 use crate::cpu::{instruction::*, register::*};
 use crate::error::Result;
 use crate::memory::MemoryBus;
-use log::{debug, info, trace};
+use log::{debug, info};
 
-pub struct CPU {
+pub struct Cpu {
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
@@ -16,9 +16,9 @@ pub struct CPU {
     pub(crate) opcode_queue: VecDeque<u8>,
 }
 
-impl CPU {
-    pub fn new() -> CPU {
-        let mut cpu = CPU {
+impl Cpu {
+    pub fn new() -> Cpu {
+        let mut cpu = Cpu {
             registers: Registers::default(),
             sp: 0,
             pc: 0,
@@ -211,9 +211,11 @@ impl CPU {
     }
 }
 
-impl Steppable for CPU {
-    fn step(&mut self, state: &crate::gameboy::GameBoyState, _elapsed: u32) -> Result<ElapsedTime> {
-        let mut memory_bus = state.memory_bus.borrow_mut();
+impl Steppable for Cpu {
+    type Context = MemoryBus;
+
+    fn step(&mut self, context: &mut Self::Context, _elapsed: u32) -> Result<ElapsedTime> {
+        let mut memory_bus = context;
 
         let mut elapsed_cycles = if !self.halted {
             // Get and execute opcode
