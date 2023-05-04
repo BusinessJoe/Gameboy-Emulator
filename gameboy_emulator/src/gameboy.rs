@@ -62,12 +62,7 @@ impl GameBoyState {
         let apu = Apu::new();
         let joypad = Joypad::new();
         let timer = Timer::new();
-        let memory_bus = MemoryBus::new(
-            ppu,
-            apu,
-            joypad,
-            timer,
-        );
+        let memory_bus = MemoryBus::new(ppu, apu, joypad, timer);
 
         self.cpu = cpu;
         // self.ppu = ppu.clone();
@@ -89,7 +84,8 @@ impl GameBoyState {
             .unwrap();
 
         {
-            self.memory_bus.increment_tick_counter(elapsed_cycles.into());
+            self.memory_bus
+                .increment_tick_counter(elapsed_cycles.into());
 
             for _ in 0..elapsed_cycles {
                 // Ppu and Apu step each T-cycle
@@ -99,8 +95,13 @@ impl GameBoyState {
                 self.elapsed_since_ppu_step += 1;
 
                 if self.elapsed_since_ppu_step == self.next_ppu_step {
-                    self.next_ppu_step = self.memory_bus.ppu
-                        .step(&mut self.memory_bus.interrupt_regs, self.elapsed_since_ppu_step)
+                    self.next_ppu_step = self
+                        .memory_bus
+                        .ppu
+                        .step(
+                            &mut self.memory_bus.interrupt_regs,
+                            self.elapsed_since_ppu_step,
+                        )
                         .expect("error while stepping ppu");
                     self.elapsed_since_ppu_step = 0;
                 }
@@ -183,9 +184,7 @@ impl GameBoyState {
         let prev_state = self.memory_bus.joypad.key_pressed(joypad_input);
         // If previous state was not pressed, we send interrupt
         if !prev_state {
-            self.memory_bus
-                .interrupt_regs
-                .interrupt(Interrupt::Joypad);
+            self.memory_bus.interrupt_regs.interrupt(Interrupt::Joypad);
         }
     }
 
@@ -222,12 +221,7 @@ impl GameBoyState {
         let apu = Apu::new();
         let joypad = Joypad::new();
         let timer = Timer::new();
-        let memory_bus = MemoryBus::new(
-            ppu,
-            apu,
-            joypad,
-            timer,
-        );
+        let memory_bus = MemoryBus::new(ppu, apu, joypad, timer);
         Self {
             cpu: Cpu::new(),
             // ppu,

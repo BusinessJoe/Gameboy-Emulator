@@ -5,7 +5,7 @@
 
 use crate::apu::Apu;
 use crate::cartridge::Cartridge;
-use crate::component::{Address, Addressable, TickCount, BatchSteppable, Steppable};
+use crate::component::{Address, Addressable, BatchSteppable, Steppable, TickCount};
 use crate::error::Result;
 use crate::interrupt::InterruptRegs;
 use crate::joypad::Joypad;
@@ -27,12 +27,7 @@ pub struct MemoryBus {
 }
 
 impl MemoryBus {
-    pub fn new(
-        ppu: BasePpu,
-        apu: Apu,
-        joypad: Joypad,
-        timer: Timer,
-    ) -> Self {
+    pub fn new(ppu: BasePpu, apu: Apu, joypad: Joypad, timer: Timer) -> Self {
         let memory_bus = Self {
             cartridge: None,
             ppu,
@@ -53,7 +48,8 @@ impl MemoryBus {
     }
 
     pub fn fast_forward_timer(&mut self) -> Result<()> {
-        self.timer.fast_forward(&mut self.interrupt_regs, self.tick_count)
+        self.timer
+            .fast_forward(&mut self.interrupt_regs, self.tick_count)
     }
 
     pub fn get_serial_port_data(&self) -> &[u8] {
@@ -109,7 +105,8 @@ impl Addressable for MemoryBus {
             0xff00 => Ok(self.joypad.read()),
             // Timer
             0xff04..=0xff07 => {
-                self.timer.fast_forward(&mut self.interrupt_regs, self.tick_count)?;
+                self.timer
+                    .fast_forward(&mut self.interrupt_regs, self.tick_count)?;
                 self.timer.read_u8(address)
             }
             // IF register always has top 3 bits high
@@ -155,8 +152,9 @@ impl Addressable for MemoryBus {
             // Joypad
             0xff00 => self.joypad.write(value),
             // Timer
-            0xff04 ..= 0xff07 => {
-                self.timer.fast_forward(&mut self.interrupt_regs, self.tick_count)?;
+            0xff04..=0xff07 => {
+                self.timer
+                    .fast_forward(&mut self.interrupt_regs, self.tick_count)?;
                 self.timer.write_u8(address, value)?
             }
             0xff0f => self.interrupt_regs.interrupt_flag = value,

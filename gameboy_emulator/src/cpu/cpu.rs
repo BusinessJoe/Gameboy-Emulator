@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::component::{Addressable, ElapsedTime, Steppable, BatchSteppable};
+use crate::component::{Addressable, BatchSteppable, ElapsedTime, Steppable};
 use crate::cpu::{instruction::*, register::*};
 use crate::error::Result;
 use crate::memory::MemoryBus;
@@ -110,8 +110,13 @@ impl Cpu {
             for bit in 0..=4 {
                 if self.interrupt_enabled {
                     let address = 0x40 + bit * 0x8;
-                    let elapsed_cycles =
-                        self.check_single_interrupt(memory_bus, interrupt_enable, interrupt_flag, bit, address.into())?;
+                    let elapsed_cycles = self.check_single_interrupt(
+                        memory_bus,
+                        interrupt_enable,
+                        interrupt_flag,
+                        bit,
+                        address.into(),
+                    )?;
                     if elapsed_cycles > 0 {
                         return Ok(elapsed_cycles);
                     }

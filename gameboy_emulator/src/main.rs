@@ -1,15 +1,15 @@
+use gameboy_emulator::cartridge::Cartridge;
 use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::joypad::JoypadInput;
 use gameboy_emulator::ppu::TileColor;
-use gameboy_emulator::cartridge::Cartridge;
 use ringbuf::Rb;
+use sdl2;
 use sdl2::audio::AudioQueue;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::render::{BlendMode, Canvas};
 use sdl2::video::Window;
-use sdl2;
 use strum::IntoEnumIterator;
 
 use std::fs::{self, File};

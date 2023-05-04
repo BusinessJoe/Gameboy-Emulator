@@ -189,7 +189,7 @@ impl Lcd {
                 if self.dots != 80 {
                     panic!()
                 }
-                
+
                 self.change_state(PpuScanlineState::PixelTransfer);
                 StepResult {
                     pixel: None,

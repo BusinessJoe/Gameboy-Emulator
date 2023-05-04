@@ -9,14 +9,12 @@ pub enum Interrupt {
 
 #[derive(Clone)]
 pub struct InterruptRegs {
-    pub interrupt_flag: u8
+    pub interrupt_flag: u8,
 }
 
 impl InterruptRegs {
     pub fn new() -> Self {
-        Self {
-            interrupt_flag: 0
-        }
+        Self { interrupt_flag: 0 }
     }
 
     pub fn interrupt(&mut self, interrupt: Interrupt) {
