@@ -1,5 +1,5 @@
-use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::cartridge::Cartridge;
+use gameboy_emulator::gameboy::GameBoyState;
 
 use std::fs;
 

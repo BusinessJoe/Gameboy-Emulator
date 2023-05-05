@@ -17,7 +17,6 @@ pub fn test_rom_serial_data(path: &str, target_serial_data: &[u8], num_frames: u
     }
 
     let binding = gameboy.get_memory_bus();
-    let binding = binding.borrow();
     let serial_port_data = binding.get_serial_port_data();
     dbg!(serial_port_data);
     if find_subsequence(serial_port_data, target_serial_data).is_none() {

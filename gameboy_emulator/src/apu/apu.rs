@@ -2,7 +2,10 @@ use ringbuf::{HeapRb, Rb};
 
 use crate::component::Addressable;
 
-use super::{square::SquareChannel, wave::WaveChannel, noise::NoiseChannel, global_control_regs::GlobalControlRegisters};
+use super::{
+    global_control_regs::GlobalControlRegisters, noise::NoiseChannel, square::SquareChannel,
+    wave::WaveChannel,
+};
 
 /// Audio processing unit
 pub struct Apu {
@@ -13,21 +16,21 @@ pub struct Apu {
 
     // 0xff25 - sound panning
     /*  Bit 7 - Mix channel 4 into left output
-        Bit 6 - Mix channel 3 into left output
-        Bit 5 - Mix channel 2 into left output
-        Bit 4 - Mix channel 1 into left output
-        Bit 3 - Mix channel 4 into right output
-        Bit 2 - Mix channel 3 into right output
-        Bit 1 - Mix channel 2 into right output
-        Bit 0 - Mix channel 1 into right output  */
+    Bit 6 - Mix channel 3 into left output
+    Bit 5 - Mix channel 2 into left output
+    Bit 4 - Mix channel 1 into left output
+    Bit 3 - Mix channel 4 into right output
+    Bit 2 - Mix channel 3 into right output
+    Bit 1 - Mix channel 2 into right output
+    Bit 0 - Mix channel 1 into right output  */
     nr51: u8,
 
     // 0xff24 - master volume & VIN panning
     // For volume bits, a value of 0 is a volume of 1 and a value of 7 is a volume of 8.
     /*  Bit 7   - Mix VIN into left output  (1=Enable)
-        Bit 6-4 - Left output volume        (0-7)
-        Bit 3   - Mix VIN into right output (1=Enable)
-        Bit 2-0 - Right output volume       (0-7)  */
+    Bit 6-4 - Left output volume        (0-7)
+    Bit 3   - Mix VIN into right output (1=Enable)
+    Bit 2-0 - Right output volume       (0-7)  */
     nr50: u8,
 
     channel1: SquareChannel,
@@ -56,13 +59,13 @@ impl Apu {
             channel2: SquareChannel::new(true, 0xff15),
             channel3: WaveChannel::new(),
             channel4: NoiseChannel::new(),
-            
+
             // TODO: lower this later
             /// allocate enough capacity for 10 frames of audio
             audio_buffer: HeapRb::new(2048),
 
             sample_counter: 95, // = 4194304 / 44100 (rounded)
-            //sample_counter: 19, // = 4194304 / (5* 44100) (rounded)
+                                //sample_counter: 19, // = 4194304 / (5* 44100) (rounded)
         }
     }
 
@@ -127,16 +130,17 @@ impl Apu {
         }
 
         let channel_samples = [
-            self.channel1.sample_dac(), 
-            self.channel2.sample_dac(), 
-            self.channel3.sample_dac(), 
-            self.channel4.sample_dac()];
+            self.channel1.sample_dac(),
+            self.channel2.sample_dac(),
+            self.channel3.sample_dac(),
+            self.channel4.sample_dac(),
+        ];
 
         let mut right_sample = 0.;
         let mut left_sample = 0.;
 
         // Mixing
-        for i in 0 .. 4 {
+        for i in 0..4 {
             if (self.nr51 >> i) & 1 == 1 {
                 right_sample += channel_samples[i] / 4.;
             }
@@ -157,27 +161,36 @@ impl Apu {
     }
 
     // Write that ignores whether the apu is enabled
-    fn write_u8_direct(&mut self, address: crate::component::Address, data: u8) -> crate::Result<()> {
+    fn write_u8_direct(
+        &mut self,
+        address: crate::component::Address,
+        data: u8,
+    ) -> crate::Result<()> {
         match address {
-            0xff10 ..= 0xff14 => self.channel1.write(address, data)?,
-            0xff15 => {},
-            0xff16 ..= 0xff19 => self.channel2.write(address, data)?,
-            0xff1a ..= 0xff1e => self.channel3.write(address, data)?,
-            0xff1f => {},
-            0xff20 ..= 0xff23 => self.channel4.write(address, data)?,
+            0xff10..=0xff14 => self.channel1.write(address, data)?,
+            0xff15 => {}
+            0xff16..=0xff19 => self.channel2.write(address, data)?,
+            0xff1a..=0xff1e => self.channel3.write(address, data)?,
+            0xff1f => {}
+            0xff20..=0xff23 => self.channel4.write(address, data)?,
             0xff24 => self.nr50 = data,
             0xff25 => self.nr51 = data,
             0xff26 => {
                 self.apu_enable = (data & 0b10000000) != 0;
                 if !self.apu_enable {
-                    for i in 0xff10 ..= 0xff25 {
+                    for i in 0xff10..=0xff25 {
                         self.write_u8_direct(i, 0)?;
                     }
                 }
             }
-            0xff27 ..= 0xff2f => {},
-            0xff30 ..= 0xff3f => self.channel3.write(address, data)?,
-            _ => return Err(crate::Error::from_address_with_source(address, "APU".to_string()))
+            0xff27..=0xff2f => {}
+            0xff30..=0xff3f => self.channel3.write(address, data)?,
+            _ => {
+                return Err(crate::Error::from_address_with_source(
+                    address,
+                    "APU".to_string(),
+                ))
+            }
         }
         Ok(())
     }
@@ -186,25 +199,29 @@ impl Apu {
 impl Addressable for Apu {
     fn read_u8(&mut self, address: crate::component::Address) -> crate::Result<u8> {
         match address {
-            0xff10 ..= 0xff14 => self.channel1.read(address),
+            0xff10..=0xff14 => self.channel1.read(address),
             0xff15 => Ok(0xff),
-            0xff16 ..= 0xff19 => self.channel2.read(address),
-            0xff1a ..= 0xff1e => self.channel3.read(address),
+            0xff16..=0xff19 => self.channel2.read(address),
+            0xff1a..=0xff1e => self.channel3.read(address),
             0xff1f => Ok(0xff),
-            0xff20 ..= 0xff23 => self.channel4.read(address),
+            0xff20..=0xff23 => self.channel4.read(address),
             0xff24 => Ok(self.nr50),
             0xff25 => Ok(self.nr51),
             0xff26 => {
-                let val = (u8::from(self.apu_enable) << 7) | 0b01110000 
+                let val = (u8::from(self.apu_enable) << 7)
+                    | 0b01110000
                     | (u8::from(self.channel4.on) << 3)
                     | (u8::from(self.channel3.on) << 2)
                     | (u8::from(self.channel2.on) << 1)
                     | (u8::from(self.channel1.on) << 0);
                 Ok(val)
             }
-            0xff27 ..= 0xff2f => Ok(0xff),
-            0xff30 ..= 0xff3f => self.channel3.read(address),
-            _ => Err(crate::Error::from_address_with_source(address, "APU".to_string()))
+            0xff27..=0xff2f => Ok(0xff),
+            0xff30..=0xff3f => self.channel3.read(address),
+            _ => Err(crate::Error::from_address_with_source(
+                address,
+                "APU".to_string(),
+            )),
         }
     }
 

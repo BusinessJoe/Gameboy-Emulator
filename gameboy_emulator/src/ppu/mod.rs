@@ -6,6 +6,7 @@
 pub(crate) mod base_ppu;
 mod lcd;
 pub(crate) mod palette;
+mod renderer;
 
 pub use base_ppu::BasePpu;
 pub use palette::TileColor;

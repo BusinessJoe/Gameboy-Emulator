@@ -1,9 +1,9 @@
 use crate::apu::Apu;
 use crate::cartridge::{self, Cartridge};
 use crate::component::{Addressable, Steppable};
-use crate::cpu::CPU;
-use crate::emulator::events::EmulationEvent;
+use crate::cpu::Cpu;
 use crate::error::Result;
+use crate::interrupt::Interrupt;
 use crate::joypad::{Joypad, JoypadInput};
 use crate::memory::MemoryBus;
 use crate::ppu::palette::TileColor;
@@ -12,11 +12,9 @@ use crate::timer::Timer;
 use core::fmt;
 use js_sys::Uint8Array;
 use log::trace;
-use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 
 pub type Observer = Box<dyn FnMut(u8)>;
@@ -37,17 +35,16 @@ pub struct GameboyDebugInfo {
 
 #[wasm_bindgen]
 pub struct GameBoyState {
-    pub(crate) cpu: Rc<RefCell<CPU>>,
-    pub(crate) ppu: Rc<RefCell<BasePpu>>,
-    pub(crate) apu: Rc<RefCell<Apu>>,
-    pub(crate) joypad: Rc<RefCell<Joypad>>,
-    pub(crate) timer: Rc<RefCell<Timer>>,
-    pub(crate) memory_bus: Rc<RefCell<MemoryBus>>,
+    pub(crate) cpu: Cpu,
+    pub(crate) memory_bus: MemoryBus,
+
+    elapsed_since_ppu_step: u32,
+    next_ppu_step: u32,
 }
 
 impl GameBoyState {
     pub fn get_pc(&self) -> u16 {
-        self.cpu.borrow().pc
+        self.cpu.pc
     }
 
     pub fn load(&mut self, filename: &str) -> Result<()> {
@@ -60,76 +57,64 @@ impl GameBoyState {
         // just reset the entire gameboy by rebuilding it
         println!("Loaded cartridge: {:?}", cartridge);
 
-        let cpu = Rc::new(RefCell::new(CPU::new()));
-        let ppu = Rc::new(RefCell::new(BasePpu::new()));
-        let apu = Rc::new(RefCell::new(Apu::new()));
-        let joypad = Rc::new(RefCell::new(Joypad::new()));
-        let timer = Rc::new(RefCell::new(Timer::new()));
-        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
-            ppu.clone(),
-            apu.clone(),
-            joypad.clone(),
-            timer.clone(),
-        )));
+        let cpu = Cpu::new();
+        let ppu = BasePpu::new();
+        let apu = Apu::new();
+        let joypad = Joypad::new();
+        let timer = Timer::new();
+        let memory_bus = MemoryBus::new(ppu, apu, joypad, timer);
 
         self.cpu = cpu;
-        self.ppu = ppu.clone();
-        self.apu = apu.clone();
-        self.joypad = joypad;
-        self.timer = timer;
-        self.memory_bus = memory_bus.clone();
+        // self.ppu = ppu.clone();
+        // self.apu = apu.clone();
+        // self.joypad = joypad;
+        // self.timer = timer;
+        self.memory_bus = memory_bus;
 
-        let mut memory_bus = self.memory_bus.borrow_mut();
-        memory_bus.insert_cartridge(cartridge);
-        trace!("{:#x}", memory_bus.read_u8(0x100)?);
+        self.memory_bus.insert_cartridge(cartridge);
+        trace!("{:#x}", self.memory_bus.read_u8(0x100)?);
         Ok(())
     }
 
-    pub fn tick(&mut self) -> u64 {
-        self.emulation_event(EmulationEvent::Trace(self.debug_info()));
-
+    pub fn tick(&mut self) -> u32 {
         let elapsed_cycles = self
             .cpu
-            .borrow_mut()
-            .step(&self)
+            .step(&mut self.memory_bus, 4)
             .map_err(|e| println!("{}", e))
             .unwrap();
 
         {
-            let mut ppu = self.ppu.borrow_mut();
-            let mut timer = self.timer.borrow_mut();
-            let mut apu = self.apu.borrow_mut();
-            for _ in 0..elapsed_cycles {
-                // Timer and ppu step each T-cycle
-                for _ in 0..4 {
-                    timer.step(&self).expect("error while stepping timer");
-                    ppu.step(&self).expect("error while stepping ppu");
+            self.memory_bus
+                .increment_tick_counter(elapsed_cycles.into());
 
-                    apu.tick(timer.get_div());
+            for _ in 0..elapsed_cycles {
+                // Ppu and Apu step each T-cycle
+
+                self.memory_bus.apu.tick(self.memory_bus.timer.get_div());
+
+                self.elapsed_since_ppu_step += 1;
+
+                if self.elapsed_since_ppu_step == self.next_ppu_step {
+                    self.next_ppu_step = self
+                        .memory_bus
+                        .ppu
+                        .step(
+                            &mut self.memory_bus.interrupt_regs,
+                            self.elapsed_since_ppu_step,
+                        )
+                        .expect("error while stepping ppu");
+                    self.elapsed_since_ppu_step = 0;
                 }
             }
-            trace!("stepped ppu and timer for {} M-cycles", elapsed_cycles);
+            trace!("stepped ppu and apu for {} M-cycles", elapsed_cycles);
         }
 
         // Return T-cycles
         4 * elapsed_cycles
     }
 
-    pub fn emulation_event(&mut self, _event: EmulationEvent) {
-        // store most recent n events
-        /*
-        if self.event_queue.len() > 1_000_000 {
-            self.event_queue.pop_front();
-        }
-        self.event_queue.push_back(event.clone());
-        */
-        // if let Some(sender) = &self.emulation_event_sender {
-        //     sender.send(event).unwrap();
-        // }
-    }
-
-    pub fn debug_info(&self) -> GameboyDebugInfo {
-        let cpu = self.cpu.borrow();
+    pub fn debug_info(&mut self) -> GameboyDebugInfo {
+        let cpu = &self.cpu;
 
         let register_f = [
             cpu.registers.f.zero,
@@ -138,7 +123,7 @@ impl GameBoyState {
             cpu.registers.f.carry,
         ];
 
-        let opcode = self.memory_bus.borrow_mut().read_u8(cpu.pc.into()).unwrap();
+        let opcode = self.memory_bus.read_u8(cpu.pc.into()).unwrap();
 
         GameboyDebugInfo {
             pc: cpu.pc,
@@ -149,29 +134,41 @@ impl GameBoyState {
             register_bc: u16::from_le_bytes([cpu.registers.b, cpu.registers.c]),
             register_de: u16::from_le_bytes([cpu.registers.d, cpu.registers.e]),
             register_hl: u16::from_le_bytes([cpu.registers.h, cpu.registers.l]),
-            mem_tima_ff05: self.memory_bus.borrow_mut().read_u8(0xff05).unwrap(),
+            mem_tima_ff05: self.memory_bus.read_u8(0xff05).unwrap(),
             interrupt_enabled: cpu.interrupt_enabled,
         }
     }
 
-    pub fn get_cpu(&self) -> Rc<RefCell<CPU>> {
-        self.cpu.clone()
+    pub fn get_cpu(&self) -> &Cpu {
+        &self.cpu
     }
 
-    pub fn get_joypad(&self) -> Rc<RefCell<Joypad>> {
-        self.joypad.clone()
+    pub fn get_cpu_mut(&mut self) -> &mut Cpu {
+        &mut self.cpu
     }
 
-    pub fn get_memory_bus(&self) -> Rc<RefCell<MemoryBus>> {
-        self.memory_bus.clone()
+    pub fn get_joypad(&self) -> &Joypad {
+        &self.memory_bus.joypad
     }
 
-    pub fn get_ppu(&self) -> Rc<RefCell<BasePpu>> {
-        self.ppu.clone()
+    pub fn get_joypad_mut(&mut self) -> &mut Joypad {
+        &mut self.memory_bus.joypad
+    }
+
+    pub fn get_memory_bus(&self) -> &MemoryBus {
+        &self.memory_bus
+    }
+
+    pub fn get_memory_bus_mut(&mut self) -> &mut MemoryBus {
+        &mut self.memory_bus
+    }
+
+    pub fn get_ppu(&self) -> &BasePpu {
+        &self.memory_bus.ppu
     }
 
     pub fn get_screen(&self) -> Vec<TileColor> {
-        self.ppu.borrow().get_screen().to_vec()
+        self.memory_bus.ppu.get_screen()
     }
 
     pub fn get_screen_hash(&self) -> u64 {
@@ -181,6 +178,18 @@ impl GameBoyState {
         let hash = hasher.finish();
 
         hash
+    }
+
+    pub fn press_joypad_input(&mut self, joypad_input: JoypadInput) {
+        let prev_state = self.memory_bus.joypad.key_pressed(joypad_input);
+        // If previous state was not pressed, we send interrupt
+        if !prev_state {
+            self.memory_bus.interrupt_regs.interrupt(Interrupt::Joypad);
+        }
+    }
+
+    pub fn release_joypad_input(&mut self, joypad_input: JoypadInput) {
+        self.memory_bus.joypad.key_released(joypad_input);
     }
 }
 
@@ -203,35 +212,27 @@ impl std::fmt::Display for GameboyDebugInfo {
     }
 }
 
-pub enum Interrupt {
-    VBlank,
-    Stat,
-    Timer,
-    Joypad,
-}
-
 #[wasm_bindgen]
 impl GameBoyState {
     pub fn new() -> Self {
         console_error_panic_hook::set_once();
 
-        let ppu = Rc::new(RefCell::new(BasePpu::new()));
-        let apu = Rc::new(RefCell::new(Apu::new()));
-        let joypad = Rc::new(RefCell::new(Joypad::new()));
-        let timer = Rc::new(RefCell::new(Timer::new()));
-        let memory_bus = Rc::new(RefCell::new(MemoryBus::new(
-            ppu.clone(),
-            apu.clone(),
-            joypad.clone(),
-            timer.clone(),
-        )));
+        let ppu = BasePpu::new();
+        let apu = Apu::new();
+        let joypad = Joypad::new();
+        let timer = Timer::new();
+        let memory_bus = MemoryBus::new(ppu, apu, joypad, timer);
         Self {
-            cpu: Rc::new(RefCell::new(CPU::new())),
-            ppu,
-            apu,
-            joypad,
-            timer,
-            memory_bus: memory_bus.clone(),
+            cpu: Cpu::new(),
+            // ppu,
+            // apu,
+            // joypad,
+            // timer,
+            memory_bus,
+
+            elapsed_since_ppu_step: 0,
+            // LCD starts in OAM search, which lasts for 80 dots
+            next_ppu_step: 80,
         }
     }
 
@@ -252,14 +253,16 @@ impl GameBoyState {
         array
     }
 
-    pub fn tick_for_frame(&mut self) -> u64 {
+    pub fn tick_for_frame(&mut self) -> u32 {
         let mut elapsed_cycles = 0;
-        let old_frame_count = self.ppu.borrow().get_frame_count();
+        // let old_frame_count = self.ppu.borrow().get_frame_count();
+        let old_frame_count = self.memory_bus.ppu.get_frame_count();
         loop {
             //println!("{:?}", self.debug_info());
             elapsed_cycles += self.tick();
 
-            if self.ppu.borrow().get_frame_count() > old_frame_count {
+            // if self.ppu.borrow().get_frame_count() > old_frame_count {
+            if self.memory_bus.ppu.get_frame_count() > old_frame_count {
                 break;
             }
         }
@@ -294,23 +297,16 @@ impl GameBoyState {
 
     pub fn press_key(&mut self, key: u8) {
         let joypad_input = Self::map_u8_to_joypad_input(key);
-        let prev_state = self.joypad.borrow_mut().key_pressed(joypad_input);
-        // If previous state was not pressed, we send interrupt
-        if !prev_state {
-            self.memory_bus
-                .borrow_mut()
-                .interrupt(Interrupt::Joypad)
-                .expect("error sending joypad interrupt");
-        }
+        self.press_joypad_input(joypad_input);
     }
 
     pub fn release_key(&mut self, key: u8) {
         let joypad_input = Self::map_u8_to_joypad_input(key);
-        self.joypad.borrow_mut().key_released(joypad_input);
+        self.release_joypad_input(joypad_input);
     }
 
     pub fn game_name(&self) -> Option<String> {
-        if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
+        if let Some(cartridge) = &self.memory_bus.cartridge {
             if let Some(cartridge_type) = &cartridge.cartridge_type {
                 return Some(cartridge_type.title.clone());
             }
@@ -320,7 +316,7 @@ impl GameBoyState {
     }
 
     pub fn saves_available(&self) -> bool {
-        if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
+        if let Some(cartridge) = &self.memory_bus.cartridge {
             if let Some(cartridge_type) = &cartridge.cartridge_type {
                 return cartridge_type.has_battery;
             }
@@ -330,7 +326,7 @@ impl GameBoyState {
     }
 
     pub fn get_save(&self) -> Option<Uint8Array> {
-        if let Some(cartridge) = &self.memory_bus.borrow().cartridge {
+        if let Some(cartridge) = &self.memory_bus.cartridge {
             let array = Uint8Array::new_with_length(cartridge.ram.len() as u32);
             array.copy_from(&cartridge.ram);
             Some(array)
@@ -342,7 +338,7 @@ impl GameBoyState {
     pub fn load_save(&mut self, ram: Uint8Array) -> bool {
         let ram: Vec<u8> = ram.to_vec();
 
-        if let Some(cartridge) = &mut self.memory_bus.borrow_mut().cartridge {
+        if let Some(cartridge) = &mut self.memory_bus.cartridge {
             if cartridge.ram.len() == ram.len() {
                 cartridge.ram = ram;
                 return true;
@@ -355,6 +351,6 @@ impl GameBoyState {
     }
 
     pub fn get_queued_audio(&mut self) -> Vec<f32> {
-        self.apu.borrow_mut().get_queued_audio()
+        self.memory_bus.apu.get_queued_audio()
     }
 }

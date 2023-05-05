@@ -1,5 +1,6 @@
 /roms
 /target
+output.wav
 
 # profiling data
 annotation.txt

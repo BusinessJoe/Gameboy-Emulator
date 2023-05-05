@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
-use crate::component::{Addressable, ElapsedTime, Steppable};
+use crate::component::{Addressable, BatchSteppable, ElapsedTime, Steppable};
 use crate::cpu::{instruction::*, register::*};
 use crate::error::Result;
 use crate::memory::MemoryBus;
-use log::{debug, info, trace};
+use log::{debug, info};
 
-pub struct CPU {
+pub struct Cpu {
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
@@ -16,9 +16,9 @@ pub struct CPU {
     pub(crate) opcode_queue: VecDeque<u8>,
 }
 
-impl CPU {
-    pub fn new() -> CPU {
-        let mut cpu = CPU {
+impl Cpu {
+    pub fn new() -> Cpu {
+        let mut cpu = Cpu {
             registers: Registers::default(),
             sp: 0,
             pc: 0,
@@ -46,12 +46,12 @@ impl CPU {
     fn check_single_interrupt(
         &mut self,
         memory_bus: &mut MemoryBus,
+        ie_flag: u8,
+        if_flag: u8,
         bit: u8,
         address: u16,
     ) -> Result<u8> {
         // Check IME flag and relevant bit in IE flag.
-        let ie_flag = memory_bus.read_u8(0xffff)?;
-        let if_flag = memory_bus.read_u8(0xff0f)?;
         if self.interrupt_enabled && ((ie_flag >> bit) & 1 == 1) && ((if_flag >> bit) & 1 == 1) {
             info!(
                 "Handling interrupt: {}",
@@ -66,7 +66,6 @@ impl CPU {
             );
 
             // Reset interrupt bit in IF flag
-            let if_flag = memory_bus.read_u8(0xff0f)?;
             memory_bus.write_u8(0xff0f, if_flag & !(1 << bit))?;
 
             // Reset IME flag
@@ -94,8 +93,14 @@ impl CPU {
     }
 
     fn check_interrupts(&mut self, memory_bus: &mut MemoryBus) -> Result<u8> {
+        let interrupt_enable = memory_bus.read_u8(0xffff)?;
+        let interrupt_flag = memory_bus.read_u8(0xff0f)?;
+
+        if interrupt_enable & 0b00100 != 0 && interrupt_flag & 0b00100 == 0 {
+            memory_bus.fast_forward_timer()?;
+        }
         // If IE and IF
-        if memory_bus.read_u8(0xFFFF)? & memory_bus.read_u8(0xFF0F)? != 0 {
+        if interrupt_enable & interrupt_flag != 0 {
             // Unhalt
             if self.halted {
                 info! {"Unhalting"};
@@ -105,8 +110,13 @@ impl CPU {
             for bit in 0..=4 {
                 if self.interrupt_enabled {
                     let address = 0x40 + bit * 0x8;
-                    let elapsed_cycles =
-                        self.check_single_interrupt(memory_bus, bit, address.into())?;
+                    let elapsed_cycles = self.check_single_interrupt(
+                        memory_bus,
+                        interrupt_enable,
+                        interrupt_flag,
+                        bit,
+                        address.into(),
+                    )?;
                     if elapsed_cycles > 0 {
                         return Ok(elapsed_cycles);
                     }
@@ -211,9 +221,11 @@ impl CPU {
     }
 }
 
-impl Steppable for CPU {
-    fn step(&mut self, state: &crate::gameboy::GameBoyState) -> Result<ElapsedTime> {
-        let mut memory_bus = state.memory_bus.borrow_mut();
+impl Steppable for Cpu {
+    type Context = MemoryBus;
+
+    fn step(&mut self, context: &mut Self::Context, _elapsed: u32) -> Result<ElapsedTime> {
+        let mut memory_bus = context;
 
         let mut elapsed_cycles = if !self.halted {
             // Get and execute opcode
@@ -225,10 +237,10 @@ impl Steppable for CPU {
             } else {
                 elapsed_cycles = self.execute_regular_opcode(&mut memory_bus, opcode)?;
             }
-            elapsed_cycles
+            elapsed_cycles * 4 // convert from M-cycles to T-cycles
         } else {
-            // Return 1 cycle
-            1
+            // Return 4 T-cycles (1 M-cycle)
+            4
         };
 
         elapsed_cycles += self.check_interrupts(&mut memory_bus)?;

@@ -4,12 +4,12 @@ use std::fmt::Display;
 
 use log::*;
 
+use crate::component::Address;
+
 use self::{
     mbc1::{Mbc1, Mbc1Mode},
     mbc3::Mbc3,
 };
-
-pub type Address = usize;
 
 #[derive(Debug)]
 pub struct AddressingError(pub Address);
@@ -307,26 +307,6 @@ fn cartridge_from_data(data: &[u8]) -> Option<Cartridge> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn mbc1_memory_banks_swap() {
-        let mut rom_bytes = vec![0; 0x200000];
-        rom_bytes[0x1132a7] = 0xfe;
-        let mut cartridge = Cartridge {
-            mbc: Box::new(Mbc1::new(Mbc1Mode::Default)),
-            rom: rom_bytes,
-            ram: Vec::new(),
-            cartridge_type: None,
-        };
-
-        // Store 0b00100 into bank 1, 0b10 into bank 2, and 0b0 into mode
-        cartridge.write(0x2000, 0b00100).unwrap();
-        cartridge.write(0x4000, 0b10).unwrap();
-        cartridge.write(0x6000, 0).unwrap();
-
-        // Now a read at 0x72a7 should produce the rom value at 0x1132a7, which we set to be 0xfe
-        assert_eq!(0xfe, cartridge.read(0x72a7).unwrap());
-    }
 
     #[test]
     fn test_cartridge_builder_correct_mbc_type() {

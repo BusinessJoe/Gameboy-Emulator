@@ -1,10 +1,9 @@
+use gameboy_emulator::cartridge::Cartridge;
 use gameboy_emulator::gameboy::GameBoyState;
 use gameboy_emulator::joypad::JoypadInput;
 use gameboy_emulator::ppu::TileColor;
-use gameboy_emulator::{cartridge::Cartridge, gameboy::Interrupt};
-use log::*;
 use ringbuf::Rb;
-use sdl2::{self, audio};
+use sdl2;
 use sdl2::audio::AudioQueue;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -15,7 +14,6 @@ use strum::IntoEnumIterator;
 
 use std::fs::{self, File};
 use std::path::Path;
-use std::time::{Duration, Instant};
 
 use clap::Parser;
 
@@ -42,7 +40,7 @@ fn main() -> Result<(), String> {
     print!("{}", &cartridge);
 
     let sdl_context = sdl2::init()?;
-    
+
     let mut canvas = init_sdl2_video(&sdl_context)?;
     let audio_queue = init_sdl2_audio(&sdl_context)?;
 
@@ -51,11 +49,8 @@ fn main() -> Result<(), String> {
         .load_cartridge(cartridge)
         .map_err(|e| e.to_string())?;
 
-    let joypad = gameboy_state.get_joypad();
-    let memory_bus = gameboy_state.get_memory_bus();
-
     let mut audio_data_history = ringbuf::HeapRb::<f32>::new(44100 * 30);
-    
+
     audio_queue.resume();
 
     'mainloop: loop {
@@ -68,18 +63,16 @@ fn main() -> Result<(), String> {
                 | Event::Quit { .. } => {
                     dbg!(gameboy_state.get_screen_hash());
                     println!("Saving audio");
-                    File::create(Path::new("output.wav")).and_then(|mut wav| {
-                        let data: Vec<f32> = audio_data_history.iter().copied().collect();
-                        let wav_header = wav::Header::new(
-                            wav::WAV_FORMAT_IEEE_FLOAT,
-                            1,
-                            44100,
-                            32
-                        );
-                        wav::write(wav_header, &wav::BitDepth::ThirtyTwoFloat(data), &mut wav)
-                    }).unwrap();
+                    File::create(Path::new("output.wav"))
+                        .and_then(|mut wav| {
+                            let data: Vec<f32> = audio_data_history.iter().copied().collect();
+                            let wav_header =
+                                wav::Header::new(wav::WAV_FORMAT_IEEE_FLOAT, 1, 44100, 32);
+                            wav::write(wav_header, &wav::BitDepth::ThirtyTwoFloat(data), &mut wav)
+                        })
+                        .unwrap();
                     println!("Audio saved");
-                    
+
                     break 'mainloop;
                 }
                 Event::KeyDown {
@@ -88,14 +81,7 @@ fn main() -> Result<(), String> {
                 } => {
                     for joypad_input in JoypadInput::iter() {
                         if map_joypad_to_keys(joypad_input).contains(&keycode) {
-                            let prev_state = joypad.borrow_mut().key_pressed(joypad_input);
-                            // If previous state was not pressed, we send interrupt
-                            if !prev_state {
-                                memory_bus
-                                    .borrow_mut()
-                                    .interrupt(Interrupt::Joypad)
-                                    .expect("error sending joypad interrupt");
-                            }
+                            gameboy_state.press_joypad_input(joypad_input);
                         }
                     }
                 }
@@ -105,7 +91,7 @@ fn main() -> Result<(), String> {
                 } => {
                     for joypad_input in JoypadInput::iter() {
                         if map_joypad_to_keys(joypad_input).contains(&keycode) {
-                            joypad.borrow_mut().key_released(joypad_input);
+                            gameboy_state.release_joypad_input(joypad_input);
                         }
                     }
                 }
@@ -206,7 +192,7 @@ fn render_screen(screen: Vec<TileColor>, canvas: &mut Canvas<Window>) {
                 TileColor::Debug => Color::RGB(255, 0, 0),
             };
             canvas.set_draw_color(color);
-            canvas.draw_point((x as i32, y as i32));
+            canvas.draw_point((x as i32, y as i32)).unwrap();
         }
     }
     canvas.present();

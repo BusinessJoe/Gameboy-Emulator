@@ -1,4 +1,4 @@
-use crate::{component::Address, Result, Error};
+use crate::{component::Address, Error, Result};
 
 use super::{dac::Dac, volume_envelope::VolumeEnvelope};
 
@@ -15,7 +15,7 @@ pub struct NoiseChannel {
 
     // control
     pub nr44: u8,
-    
+
     // linear feedback shift register is a 15-bits
     lfsr: u16,
 
@@ -26,7 +26,6 @@ pub struct NoiseChannel {
     pub on: bool,
     dac: Dac,
 }
-
 
 impl NoiseChannel {
     pub fn new() -> Self {
@@ -43,7 +42,7 @@ impl NoiseChannel {
 
             waveform_step: 1,
             on: false,
-            dac: Dac::new()
+            dac: Dac::new(),
         };
         channel.reset_frequency();
         channel
@@ -51,7 +50,7 @@ impl NoiseChannel {
 
     fn sample(&self) -> u8 {
         let current_waveform = self.waveform_amplitude();
-        
+
         current_waveform * self.volume_envelope.volume()
     }
 
@@ -69,9 +68,9 @@ impl NoiseChannel {
 
     pub fn sample_dac(&mut self) -> f32 {
         if !self.on {
-            return 0.
+            return 0.;
         }
-        
+
         self.dac.to_analog(self.sample())
     }
 
@@ -92,13 +91,13 @@ impl NoiseChannel {
 
         if self.length_timer > 0 {
             self.length_timer -= 1;
-            
+
             if self.length_timer == 0 {
                 self.disable()
             }
         }
     }
-    
+
     pub fn tick_volume_envelope(&mut self) {
         self.volume_envelope.tick();
     }
@@ -114,7 +113,7 @@ impl NoiseChannel {
         self.lfsr >>= 1;
     }
 
-    // The rate at which the channel clocks LFSR is 262144 / (r * 2^s) Hz = (1/4) / (r * 2^s) MHz, 
+    // The rate at which the channel clocks LFSR is 262144 / (r * 2^s) Hz = (1/4) / (r * 2^s) MHz,
     // where r is the value in the upper 4 bits of NR43 and s is the value in the lower 3 bits of NR43.
     // The channel takes a step once the frequency timer hits 0, then resets the timer.
     // Since the frequency timer is decremented at a rate of 4 MHz, it will reach zero
@@ -133,14 +132,14 @@ impl NoiseChannel {
     fn waveform_amplitude(&self) -> u8 {
         (self.lfsr & 1) as u8
     }
-    
+
     fn trigger(&mut self) {
         self.enable();
         if self.length_timer == 0 {
             self.length_timer = 64;
         }
         self.reset_frequency();
-        
+
         self.volume_envelope = VolumeEnvelope::new(self.nr42);
         self.lfsr = 0xffff;
     }
@@ -151,7 +150,10 @@ impl NoiseChannel {
             0xff21 => Ok(self.nr42),
             0xff22 => Ok(self.nr43),
             0xff23 => Ok(self.nr44 | 0b10111111),
-            _ => Err(Error::from_address_with_source(address, "square".to_string()))
+            _ => Err(Error::from_address_with_source(
+                address,
+                "square".to_string(),
+            )),
         }
     }
 
@@ -173,13 +175,17 @@ impl NoiseChannel {
                 if value & (1 << 7) != 0 {
                     self.trigger();
                 }
-            },
-            _ => return Err(Error::from_address_with_source(address, "channel1".to_string()))
+            }
+            _ => {
+                return Err(Error::from_address_with_source(
+                    address,
+                    "channel1".to_string(),
+                ))
+            }
         }
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

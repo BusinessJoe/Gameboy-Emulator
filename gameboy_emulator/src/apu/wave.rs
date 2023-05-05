@@ -1,4 +1,4 @@
-use crate::{component::Address, Result, Error};
+use crate::{component::Address, Error, Result};
 
 use super::dac::Dac;
 
@@ -20,7 +20,7 @@ pub struct WaveChannel {
 
     // wave pattern ram
     pub wave_pattern: [u8; 16],
-    
+
     // stores number of T-cycles until next waveform step
     freq_timer: u16,
 
@@ -28,7 +28,6 @@ pub struct WaveChannel {
     pub on: bool,
     dac: Dac,
 }
-
 
 impl WaveChannel {
     pub fn new() -> Self {
@@ -44,16 +43,15 @@ impl WaveChannel {
 
             waveform_step: 1,
             on: false,
-            dac: Dac::new()
+            dac: Dac::new(),
         };
         channel.reset_frequency();
         channel
     }
 
     fn sample(&self) -> u8 {
-
         let current_waveform = self.waveform_amplitude();
-        
+
         self.apply_volume(current_waveform)
     }
 
@@ -63,7 +61,7 @@ impl WaveChannel {
             1 => input,
             2 => input >> 1,
             3 => input >> 2,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -81,9 +79,9 @@ impl WaveChannel {
 
     pub fn sample_dac(&mut self) -> f32 {
         if !self.on {
-            return 0.
+            return 0.;
         }
-        
+
         self.dac.to_analog(self.sample())
     }
 
@@ -103,7 +101,7 @@ impl WaveChannel {
 
         if self.length_timer > 0 {
             self.length_timer -= 1;
-            
+
             if self.length_timer == 0 {
                 self.disable()
             }
@@ -131,7 +129,7 @@ impl WaveChannel {
             byte & 0b1111
         }
     }
-    
+
     fn trigger(&mut self) {
         self.enable();
         if self.length_timer == 0 {
@@ -147,7 +145,7 @@ impl WaveChannel {
             0xff1c => Ok(self.output_level | 0b10011111),
             0xff1d => Ok(0xff),
             0xff1e => Ok(self.nr34 | 0b10111111),
-            0xff30 ..= 0xff3f => Ok(self.wave_pattern[address - 0xff30]),
+            0xff30..=0xff3f => Ok(self.wave_pattern[address - 0xff30]),
             _ => unreachable!(),
         }
     }
@@ -171,8 +169,8 @@ impl WaveChannel {
                 if value & (1 << 7) != 0 {
                     self.trigger();
                 }
-            },
-            0xff30 ..= 0xff3f => self.wave_pattern[address - 0xff30] = value,
+            }
+            0xff30..=0xff3f => self.wave_pattern[address - 0xff30] = value,
             _ => unreachable!(),
         }
         Ok(())
